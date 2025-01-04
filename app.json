@@ -2,6 +2,73 @@
   "expo": {
     "name": "cave-tools",
     "slug": "cave-tools",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "android": {
+      "package": "com.anonymous.cavetools",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.anonymous.cavetools",
+      "infoPlist": {
+        "NSCameraUsageDescription": "We need your camera to provide the requested photos by you.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "We need your location to provide better services.",
+        "NSLocationAlwaysUsageDescription": "We need your location to provide better services."
+      }
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#fff",
+          "image": "./src/assets/images/logo.png",
+          "dark": {
+            "image": "./src/assets/images/logo.png",
+            "backgroundColor": "#fff"
+          },
+          "imageWidth": 200
+        }
+      ],
+      [
+        "react-native-permissions",
+        {
+          "iosPermissions": [
+            "Camera",
+            "Microphone",
+            "LocationWhenInUse",
+            "LocationAccuracy"
+          ]
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you share them with your friends.",
+          "cameraPermission": "The app accesses your camera to let you take photos."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "The app accesses your camera to let you take photos."
+        }
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "The app accesses your camera to let you take photos."
+        }
+      ],
+      "expo-font",
+      "react-native-vision-camera"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "394df50b-3d89-425e-b54d-6a6ebb289c84"
+      }
+    }
   }
 }
