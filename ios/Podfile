@@ -47,6 +47,12 @@ target 'cavetools' do
   use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
   use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
 
+  # Add WatermelonDB dependency (uncomment if needed)
+  # pod 'WatermelonDB', path: '../node_modules/@nozbe/watermelondb'
+
+  # Add simdjson dependency for WatermelonDB
+  pod 'simdjson', path: '../node_modules/@nozbe/simdjson', modular_headers: true
+
   use_react_native!(
     :path => config[:reactNativePath],
     :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',

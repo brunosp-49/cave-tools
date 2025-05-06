@@ -36,6 +36,9 @@ interface InputProps {
   errorMessage?: string;
   onBlur?: () => void;
   mask?: string;
+  disabled?: boolean;
+  numberOfLines?: number;
+  autoCapitalize?: boolean;
 }
 
 export const Input: FC<InputProps> = ({
@@ -55,6 +58,9 @@ export const Input: FC<InputProps> = ({
   errorMessage = "",
   onBlur,
   mask,
+  disabled = false,
+  numberOfLines = 1,
+  autoCapitalize
 }) => {
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -88,6 +94,7 @@ export const Input: FC<InputProps> = ({
       <View style={[styles.inputContainer, hasError && styles.inputError]}>
         {onChangeTextMask ? (
           <MaskedTextInput
+            autoCapitalize={autoCapitalize ? "none" : "sentences"}
             style={[styles.input, { fontFamily: "Inter_500Medium" }]}
             placeholder={placeholder}
             placeholderTextColor={colors.dark[60]}
@@ -98,10 +105,15 @@ export const Input: FC<InputProps> = ({
             secureTextEntry={isPasswordVisible}
             onBlur={onBlur}
             mask={mask}
+            numberOfLines={numberOfLines}
           />
         ) : (
           <TextInput
-            style={[styles.input, { fontFamily: "Inter_500Medium" }]}
+            style={[
+              styles.input,
+              { fontFamily: "Inter_500Medium" },
+              disabled && { color: colors.white[80] },
+            ]}
             placeholder={placeholder}
             placeholderTextColor={colors.dark[60]}
             onChangeText={onChangeText}
@@ -110,6 +122,9 @@ export const Input: FC<InputProps> = ({
             onSubmitEditing={onSubmitEditing}
             secureTextEntry={isPasswordVisible}
             onBlur={onBlur}
+            editable={!disabled}
+            numberOfLines={numberOfLines}
+            autoCapitalize={autoCapitalize ? "none" : "sentences"}
           />
         )}
         {secureTextEntry && (

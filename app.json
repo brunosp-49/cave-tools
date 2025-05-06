@@ -62,8 +62,30 @@
           "cameraPermissionText": "The app accesses your camera to let you take photos."
         }
       ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "extraPods": [
+              {
+                "name": "simdjson",
+                "configurations": [
+                  "Debug",
+                  "Release"
+                ],
+                "path": "../node_modules/@nozbe/simdjson",
+                "modular_headers": true
+              }
+            ]
+          }
+        }
+      ],
+      [
+        "@morrowdigital/watermelondb-expo-plugin"
+      ],
       "expo-font",
-      "react-native-vision-camera"
+      "react-native-vision-camera",
+      "expo-build-properties"
     ],
     "extra": {
       "eas": {

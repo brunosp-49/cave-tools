@@ -6,7 +6,7 @@ import TextInter from "../textInter";
 
 interface CheckboxProps {
   checked: boolean;
-  onChange: (e: boolean) => void;
+  onChange: () => void;
   label: string;
 }
 
@@ -17,7 +17,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({
 }) => {
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.checkboxContainer}>
+      <TouchableOpacity style={styles.checkboxContainer} onPress={onChange}>
         {checked ? <CheckedBox /> : <UncheckedBox />}
       </TouchableOpacity>
       <TextInter color={colors.dark[60]}>{label}</TextInter>

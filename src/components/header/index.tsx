@@ -1,10 +1,13 @@
 import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import ArrowCircleLeftIcon from "../icons/arrowCircleLeft";
-import { FC, ReactElement } from "react";
+import { FC, ReactElement, useState } from "react";
 import LinesMenu from "../icons/linesMenu";
 import TextInter from "../textInter";
 import { colors } from "../../assets/colors";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
+import { Ionicons } from "@expo/vector-icons";
+import { useInternetConnection } from "../../hook/useInternetConnection";
+import { UploadCavitiesModal } from "./modal/uploadModalCavities";
 
 interface HeaderProps {
   title?: string;
@@ -14,6 +17,8 @@ interface HeaderProps {
   onCustomReturn?: () => void;
   disableRightMenu?: boolean;
   helloLeftComponent?: ReactElement;
+  uploadButton?: boolean;
+  onUploadSuccess?: () => void;
 }
 
 export const Header: FC<HeaderProps> = ({
@@ -24,7 +29,32 @@ export const Header: FC<HeaderProps> = ({
   onCustomReturn,
   navigation,
   helloLeftComponent,
+  uploadButton,
+  onUploadSuccess
 }) => {
+  const [isUploadModalVisible, setIsUploadModalVisible] = useState(false);
+  const isConnected = useInternetConnection();
+
+  const handleOpenUploadModal = () => {
+    if (isConnected) {
+      setIsUploadModalVisible(true);
+    } else {
+      console.log("Cannot open upload modal: No internet connection.");
+    }
+  };
+
+  const handleCloseUploadModal = () => {
+    setIsUploadModalVisible(false);
+  };
+
+  const handleUploadSuccessAndClose = () => {
+    if (onUploadSuccess) {
+        onUploadSuccess(); // Call the callback passed from the screen
+    }
+    handleCloseUploadModal(); // Close the modal after success is handled
+}
+
+
   return (
     <View style={styles.container}>
       {!disableReturn ? (
@@ -48,7 +78,7 @@ export const Header: FC<HeaderProps> = ({
         <TextInter
           numberOfLines={2}
           color={colors.white[100]}
-          fontSize={21}
+          fontSize={title === "Login" ? 26 : 21}
           weight="medium"
           style={{
             maxWidth: "60%",
@@ -58,15 +88,31 @@ export const Header: FC<HeaderProps> = ({
           {title}
         </TextInter>
       ) : (
-        <View></View>
+        <View />
       )}
-      {!disableRightMenu && navigation ? (
+      {!disableRightMenu && navigation && !uploadButton ? (
         <TouchableOpacity onPress={() => navigation.openDrawer()}>
           <LinesMenu size={19} />
+        </TouchableOpacity>
+      ) : !disableRightMenu && uploadButton ? (
+        <TouchableOpacity
+          disabled={!isConnected}
+          onPress={handleOpenUploadModal}
+        >
+          <Ionicons
+            name="cloud-upload-sharp"
+            size={30}
+            color={isConnected ? colors.accent[100] : colors.dark[60]}
+          />
         </TouchableOpacity>
       ) : (
         <View style={{ width: 19, height: 19 }}></View>
       )}
+      <UploadCavitiesModal
+        visible={isUploadModalVisible}
+        onClose={() => setIsUploadModalVisible(false)}
+        onUploadSuccess={handleUploadSuccessAndClose}
+      />
     </View>
   );
 };

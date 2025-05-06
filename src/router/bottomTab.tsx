@@ -1,7 +1,6 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { colors } from "../assets/colors";
-import { HomeScreen } from "../view/home";
 import { Platform, StyleSheet, View } from "react-native";
 import PlusIcon from "../components/icons/plusIcon";
 import DashboardIcon from "../components/icons/dashboardIcon";
@@ -10,6 +9,7 @@ import RegisterCavity from "../view/registerCavity";
 import Dashboard from "../view/dashboard";
 import HomeIconSelected from "../components/icons/homeIconSelected";
 import DashboardIconSelected from "../components/icons/dashboardIconSelected";
+import { HomeScreen } from "../view/home";
 
 const Tab = createBottomTabNavigator();
 

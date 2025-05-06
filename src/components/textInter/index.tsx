@@ -35,7 +35,7 @@ const TextInter: React.FC<InterTextProps> = ({
 
   // Show loading state if fonts are not loaded yet
   if (!fontsLoaded) {
-    return <Text>Loading...</Text>;
+    return <Text></Text>;
   }
 
   // Choose the appropriate font family based on the `weight` prop

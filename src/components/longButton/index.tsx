@@ -35,7 +35,7 @@ export const LongButton: React.FC<LongButtonProps> = ({
           : { backgroundColor: colors.dark[50] },
         disabled && { backgroundColor: colors.accent[10] },
       ]}
-      disabled={disabled}
+      disabled={disabled || isLoading}
       onPress={onPress}
     >
       {isLoading ? (

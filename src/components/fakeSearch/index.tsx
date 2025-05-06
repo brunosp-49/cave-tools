@@ -16,6 +16,7 @@ import {
 import { FC } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import TextInter from "../textInter";
+import { useAppSelector } from "../../hook";
 
 interface SearchProps {
   placeholder: string;
@@ -23,6 +24,7 @@ interface SearchProps {
 }
 
 export const FakeSearch: FC<SearchProps> = ({ placeholder, onPress }) => {
+  const { searchCharacterization } = useAppSelector((state) => state.user);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -38,7 +40,9 @@ export const FakeSearch: FC<SearchProps> = ({ placeholder, onPress }) => {
         </TouchableOpacity>
         <View style={styles.input}>
           <TextInter color={colors.dark[60]} weight="medium">
-            {placeholder}
+            {searchCharacterization.length
+              ? searchCharacterization
+              : placeholder}
           </TextInter>
         </View>
       </View>

@@ -15,7 +15,7 @@ interface DefaultModalProps {
   onConfirm: () => void;
   titleButtonConfirm?: string;
   onCustomCancel?: () => void;
-  titleButtonCancel: string;
+  titleButtonCancel?: string;
 }
 
 export const DefaultModal: FC<DefaultModalProps> = ({

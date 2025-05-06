@@ -1,94 +1,152 @@
-import React, { FC } from "react";
+import React, { FC, useCallback } from "react";
 import { StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { colors } from "../../../assets/colors";
-import { Checkbox } from "../../../components/checkbox";
-import TextInter from "../../../components/textInter";
 import { Divider } from "../../../components/divider";
 import { Input } from "../../../components/input";
+import { Checkbox } from "../../../components/checkbox";
+import TextInter from "../../../components/textInter";
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, RootState } from "../../../redux/store";
+import { updateCavidadeData } from "../../../redux/cavitySlice";
+import { Dificuldades_externas } from "../../../types";
 
 export const StepTwo = () => {
+  const dispatch = useDispatch<AppDispatch>();
+  const cavidade = useSelector((state: RootState) => state.cavity.cavidade);
+  const dificuldadesExternas = cavidade.dificuldades_externas ?? {};
+
+  const handleUpdate = (path: (string | number)[], value: any) => {
+    dispatch(updateCavidadeData({ path, value }));
+  };
+
+  const handleLinearDevChange = (text: string) => {
+    const num = parseFloat(text);
+    handleUpdate(["desenvolvimento_linear"], isNaN(num) ? undefined : num);
+  };
+
+  const handleCheckboxChange = useCallback(
+    (fieldName: keyof Dificuldades_externas) => {
+      const currentState = dificuldadesExternas || {};
+      const currentValue = currentState[fieldName] || false;
+      const isTurningOn = !currentValue;
+
+      const basePath = ["dificuldades_externas"];
+      const path = [...basePath, fieldName];
+      handleUpdate(path, isTurningOn);
+
+      const nenhumaKey: keyof Dificuldades_externas = "nenhuma";
+
+      const specificDifficultyKeys: (keyof Dificuldades_externas)[] = [
+        "rastejamento",
+        "quebra_corpo",
+        "teto_baixo",
+        "natacao",
+        "sifao",
+        "blocos_instaveis",
+        "lances_verticais",
+        "cachoeira",
+        "trechos_escorregadios",
+        "passagem_curso_agua",
+        // Adicione outras chaves se existirem no seu tipo Dificuldades_externas
+      ];
+
+      if (fieldName === nenhumaKey && isTurningOn) {
+        specificDifficultyKeys.forEach((key) => {
+          if (currentState[key] !== false) {
+            const keyPath = [...basePath, key];
+            handleUpdate(keyPath, false);
+          }
+        });
+      } else if (specificDifficultyKeys.includes(fieldName) && isTurningOn) {
+        if (currentState[nenhumaKey] !== false) {
+          const nenhumaPath = [...basePath, nenhumaKey];
+          handleUpdate(nenhumaPath, false);
+        }
+      }
+    },
+    [dificuldadesExternas, handleUpdate]
+  );
   return (
     <View style={styles.container}>
       <Divider />
-      <TextInter color={colors.white[100]} fontSize={19} weight="medium">
-        Características da entrada
-      </TextInter>
-      <Divider />
+      <Input
+        placeholder="Especifique aqui"
+        label="Desenvolvimento linear"
+        keyboardType="numeric"
+        value={String(cavidade.desenvolvimento_linear ?? "")}
+        onChangeText={handleLinearDevChange}
+      />
       <TextInter color={colors.white[100]} weight="medium">
-        Inserção
+        Dificuldades externas
       </TextInter>
       <Divider height={12} />
       <Checkbox
-        label="Afloramento rochoso contínuo"
-        checked={false}
-        onChange={() => {}}
+        label="Rastejamento"
+        checked={dificuldadesExternas?.rastejamento || false}
+        onChange={() => handleCheckboxChange("rastejamento")}
       />
       <Divider height={12} />
       <Checkbox
-        label="Afloramento isolado"
-        checked={true}
-        onChange={() => {}}
+        label="Quebra corpo"
+        checked={dificuldadesExternas?.quebra_corpo || false}
+        onChange={() => handleCheckboxChange("quebra_corpo")}
       />
       <Divider height={12} />
       <Checkbox
-        label="Escarpa rochosa contínua"
-        checked={false}
-        onChange={() => {}}
+        label="Teto baixo"
+        checked={dificuldadesExternas?.teto_baixo || false}
+        onChange={() => handleCheckboxChange("teto_baixo")}
       />
       <Divider height={12} />
       <Checkbox
-        label="Escarpa rochosa descontínua"
-        checked={false}
-        onChange={() => {}}
-      />
-      <Divider height={12} />
-      <Checkbox label="Dolina" checked={true} onChange={() => {}} />
-      <Divider height={12} />
-      <Checkbox label="Depósito de talús" checked={false} onChange={() => {}} />
-      <Divider height={12} />
-      <Checkbox label="Outro" checked={true} onChange={() => {}} />
-      <Divider height={12} />
-      <Input placeholder="Especifique aqui" label="Outro" />
-      <TextInter color={colors.white[100]} weight="medium">
-        Posição na vertente
-      </TextInter>
-      <Divider height={12} />
-      <Checkbox label="Topo" checked={false} onChange={() => {}} />
-      <Divider height={12} />
-      <Checkbox label="Alta" checked={true} onChange={() => {}} />
-      <Divider height={12} />
-      <Checkbox label="Média" checked={false} onChange={() => {}} />
-      <Divider height={12} />
-      <Checkbox label="Baixa" checked={false} onChange={() => {}} />
-      <Divider height={12} />
-      <TextInter color={colors.white[100]} weight="medium">
-        Vegetação Regional
-      </TextInter>
-      <Divider height={12} />
-      <Checkbox label="Cerrado" checked={false} onChange={() => {}} />
-      <Divider height={12} />
-      <Checkbox label="Campo rupestre" checked={true} onChange={() => {}} />
-      <Divider height={12} />
-      <Checkbox
-        label="Floresta estacional semidecidual"
-        checked={false}
-        onChange={() => {}}
+        label="Natação"
+        checked={dificuldadesExternas?.natacao || false}
+        onChange={() => handleCheckboxChange("natacao")}
       />
       <Divider height={12} />
       <Checkbox
-        label="Floresta ombrófila"
-        checked={false}
-        onChange={() => {}}
+        label="Sifão"
+        checked={dificuldadesExternas?.sifao || false}
+        onChange={() => handleCheckboxChange("sifao")}
       />
       <Divider height={12} />
-      <Checkbox label="Mata seca" checked={false} onChange={() => {}} />
+      <Checkbox
+        label="Blocos instáveis"
+        checked={dificuldadesExternas?.blocos_instaveis || false}
+        onChange={() => handleCheckboxChange("blocos_instaveis")}
+      />
       <Divider height={12} />
-      <Checkbox label="Campo sujo" checked={false} onChange={() => {}} />
+      <Checkbox
+        label="Lances verticais"
+        checked={dificuldadesExternas?.lances_verticais || false}
+        onChange={() => handleCheckboxChange("lances_verticais")}
+      />
       <Divider height={12} />
-      <Checkbox label="Outro" checked={false} onChange={() => {}} />
-      <Divider height={16} />
-      <Input placeholder="Especifique aqui" label="Outro" />
+      <Checkbox
+        label="Cachoeira"
+        checked={dificuldadesExternas?.cachoeira || false}
+        onChange={() => handleCheckboxChange("cachoeira")}
+      />
+      <Divider height={12} />
+      <Checkbox
+        label="Trechos escorregadios"
+        checked={dificuldadesExternas?.trechos_escorregadios || false}
+        onChange={() => handleCheckboxChange("trechos_escorregadios")}
+      />
+      <Divider height={12} />
+      <Checkbox
+        label="Passagem em curso d'água"
+        checked={dificuldadesExternas?.passagem_curso_agua || false}
+        onChange={() => handleCheckboxChange("passagem_curso_agua")}
+      />
+      <Divider height={12} />
+      <Checkbox
+        label="Nenhum"
+        checked={dificuldadesExternas?.nenhuma || false}
+        onChange={() => handleCheckboxChange("nenhuma")}
+      />
+      <Divider height={12} />
       <StatusBar style="light" />
     </View>
   );

@@ -1,44 +1,82 @@
-import React, { useState, useEffect, FC, useRef } from "react";
-import { StyleSheet, View, Image, Modal, TouchableOpacity } from "react-native";
-import { launchImageLibraryAsync } from "expo-image-picker";
+import React, { useState, useEffect, FC, useRef, useMemo } from "react";
+import {
+  FlatList,
+  Image,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { Divider } from "../../../components/divider";
 import { Select } from "../../../components/select";
 import { Input } from "../../../components/input";
+import { useDispatch, useSelector } from "react-redux";
+import { showError } from "../../../redux/loadingSlice";
+import { Camera } from "react-native-vision-camera";
+import { CavityModal } from "./cavityModal";
 import TextInter from "../../../components/textInter";
 import { colors } from "../../../assets/colors";
 import { LongButton } from "../../../components/longButton";
-import Geolocation from "@react-native-community/geolocation";
-import { useDispatch } from "react-redux";
-import { showError } from "../../../redux/loadingSlice";
-import { requestPermissions } from "../../../util";
-import UploadIcon from "../../../components/icons/uploadIcon";
-import { CustomSelect } from "../../../components/customSelect";
-import {
-  Camera,
-  CameraDevice,
-  useCameraDevice,
-  useCameraFormat,
-} from "react-native-vision-camera";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { Entrada, ProjectModel } from "../../../types";
+import { RootState } from "../../../redux/store";
+import {
+  addEntrada,
+  removeEntrada,
+  setEntradaPrincipal,
+  updateCavidadeData,
+} from "../../../redux/cavitySlice";
+import { fetchAllProjects } from "../../../db/controller";
+import Project from "../../../db/model/project";
 
 interface SelectOption {
   id: string;
   value: string;
 }
 
+const ufOptions: SelectOption[] = [
+  { id: 'AC', value: 'Acre' },
+  { id: 'AL', value: 'Alagoas' },
+  { id: 'AP', value: 'Amapá' },
+  { id: 'AM', value: 'Amazonas' },
+  { id: 'BA', value: 'Bahia' },
+  { id: 'CE', value: 'Ceará' },
+  { id: 'DF', value: 'Distrito Federal' },
+  { id: 'ES', value: 'Espírito Santo' },
+  { id: 'GO', value: 'Goiás' },
+  { id: 'MA', value: 'Maranhão' },
+  { id: 'MT', value: 'Mato Grosso' },
+  { id: 'MS', value: 'Mato Grosso do Sul' },
+  { id: 'MG', value: 'Minas Gerais' },
+  { id: 'PA', value: 'Pará' },
+  { id: 'PB', value: 'Paraíba' },
+  { id: 'PR', value: 'Paraná' },
+  { id: 'PE', value: 'Pernambuco' },
+  { id: 'PI', value: 'Piauí' },
+  { id: 'RJ', value: 'Rio de Janeiro' },
+  { id: 'RN', value: 'Rio Grande do Norte' },
+  { id: 'RS', value: 'Rio Grande do Sul' },
+  { id: 'RO', value: 'Rondônia' },
+  { id: 'RR', value: 'Roraima' },
+  { id: 'SC', value: 'Santa Catarina' },
+  { id: 'SP', value: 'São Paulo' },
+  { id: 'SE', value: 'Sergipe' },
+  { id: 'TO', value: 'Tocantins' }
+].sort((a, b) => a.value.localeCompare(b.value));
+
 export const StepOne: FC = () => {
-  const [select, setSelect] = useState<SelectOption>({ id: "", value: "" });
-  const [latitude, setLatitude] = useState<string>("");
-  const [longitude, setLongitude] = useState<string>("");
-  const [showGeoInputs, setShowGeoInputs] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [cameraIsOpen, setCameraIsOpen] = useState<boolean>(false);
-  const device = useCameraDevice("back") as CameraDevice | undefined;
-
+  const [cavityModalIsOpen, setCavityModalIsOpen] = useState(false);
   const dispatch = useDispatch();
+  const cavidade = useSelector((state: RootState) => state.cavity.cavidade);
+  const entradas = cavidade.entradas || [];
+  const [projectOptions, setProjectOptions] = useState<SelectOption[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [selectedProject, setSelectedProject] = useState<SelectOption | null>(
+    null
+  );
 
-  const camera = useRef<Camera>(null);
+  const selectedUfOption = useMemo(() => {
+    return ufOptions.find(opt => opt.id === cavidade.uf);
+  }, [cavidade.uf]);
 
   useEffect(() => {
     const requestCameraPermission = async () => {
@@ -46,8 +84,8 @@ export const StepOne: FC = () => {
       if (status !== "granted") {
         dispatch(
           showError({
-            title: "Camera Permission Denied",
-            message: "Please allow camera access to take photos.",
+            title: "Permissão da Câmera Negada",
+            message: "Por favor, permita o acesso à câmera para adicionar fotos.",
           })
         );
       }
@@ -55,74 +93,54 @@ export const StepOne: FC = () => {
     requestCameraPermission();
   }, [dispatch]);
 
-  const getCurrentPosition = () => {
-    setIsLoading(true);
-    Geolocation.getCurrentPosition(
-      (position) => {
-        setIsLoading(false);
-        setLatitude(String(position.coords.latitude));
-        setLongitude(String(position.coords.longitude));
-        setShowGeoInputs(true);
-      },
-      (error) => {
-        dispatch(
-          showError({
-            title: "Erro ao obter localização",
-            message:
-              "Autorize e mantenha a localização ativa para coletar automaticamente a sua localização.",
-          })
-        );
-        requestPermissions();
-        setIsLoading(false);
-        console.error(error.code, error.message);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-    );
-  };
+  useEffect(() => {
+    let isMounted = true; // Prevent state update on unmounted component
+    const loadProjects = async () => {
+      setIsLoadingProjects(true);
+      try {
+        const projects: ProjectModel[] = await fetchAllProjects(); // Assuming Project type has _id and nome_projeto
+        console.log(projects)
+        if (isMounted) {
+          const options = projects.map((project) => ({
+            // Assuming WatermelonDB _id is available, otherwise use its primary ID column
+            id: String(project._id), // Use .id if available, fallback to _id
+            value: project.nome_projeto,
+          }));
+          console.log({ options });
+          setProjectOptions(options);
 
-  const pickImageFromGallery = async () => {
-    requestPermissions();
-    const result = await launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
-    }
-  };
-
-  const takePhotoWithCamera = async () => {
-    if (device) {
-      setCameraIsOpen(true);
-    }
-  };
-
-  const format = useCameraFormat(device, [
-    {
-      photoResolution: { width: 1280, height: 720 },
-      autoFocusSystem: "contrast-detection",
-    },
-  ]);
-
-  const handleCapture = async () => {
-    try {
-      console.log({ camera: camera.current });
-      if (camera.current === null) {
-        console.error("Camera reference is null");
-        return;
+          // If cavidade.projeto_id is already filled, find and set the selectedProject
+           if (cavidade.projeto_id) {
+             const current = options.find((opt) => opt.id === cavidade.projeto_id);
+             if (current) setSelectedProject(current);
+           }
+           setIsLoadingProjects(false);
+        }
+      } catch (error) {
+        console.error("Failed to load projects", error);
+        if (isMounted) setIsLoadingProjects(false);
       }
+    };
 
-      const file = await camera.current.takePhoto();
-      const imageUrl = `file://${file.path}`;
+    loadProjects();
+    return () => { isMounted = false; } // Cleanup function
+  }, [cavidade.projeto_id]);
 
-      setSelectedImage(imageUrl);
-      setCameraIsOpen(false);
-    } catch (error) {
-      console.error("Error during photo capture:", error);
-    }
+  const handleInputChange = (path: (string | number)[], value: any) => {
+    dispatch(updateCavidadeData({ path, value }));
+  };
+
+  const handleSetPrincipal = (indexToSet: number) => {
+    dispatch(setEntradaPrincipal(indexToSet));
+  };
+
+  const handleDeleteEntry = (indexToRemove: number) => {
+    dispatch(removeEntrada(indexToRemove));
+  };
+
+  const handleSaveEntry = (newEntry: Entrada) => {
+    dispatch(addEntrada(newEntry));
+    setCavityModalIsOpen(false);
   };
 
   return (
@@ -132,131 +150,139 @@ export const StepOne: FC = () => {
         placeholder="Selecione um projeto"
         label="Selecione o projeto"
         required
-        value={select.value}
-        onChangeText={(obj: SelectOption) => setSelect(obj)}
-        optionsList={[
-          { id: "1", value: "Projeto 1" },
-          { id: "2", value: "Projeto 2" },
-          { id: "3", value: "Projeto 3" },
-          { id: "4", value: "Projeto 4" },
-          { id: "5", value: "Projeto 5" },
-          { id: "6", value: "Projeto 6" },
-          { id: "7", value: "Projeto 7" },
-          { id: "8", value: "Projeto 8" },
-          { id: "9", value: "Projeto 9" },
-          { id: "10", value: "Projeto 10" },
-        ]}
+        value={selectedProject?.value || ""} // Display selected project name
+        onChangeText={(obj: SelectOption) => {
+          setSelectedProject(obj);
+          handleInputChange(["projeto_id"], obj.id); // Save project ID to Redux
+        }}
+        optionsList={projectOptions}
       />
       <Input
         placeholder="Digite o nome do responsável"
         label="Responsável pelo registro"
         required
+        value={cavidade.responsavel || ""}
+        onChangeText={(text) => handleInputChange(["responsavel"], text)}
       />
       <Input
         label="Nome da cavidade"
         placeholder="Digite o nome da cavidade"
         required
+        value={cavidade.nome_cavidade || ""}
+        onChangeText={(text) => handleInputChange(["nome_cavidade"], text)}
       />
-      <Input label="Nome do sistema" placeholder="Digite o nome do sistema" />
-      <Input label="Município" placeholder="Digite o nome do município" />
-      <Input label="Localidade" placeholder="Digite a localidade" />
-      <View style={styles.dubleInputContainer}>
-        <View style={styles.dubleLeftContainer}>
-          <Input label="UF" placeholder="Digite a UF" mask="99" />
-        </View>
-        <View style={styles.dubleRightContainer}>
-          <Input placeholder="DD/MM/AAAA" label="Data" mask="99/99/9999" />
-        </View>
-      </View>
-      <Input placeholder="Digite o DATUM" label="DATUM" />
+      <Input
+        label="Nome do sistema"
+        placeholder="Digite o nome do sistema"
+        value={cavidade.nome_sistema || ""}
+        onChangeText={(text) => handleInputChange(["nome_sistema"], text)}
+      />
+      <Input
+        label="Município"
+        placeholder="Digite o nome do município"
+        value={cavidade.municipio || ""}
+        onChangeText={(text) => handleInputChange(["municipio"], text)}
+      />
+      <Input
+        label="Localidade"
+        placeholder="Digite a localidade"
+        value={cavidade.localidade || ""}
+        onChangeText={(text) => handleInputChange(["localidade"], text)}
+      />
+      <Select
+        label="UF"
+        placeholder="Selecione a UF"
+        required
+        optionsList={ufOptions}
+        value={selectedUfOption?.value || ""}
+        onChangeText={(selectedOption: SelectOption) => {
+          handleInputChange(["uf"], selectedOption.id);
+        }}
+      />
+      <Input
+        placeholder="DD/MM/AAAA"
+        label="Data"
+        mask="99/99/9999"
+        keyboardType="numeric"
+        value={cavidade.data || ""}
+        onChangeTextMask={(text) => handleInputChange(["data"], text)}
+      />
       <TextInter color={colors.white[100]} weight="medium">
-        Coordenadas Geográficas *
+        Cavidades *
       </TextInter>
-      {!showGeoInputs ? (
-        <>
-          <Divider height={10} />
-          <LongButton
-            title="Inserir Manualmente"
-            onPress={() => setShowGeoInputs(true)}
-            disabled={isLoading}
-          />
-          <Divider height={10} />
-          <LongButton
-            title="Coletar Automaticamente"
-            onPress={getCurrentPosition}
-            isLoading={isLoading}
-          />
-        </>
-      ) : (
-        <>
-          <Divider height={10} />
-          <View style={styles.dubleInputContainer}>
-            <View style={styles.dubleLeftContainer}>
-              <Input
-                label="Longitude"
-                placeholder="Digite a longitude"
-                value={longitude}
-              />
-            </View>
-            <View style={styles.dubleRightContainer}>
-              <Input
-                placeholder="Digite a latitude"
-                label="Latitude"
-                value={latitude}
-              />
-            </View>
-          </View>
-        </>
-      )}
       <Divider />
-      <CustomSelect
-        label="Foto da entrada da cavidade"
-        optionsList={[
-          {
-            id: "1",
-            value: "Galeria",
-            onPress: pickImageFromGallery,
-          },
-          {
-            id: "2",
-            value: "Câmera",
-            onPress: takePhotoWithCamera,
-          },
-        ]}
-      >
-        <View style={styles.uploadContainer}>
-          {selectedImage ? (
+      {entradas.map((item, index) => (
+        <View key={index} style={{ marginBottom: 15 }}>
+          <View
+            style={{
+              backgroundColor: colors.dark[80],
+              height: 70,
+              borderRadius: 10,
+              paddingLeft: 10,
+              justifyContent: "space-between",
+              flexDirection: "row",
+              alignItems: "center",
+            }}
+          >
             <Image
-              source={{ uri: selectedImage }}
-              style={{ width: 177, height: 100 }}
+              source={{ uri: item.foto || undefined }}
+              style={{
+                width: 60,
+                height: 50,
+                borderRadius: 5,
+              }}
             />
-          ) : (
-            <>
-              <UploadIcon />
-              <TextInter weight="regular" color={colors.dark[60]}>
-                Selecionar Imagem
+            <TouchableOpacity
+              onPress={() => !item.principal && handleSetPrincipal(index)}
+              disabled={item.principal}
+              style={{ flexDirection: "row", alignItems: "center" }}
+            >
+              <TextInter
+                color={item.principal ? colors.white[100] : colors.white[80]}
+                weight="medium"
+                fontSize={12}
+                style={{ marginRight: 10 }}
+              >
+                Principal
               </TextInter>
-            </>
-          )}
+              <Ionicons
+                name="checkmark-circle"
+                size={24}
+                color={item.principal ? colors.accent[100] : colors.dark[70]}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{
+                width: "20%",
+                height: "100%",
+                backgroundColor: colors.dark[70],
+                justifyContent: "center",
+                alignItems: "center",
+                borderTopEndRadius: 10,
+                borderBottomEndRadius: 10,
+              }}
+            >
+              <Ionicons
+                name="trash-sharp"
+                size={24}
+                color={"#F4364C"}
+                onPress={() => handleDeleteEntry(index)}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
-      </CustomSelect>
-      <Modal visible={cameraIsOpen && Boolean(device)}>
-        <View style={styles.cameraContainer}>
-          {device && (
-            <Camera
-              ref={camera}
-              style={StyleSheet.absoluteFill}
-              device={device}
-              isActive={cameraIsOpen}
-              photo={true}
-              format={format}
-            />
-          )}
-          <TouchableOpacity style={styles.button} onPress={handleCapture}>
-            <Ionicons name="camera" size={30} color={"#5b5b5b"} />
-          </TouchableOpacity>
-        </View>
-      </Modal>
+      ))}
+      {entradas.length > 0 && <View style={{ height: 24 }} />}
+      <LongButton
+        title="Nova entrada"
+        onPress={() => setCavityModalIsOpen(true)}
+        leftIcon={<Ionicons name="add" size={30} color={colors.white[100]} />}
+      />
+      <CavityModal
+        isOpen={cavityModalIsOpen}
+        onClose={() => setCavityModalIsOpen(false)}
+        onSave={handleSaveEntry}
+      />
     </View>
   );
 };
@@ -267,45 +293,6 @@ const styles = StyleSheet.create({
     height: "100%",
     width: "100%",
     paddingBottom: 30,
-  },
-  dubleInputContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-  },
-  dubleLeftContainer: {
-    width: "47%",
-  },
-  dubleRightContainer: {
-    width: "47%",
-  },
-  uploadContainer: {
-    width: "100%",
-    height: 126,
-    backgroundColor: colors.dark[80],
-    borderRadius: 10,
-    marginTop: 6,
-    borderWidth: 1.8,
-    borderColor: colors.white[20],
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cameraContainer: {
-    flex: 1,
-  },
-  button: {
-    position: "absolute",
-    bottom: 70,
-    alignSelf: "center",
-    width: 80,
-    height: 80,
-    borderRadius: 80 / 2,
-    borderWidth: 5,
-    borderColor: colors.white[90],
-    backgroundColor: "rgba(255, 255, 255, 0.548)",
-    justifyContent: "center",
-    alignItems: "center",
   },
   buttonInside: {},
 });

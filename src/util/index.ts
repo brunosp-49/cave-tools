@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { PERMISSIONS, check, RESULTS, request } from "react-native-permissions";
+import { api } from "../api";
 
 export const validateEmail = (email: string) => {
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -30,27 +31,25 @@ export const checkIfIsBlank = (value: string) => {
   return value.trim() === "";
 };
 
-export function formatDate(dateString: string): string {
-  const date = new Date(dateString);
+export const formatDate = (date: string): string => {
+  try {
+    const [year, month, day] = date.split("T")[0].split("-");
+    const parsedDate = new Date(Number(year), Number(month) - 1, Number(day));
 
-  if (isNaN(date.getTime())) {
-    throw new Error(`Invalid date string: ${dateString}`);
+    if (isNaN(parsedDate.getTime())) {
+      return "Data inválida";
+    }
+
+    return parsedDate.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+  } catch (e) {
+    console.error("Error formatting date:", e);
+    return "Erro na data";
   }
-
-  const formatOptions = {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  };
-
-  const monthName = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(
-    date
-  );
-  const year = date.getFullYear();
-  const day = date.getDate();
-
-  return `${day} de ${monthName}, ${year}`;
-}
+};
 
 export const requestPermissions = async () => {
   try {
@@ -113,4 +112,46 @@ export const requestPermissions = async () => {
         .catch((err) => {});
     }
   } catch (err) {}
+};
+
+export const isTokenExpired = (lastLoginDate: string): boolean => {
+  const oneDayInMs = 24 * 60 * 60 * 1000;
+  const now = new Date();
+  const lastLogin = new Date(lastLoginDate);
+  return now.getTime() - lastLogin.getTime() > oneDayInMs;
+};
+
+export const refreshUserToken = async (refresh_token: string) => {
+  try {
+    const response = await api.post("/token/refresh/", {
+      refresh: refresh_token,
+    });
+
+    return response.data;
+  } catch (error: any) {
+    console.error("Failed to refresh token:", error?.message);
+    throw error;
+  }
+};
+
+export const isTokenAlmostExpired = (lastLogin: string, daysLimit = 30): boolean => {
+  const lastLoginDate = new Date(lastLogin);
+  const now = new Date();
+  const diffInMs = now.getTime() - lastLoginDate.getTime();
+  const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
+
+  return diffInDays >= daysLimit / 2 && diffInDays < daysLimit;
+};
+
+
+export const getDaysUntilExpiration = (lastLogin: string, daysLimit = 30): number => {
+  const lastLoginDate = new Date(lastLogin);
+  const expirationDate = new Date(lastLoginDate);
+  expirationDate.setDate(expirationDate.getDate() + daysLimit);
+
+  const now = new Date();
+  const diffInMs = expirationDate.getTime() - now.getTime();
+  const diffInDays = Math.ceil(diffInMs / (1000 * 60 * 60 * 24));
+
+  return diffInDays;
 };

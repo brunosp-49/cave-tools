@@ -33,14 +33,16 @@ const RadioButton: React.FC<RadioButtonProps> = ({
 
 interface RadioButtonGroupProps {
   options: { label: string; value: string; id: string; children?: ReactNode }[];
+  value: string | null;
   onValueChange: (value: string) => void;
 }
 
 const RadioButtonGroup: React.FC<RadioButtonGroupProps> = ({
   options,
+  value,
   onValueChange,
 }) => {
-  const [selectedValue, setSelectedValue] = useState<string | null>(null);
+  const [selectedValue, setSelectedValue] = useState<string | null>(value);
 
   const handleSelect = (value: string) => {
     setSelectedValue(value);

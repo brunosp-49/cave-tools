@@ -15,7 +15,7 @@ export const LabelText: FC<LabelTextProps> = ({ label, text }) => {
       <TextInter color={colors.white[80]} fontSize={13}>
         {label}
       </TextInter>
-      <Divider height={10} />
+      <Divider height={2} />
       <TextInter color={colors.white[100]} weight="regular">
         {text}
       </TextInter>

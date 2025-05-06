@@ -1,6 +1,5 @@
 // navigation/DrawerNavigator.tsx
-import React from "react";
-import { HomeScreen } from "../view/home";
+import React, { useCallback } from "react";
 import BottomTabNavigator from "./bottomTab";
 import { Login } from "../view/login";
 import { Register } from "../view/register";
@@ -18,7 +17,19 @@ import { LongButton } from "../components/longButton";
 import RegisterProject from "../view/registerProject";
 import SearchCavity from "../view/searchCavity";
 import { Ionicons } from "@expo/vector-icons";
-import AntDesign from '@expo/vector-icons/AntDesign';
+import AntDesign from "@expo/vector-icons/AntDesign";
+import { CharacterizationScreen } from "../view/characterization";
+import {
+  deleteAllCavities,
+  deleteAllProjects,
+  deleteUser,
+  fetchAllUsers,
+} from "../db/controller";
+import { DefaultModal } from "../components/modal/defaultModal";
+import { useInternetConnection } from "../hook/useInternetConnection";
+import { resetModalState, setModalLoading } from "../redux/userSlice";
+import { useDispatch } from "react-redux";
+import { resetLoadingState, setIsCheckingLoading } from "../redux/loadingSlice";
 
 const Drawer = createDrawerNavigator();
 
@@ -54,6 +65,11 @@ const DrawerNavigator = () => {
         component={SearchCavity}
         options={{ headerShown: false }}
       />
+      <Drawer.Screen
+        name="CharacterizationScreen"
+        component={CharacterizationScreen}
+        options={{ headerShown: false }}
+      />
     </Drawer.Navigator>
   );
 };
@@ -62,10 +78,30 @@ export default DrawerNavigator;
 
 const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
   const { navigation, state } = props;
+  const [confirmModalVisible, setConfirmModalVisible] = React.useState(false);
+  const isConnected = useInternetConnection();
+  const dispatch = useDispatch();
 
   // Determine the active route
   const activeRouteIndex = state?.index;
   const activeRouteName = state?.routeNames[activeRouteIndex];
+
+  const logoff = useCallback(async () => {
+    try {
+      dispatch(setModalLoading(true));
+      await deleteAllProjects();
+      await deleteAllCavities();
+      dispatch(resetModalState());
+      await deleteUser("2");
+      dispatch(resetLoadingState());
+      dispatch(setModalLoading(false));
+      setConfirmModalVisible(false);
+      navigation.navigate("Login");
+    } catch (error) {
+      console.error("Error during logoff:", error);
+      dispatch(setModalLoading(false));
+    }
+  }, [dispatch, navigation]);
 
   return (
     <DrawerContentScrollView
@@ -165,7 +201,18 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
           }}
         />
       </View>
-      <LongButton title="Sair" onPress={() => navigation.navigate("Login")} />
+      <LongButton
+        title="Sair"
+        onPress={() => setConfirmModalVisible(true)}
+        disabled={!isConnected}
+      />
+      <DefaultModal
+        isOpen={confirmModalVisible}
+        onClose={() => setConfirmModalVisible(false)}
+        onConfirm={logoff}
+        title="Atenção! Deseja sair?"
+        message="Ao sair, você perderá todas as cavidades não salvas online."
+      />
     </DrawerContentScrollView>
   );
 };

@@ -2,7 +2,10 @@
   "compilerOptions": {
     "strict": true,
     "jsx": "react-native",
-    "types": ["expo-camera"]
+    "types": ["expo-camera"],
+    "experimentalDecorators": true,
+    "typeRoots": ["./node_modules/@types", "./types"],
+    "typeRoots": ["./node_modules/@types", "./types"],
     // "baseUrl": ".",
     // "paths": {
     //   "@/*": ["src/*"]

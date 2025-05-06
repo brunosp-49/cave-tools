@@ -14,6 +14,9 @@ import { LongButton } from "../../components/longButton";
 import { colors } from "../../assets/colors";
 import { StatusBar } from "expo-status-bar";
 import { RouterProps } from "../../types";
+import { api } from "../../api";
+import { useDispatch } from "react-redux";
+import { showError } from "../../redux/loadingSlice";
 
 export const Register: FC<RouterProps> = ({ navigation }) => {
   const [buttonDisabled, setButtonDisabled] = useState(true);
@@ -52,6 +55,8 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
     error: false,
     errorMessage: "",
   });
+  const [loading, setLoading] = useState(false);
+  const dispatch = useDispatch();
 
   const checkPassword = (value: string) => {
     const passwordFilled = !checkIfIsBlank(value);
@@ -95,7 +100,6 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
       error: !nameFilled && cnpjFilled ? true : false,
       errorMessage: nameFilled ? "" : "Campo obrigatório",
     });
-    console.log(cnpjValue.length);
     setInstitutionalLinkCNPJ({
       ...institutionalLinkCNPJ,
       value: cnpjValue,
@@ -105,6 +109,34 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
           ? ""
           : "Quando o Nome institucional é preenchido, campo é obrigatório",
     });
+  };
+
+  const createAccount = async () => {
+    setLoading(true);
+    api
+      .post("/cadastro/", {
+        nome: name.value,
+        email: email.value,
+        formacao: formation.value,
+        vinculo_cnpj: institutionalLinkCNPJ.value,
+        vinculo_nome: institutionalLinkName.value,
+        senha: password.value,
+        senha2: confirmPassword.value,
+      })
+      .then((response) => {
+        console.log("Conta criada com sucesso", response);
+        navigation.navigate("Login");
+      })
+      .catch((error) => {
+        console.log(error.response);
+        dispatch(
+          showError({
+            title: "Erro ao criar conta",
+            message: "Verifique os dados e tente novamente.",
+          })
+        );
+        setLoading(false);
+      });
   };
 
   const handleInputChange = (field: string, value: string): void => {
@@ -149,7 +181,6 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
       password.error ||
       confirmPassword.error
     ) {
-      console.log(191);
       setButtonDisabled(true);
     }
     if (
@@ -166,7 +197,6 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
       password.value &&
       confirmPassword.value
     ) {
-      console.log(180);
       setButtonDisabled(false);
     }
   };
@@ -190,10 +220,12 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
           <Header
             title="Criar conta"
             disableRightMenu
+            onCustomReturn={() => navigation.navigate('Login')}
             navigation={navigation}
           />
           <View style={styles.body}>
             <Input
+              disabled={loading}
               placeholder="Digite seu nome"
               label="Nome"
               required
@@ -218,6 +250,7 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
               }}
             />
             <Input
+              disabled={loading}
               placeholder="Digite seu email"
               label="Email"
               required
@@ -244,6 +277,7 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
               }}
             />
             <Input
+              disabled={loading}
               placeholder="Digite sua formação"
               label="Formação"
               required
@@ -268,6 +302,7 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
               }}
             />
             <Input
+              disabled={loading}
               placeholder="Digite o nome do vínculo institucional"
               label="Vínculo Institucional (Nome)"
               value={institutionalLinkName.value}
@@ -278,6 +313,7 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
               }
             />
             <Input
+              disabled={loading}
               placeholder="Digite o CNPJ do vínculo institucional"
               label="Vínculo Institucional (CNPJ)"
               value={institutionalLinkCNPJ.value}
@@ -290,6 +326,7 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
               mask="99.999.999/9999-99"
             />
             <Input
+              disabled={loading}
               placeholder="Digite sua senha"
               label="Senha"
               required
@@ -300,6 +337,7 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
               secureTextEntry
             />
             <Input
+              disabled={loading}
               placeholder="Confirme sua senha"
               label="Confirme a senha"
               required
@@ -314,7 +352,8 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
             <Divider />
             <LongButton
               title="Criar Conta"
-              onPress={() => navigation.navigate("Tabs")}
+              onPress={() => createAccount()}
+              isLoading={loading}
               disabled={buttonDisabled}
             />
           </View>

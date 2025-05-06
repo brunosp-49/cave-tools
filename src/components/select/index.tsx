@@ -23,7 +23,7 @@ interface SelectProps {
   placeholder: string;
   onChangeText: (chosen: { id: string; value: string }) => void;
   value: string;
-  optionsList: Array<{ id: string; value: string }> | [];
+  optionsList: Array<any> | [];
   onSubmitEditing?: () => void;
   required?: boolean;
   hasError?: boolean;
@@ -73,7 +73,8 @@ export const Select: FC<SelectProps> = ({
         ) : (
           <>
             <View style={styles.input}>
-              {value ? (
+              {
+              value ? (
                 <TextInter color={colors.white[100]}>{value}</TextInter>
               ) : (
                 <TextInter color={colors.dark[60]}>{placeholder}</TextInter>
@@ -114,7 +115,7 @@ export const Select: FC<SelectProps> = ({
                       weight="medium"
                       fontSize={17}
                     >
-                      {item.value}
+                      {item.label ? item.label : item.value}
                     </TextInter>
                   </TouchableOpacity>
                 )}
@@ -202,5 +203,7 @@ const styles = StyleSheet.create({
   rowContainer: {
     height: 58,
     justifyContent: "center",
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.white[20],
   },
 });
