@@ -8,4 +8,5 @@ export default class User extends Model {
   @field('token') token!: string;
   @field('refresh_token') refresh_token!: string;
   @field('last_login_date') last_login_date!: string;
+  @field('user_name') user_name!: string;
 }

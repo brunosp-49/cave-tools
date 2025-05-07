@@ -4,22 +4,59 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { colors } from "../../assets/colors";
-import { updateCurrentStep } from "../../redux/cavitySlice";
-import { useSelector, useDispatch } from "react-redux";
 import { Header } from "../../components/header";
-import TextInter from "../../components/textInter";
 import { FC, useState } from "react";
 import { RouterProps } from "../../types";
 import { SuccessModal } from "../../components/modal/successModal";
 import { Input } from "../../components/input";
 import { Divider } from "../../components/divider";
+import { NextButton } from "../../components/button/nextButton";
+import { ReturnButton } from "../../components/button/returnButton";
+import { createProject, fetchAllUsers } from "../../db/controller";
+import uuid from "react-native-uuid";
+import { useDispatch } from "react-redux";
+import { showError } from "../../redux/loadingSlice";
 
 const RegisterProject: FC<RouterProps> = ({ navigation }) => {
   const [successSuccessModal, setSuccessModal] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [date, setDate] = useState("");
+  const dispatch = useDispatch();
+
+  const saveProject = async () => {
+    try {
+      const user = await fetchAllUsers();
+      if (user.length === 0) {
+        throw new Error("Erro ao cadastrar, tente novamente");
+      }
+      await createProject({
+        id: uuid.v4(),
+        descricao_projeto: description,
+        nome_projeto: name,
+        fk_cliente: user[0].user_id,
+        inicio: date
+          ? (() => {
+              const [d, m, y] = date.split("/").map(Number);
+              return new Date(y, m - 1, d, 12).toISOString();
+            })()
+          : new Date().toISOString(),
+      });
+      setSuccessModal(true);
+    } catch (error) {
+      console.log(error);
+      dispatch(
+        showError({
+          message: "Erro ao cadastrar o projeto",
+          title: "Por favor, tente novamente.",
+        })
+      );
+    }
+  };
+
   return (
     <SafeAreaView style={styles.main}>
       <KeyboardAvoidingView
@@ -37,36 +74,45 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
             />
             <Divider />
             <View style={styles.bodyContainer}>
-              <Input placeholder="Nome do Projeto" label="Nome" />
               <Input
+                placeholder="Nome do Projeto"
+                label="Nome"
+                value={name}
+                onChangeText={setName}
+              />
+              {/* <Input
                 placeholder="Nome do usuário"
                 label="Usuário responsável"
+              /> */}
+              <Input
+                placeholder="Descreva"
+                label="Descrição"
+                value={description}
+                onChangeText={setDescription}
               />
-              <Input placeholder="Descreva" label="Descrição" />
               <Input
                 placeholder="DD/MM/AAAA"
                 label="Data da Criação"
                 keyboardType="numeric"
                 mask="99/99/9999"
+                value={date}
+                onChangeTextMask={setDate}
               />
             </View>
             <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={styles.buttonReturn}
-                onPress={() => navigation.navigate("Tabs", { screen: "Home" })}
-              >
-                <TextInter color={colors.white[100]} weight="semi-bold">
-                  Voltar
-                </TextInter>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.buttonNext}
-                onPress={() => setSuccessModal(true)}
-              >
-                <TextInter color={colors.white[100]} weight="semi-bold">
-                  Confirmar
-                </TextInter>
-              </TouchableOpacity>
+              <ReturnButton
+                onPress={() => {
+                  setName("");
+                  setDescription("");
+                  setDate("");
+                  navigation.navigate("Tabs", { screen: "Home" });
+                }}
+              />
+              <NextButton
+                onPress={saveProject}
+                buttonTitle="Cadastrar"
+                disabled={!name || !description}
+              />
             </View>
           </View>
           <SuccessModal
@@ -106,22 +152,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     height: 58,
-  },
-  buttonNext: {
-    height: 58,
-    width: "47%",
-    backgroundColor: colors.accent[100],
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  buttonReturn: {
-    height: 58,
-    width: "47%",
-    backgroundColor: colors.dark[40],
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
   },
   bodyContainer: {
     flex: 1,

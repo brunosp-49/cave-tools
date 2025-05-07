@@ -1,12 +1,17 @@
-import { FlatList, Modal, SafeAreaView, StyleSheet, View } from "react-native";
+import {
+  Animated,
+  FlatList,
+  SafeAreaView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { Header } from "../../components/header";
 import { colors } from "../../assets/colors";
 import TextInter from "../../components/textInter";
 import { Divider } from "../../components/divider";
-import { FC, useState } from "react";
+import { FC, useCallback, useRef, useState } from "react";
 import { RouterProps } from "../../types";
 import HatManIcon from "../../components/icons/hatManIcon";
-import PapersIcon from "../../components/icons/papersIcon";
 import PieChartIcon from "../../components/icons/pieChart";
 import { MenuCard } from "./components/menuCard";
 import BookPenIcon from "../../components/icons/bookPenIcon";
@@ -14,14 +19,48 @@ import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../../redux/store";
 import { CheckProjectsModal } from "./components/checkProjectsLoadingModal";
 import { setIsCheckingLoading } from "../../redux/loadingSlice";
+import { Ionicons } from "@expo/vector-icons";
+import { useInternetConnection } from "../../hook/useInternetConnection";
+import { UploadDataModal } from "./components/modal/uploadModalData";
+import { useAppSelector } from "../../hook";
 
 export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch();
+  const [isUploadModalVisible, setIsUploadModalVisible] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const successOpacity = useRef(new Animated.Value(0)).current;
+  const { userName } = useAppSelector((state) => state.user);
+
   const checkingState = useSelector(
     (state: RootState) => state.loading.checkingLoading
   );
+  const isConnected = useInternetConnection();
 
-  console.log({ checkingState });
+  const handleUploadSuccess = useCallback(() => {
+    console.log("Upload successful on HomeScreen!");
+    // Show success message
+    setShowSuccessMessage(true);
+    Animated.timing(successOpacity, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+
+    // Hide message after a delay
+    const timer = setTimeout(() => {
+      Animated.timing(successOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => {
+        setShowSuccessMessage(false);
+      });
+    }, 3000); // Show for 3 seconds
+
+    return () => clearTimeout(timer); // Cleanup timer if component unmounts
+  }, [successOpacity]);
+
+  console.log({ userName });
 
   return (
     <SafeAreaView style={styles.main}>
@@ -32,7 +71,7 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
             <View>
               <TextInter color={colors.dark[60]}>👋 Olá!</TextInter>
               <TextInter fontSize={23} weight="medium" color={colors.white[90]}>
-                Fernanda
+                {userName.split(" ")[0]}
               </TextInter>
             </View>
           }
@@ -50,24 +89,35 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
               icon: <HatManIcon />,
               id: 1,
               onPress: () => navigation.navigate("CharacterizationScreen"),
+              disabled: isConnected,
             },
             {
               title: "Informações Topográficas",
-              icon: <BookPenIcon disabled/>,
+              icon: <BookPenIcon disabled />,
               id: 2,
               onPress: () => navigation.navigate(""),
-            },
-            {
-              title: "Encontrar Ficha de Caracterização",
-              icon: <PapersIcon disabled/>,
-              id: 3,
-              onPress: () => navigation.navigate(""),
+              disabled: isConnected,
             },
             {
               title: "Dashboard",
               icon: <PieChartIcon />,
               id: 4,
               onPress: () => navigation.navigate("Dashboard"),
+              disabled: isConnected,
+            },
+            {
+              title: "Enviar Dados Pendentes",
+              icon: (
+                <Ionicons
+                  name="cloud-upload"
+                  size={42}
+                  color={isConnected ? colors.accent[100] : colors.accent[30]}
+                  style={{ marginRight: 4 }}
+                />
+              ),
+              id: 5,
+              onPress: () => setIsUploadModalVisible(true),
+              disabled: !isConnected,
             },
           ]}
           keyExtractor={(item) => String(item.id)}
@@ -76,7 +126,7 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
               icon={item.icon}
               title={item.title}
               onPress={item.onPress}
-              disabled={item.id === 2 || item.id === 3}
+              disabled={item.id === 2 || item.id === 3 || !isConnected}
             />
           )}
           ItemSeparatorComponent={({}) => <Divider height={16} />}
@@ -86,7 +136,26 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
           navigation={navigation}
           onClose={() => dispatch(setIsCheckingLoading(false))}
         />
+        <UploadDataModal
+          visible={isUploadModalVisible}
+          onClose={() => setIsUploadModalVisible(false)}
+          onUploadSuccess={handleUploadSuccess}
+        />
       </View>
+      {showSuccessMessage && (
+        <Animated.View
+          style={[styles.successMessageContainer, { opacity: successOpacity }]}
+        >
+          <Ionicons
+            name="checkmark-circle"
+            size={20}
+            color={colors.white[100]}
+          />
+          <TextInter style={styles.successMessageText}>
+            Dados enviados com sucesso!
+          </TextInter>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 };
@@ -100,5 +169,29 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingBottom: 15,
+  },
+  successMessageContainer: {
+    position: "absolute",
+    bottom: 40,
+    left: 20,
+    right: 20,
+    backgroundColor: colors.accent[100], // Success color
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  successMessageText: {
+    color: colors.white[100],
+    fontSize: 14,
+    fontWeight: "500",
+    marginLeft: 8,
   },
 });

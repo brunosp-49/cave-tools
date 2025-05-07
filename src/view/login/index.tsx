@@ -77,15 +77,14 @@ export const Login: FC<RouterProps> = ({ navigation }) => {
         password: password,
       })
       .then((response) => {
-         // Ensure response structure is as expected
         if (response.status === 200 && response.data?.access && response.data?.refresh) {
-           // Store last login time - critical for token expiry checks later
           const loginTime = String(new Date());
           createUser({
-            user_id: "2", // FIXME: Hardcoded user_id '2' - get real ID if possible
+            user_id: "2",
             refresh_token: response.data.refresh,
             token: response.data.access,
-            last_login_date: loginTime, // Store login time
+            last_login_date: loginTime,
+            user_name: response.data.nome,
           })
           .then(() => {
             dispatch(resetLoadingState());
@@ -145,6 +144,7 @@ export const Login: FC<RouterProps> = ({ navigation }) => {
           if (response.length > 0) {
             console.log("Login: User found locally, navigating to Tabs.");
             navigation.navigate("Tabs"); // Navigate away immediately
+            setCheckingUser(false);
           } else {
             console.log("Login: No local user found. Will show login form.");
             setCheckingUser(false); // Allow login form to render

@@ -14,6 +14,8 @@ import { RouterProps } from "../../types";
 import { StepOne } from "./stepOne";
 import { StepTwo } from "./stepTwo";
 import { ScrollView } from "react-native-gesture-handler";
+import { NextButton } from "../../components/button/nextButton";
+import { ReturnButton } from "../../components/button/returnButton";
 
 const Dashboard: FC<RouterProps> = ({ navigation }) => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -41,22 +43,11 @@ const Dashboard: FC<RouterProps> = ({ navigation }) => {
             <StepComponent />
             {currentStep === 0 && (
               <View style={styles.buttonContainer}>
-                <TouchableOpacity
-                  style={styles.buttonReturn}
-                  onPress={() => {}}
-                >
-                  <TextInter color={colors.white[100]} weight="semi-bold">
-                    Limpar
-                  </TextInter>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.buttonNext}
+                <ReturnButton buttonTitle="Limpar" onPress={() => {}} />
+                <NextButton
                   onPress={() => setCurrentStep(1)}
-                >
-                  <TextInter color={colors.white[100]} weight="semi-bold">
-                    Aplicar
-                  </TextInter>
-                </TouchableOpacity>
+                  buttonTitle="Aplicar"
+                />
               </View>
             )}
           </View>
@@ -88,21 +79,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     height: 58,
-  },
-  buttonNext: {
-    height: 58,
-    width: "47%",
-    backgroundColor: colors.accent[100],
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  buttonReturn: {
-    height: 58,
-    width: "47%",
-    backgroundColor: colors.dark[40],
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
   },
 });

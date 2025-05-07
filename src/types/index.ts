@@ -13,8 +13,9 @@ export interface RouterProps {
 export interface UserModel {
   token: string;
   refresh_token: string;
-  user_id: string;
+  user_id: string | number;
   last_login_date?: string; // ISO date string
+  user_name: string;
 }
 
 export interface Insercao {
@@ -551,15 +552,15 @@ export const batQuantidadeOptions: SelectOption<BatQuantidadeType | "">[] = [
 
 export interface ProjectPayload {
   id: string | number;
-  fk_cliente: number;
+  fk_cliente: string | number;
   nome_projeto: string;
   inicio: string;
   descricao_projeto: string;
 }
 
 export interface ProjectModel {
-  _id: number;
-  fk_cliente: number;
+  _id: string;
+  fk_cliente: string;
   nome_projeto: string;
   inicio: string;
   descricao_projeto: string;

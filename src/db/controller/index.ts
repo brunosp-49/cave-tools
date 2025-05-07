@@ -12,6 +12,8 @@ import { api } from "../../api";
 import store from "../../redux/store";
 import { showError } from "../../redux/loadingSlice";
 import Project from "../model/project";
+import User from "../model/user";
+import { setUserName } from "../../redux/userSlice";
 
 // POST
 export const createCavityRegister = async (
@@ -63,17 +65,18 @@ export const createCavityRegister = async (
 
 export const createUser = async (userData: UserModel): Promise<void> => {
   try {
-    const userCollection = database.collections.get("user");
+    const userCollection = database.collections.get<User>("user");
 
     await database.write(async () => {
-      await userCollection.create((user: any) => {
-        user._raw.id = userData.user_id;
+      await userCollection.create((user) => {
+        user._raw.id = String(userData.user_id);
         user.token = userData.token;
         user.refresh_token = userData.refresh_token;
         user.last_login_date = String(new Date());
+        user.user_name = userData.user_name;
       });
     });
-
+    store.dispatch(setUserName(userData.user_name));
     console.log("User created successfully!");
   } catch (error) {
     console.error("Error creating user:", error);
@@ -90,11 +93,11 @@ export const createProjects = async (
       for (const projectData of projects) {
         await projectCollection.create((project) => {
           project._raw.id = String(projectData.id);
-          project.fk_cliente = projectData.fk_cliente;
+          project.fk_cliente = String(projectData.fk_cliente);
           project.nome_projeto = projectData.nome_projeto;
           project.inicio = projectData.inicio;
           project.descricao_projeto = projectData.descricao_projeto;
-          project.uploaded = false;
+          project.uploaded = true;
         });
       }
     });
@@ -102,6 +105,27 @@ export const createProjects = async (
     console.log("Projects created successfully!");
   } catch (error) {
     console.error("Error creating projects:", error);
+  }
+};
+
+export const createProject = async (projectData: ProjectPayload): Promise<void> => {
+  try {
+    const projectCollection = database.collections.get<Project>("project");
+
+    await database.write(async () => {
+      await projectCollection.create((project) => {
+        project._raw.id = String(projectData.id);
+        project.fk_cliente = String(projectData.fk_cliente);
+        project.nome_projeto = projectData.nome_projeto;
+        project.inicio = String(new Date());
+        project.descricao_projeto = projectData.descricao_projeto;
+        project.uploaded = false;
+      });
+    });
+
+    console.log("Project created successfully!");
+  } catch (error) {
+    console.error("Error creating project:", error);
   }
 };
 
@@ -147,9 +171,22 @@ export const fetchPendingCavityCount = async (): Promise<number> => {
   }
 };
 
+export const fetchPendingProjectCount = async (): Promise<number> => {
+  try {
+    const projectCollection = database.collections.get<Project>("project");
+    const count = await projectCollection
+      .query(Q.where("uploaded", false))
+      .fetchCount();
+    return count;
+  } catch (error) {
+    console.error("Error fetching pending project count:", error);
+    return 0;
+  }
+};
+
 export const fetchAllUsers = async (): Promise<UserModel[]> => {
   try {
-    const userCollection = database.collections.get("user");
+    const userCollection = database.collections.get<User>("user");
     const users = await userCollection.query().fetch();
 
     return users.map((user: any) => user._raw);
@@ -165,7 +202,7 @@ export const fetchAllProjects = async (): Promise<ProjectModel[]> => {
     const projects = await projectCollection.query().fetch();
 
     return projects.map((project: any) => ({
-      _id: Number(project._raw.id),
+      _id: project._raw.id,
       fk_cliente: project.fk_cliente,
       nome_projeto: project.nome_projeto,
       inicio: project.inicio,
@@ -263,6 +300,74 @@ export const syncPendingCavities = async (): Promise<{
   }
 };
 
+
+export const syncPendingProjects = async (): Promise<{
+  success: boolean;
+  syncedCount: number;
+  error?: string;
+}> => {
+  console.log("Starting project sync process...");
+  const projectCollection = database.collections.get<Project>("project");
+  let projectsToSync: Project[] = [];
+
+  try {
+    projectsToSync = await projectCollection
+      .query(Q.where("uploaded", false))
+      .fetch();
+
+    if (projectsToSync.length === 0) {
+      console.log("No pending projects to sync.");
+      return { success: true, syncedCount: 0 };
+    }
+
+    console.log(`Found ${projectsToSync.length} projects to sync.`);
+
+    const payload: ProjectPayload[] = projectsToSync.map((project) => ({
+      id: project.id,
+      fk_cliente: project.fk_cliente,
+      nome_projeto: project.nome_projeto,
+      inicio: project.inicio,
+      descricao_projeto: project.descricao_projeto,
+    }));
+
+    console.log("Project sync payload:", payload);
+
+    // --- API Call for Projects ---
+    // const response = await api.post('/projetos/sync/', payload); // Example endpoint
+
+    // console.log("API project sync successful. Response data:", response.data);
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
+    console.log("Simulated API project sync successful.");
+    // --- End API Call ---
+
+    await database.write(async () => {
+      for (const project of projectsToSync) {
+        await project.update((rec) => {
+          rec.uploaded = true;
+        });
+      }
+    });
+
+    console.log(
+      `${projectsToSync.length} projects marked as uploaded locally.`
+    );
+    return { success: true, syncedCount: projectsToSync.length };
+  } catch (error: any) {
+    store.dispatch(
+      showError({
+        title: "Erro ao enviar projetos",
+        message: "Verifique sua conexão com a internet e tente novamente.",
+      })
+    );
+    console.error("Error during project sync process:", error);
+    return {
+      success: false,
+      syncedCount: 0,
+      error: error.message || "Unknown error during project sync",
+    };
+  }
+};
+
 export const updateCavity = async (
   registro_id: string,
   updatedData: Partial<CavityRegisterData>
@@ -294,7 +399,7 @@ export const updateUser = async (
   updatedData: Partial<UserModel>
 ): Promise<void> => {
   try {
-    const userCollection = database.collections.get("user");
+    const userCollection = database.collections.get<User>("user");
     const user = await userCollection.find(user_id);
 
     await database.write(async () => {
@@ -350,7 +455,7 @@ export const deleteAllCavities = async (): Promise<void> => {
 
 export const deleteUser = async (user_id: string): Promise<void> => {
   try {
-    const userCollection = database.collections.get("user");
+    const userCollection = database.collections.get<User>("user");
     console.log({ userCollection });
     const user = await userCollection.find(user_id);
     console.log({ user245: user });

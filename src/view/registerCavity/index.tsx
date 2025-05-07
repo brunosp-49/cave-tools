@@ -5,7 +5,6 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { colors } from "../../assets/colors";
@@ -29,6 +28,9 @@ import { StepTen } from "./stepTen";
 import { RootState } from "../../redux/store";
 import { createCavityRegister } from "../../db/controller";
 import { showError } from "../../redux/loadingSlice";
+import { NextButton } from "../../components/button/nextButton";
+import { ReturnButton } from "../../components/button/returnButton";
+import uuid from "react-native-uuid";
 
 const isFilled = (value: any): boolean => {
   if (value === null || typeof value === "undefined") {
@@ -331,7 +333,7 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
           },
         });
         await createCavityRegister({
-          registro_id: Math.random().toString(36).substring(2, 8),
+          registro_id: uuid.v4(),
           projeto_id: formData.projeto_id,
           responsavel: formData.responsavel,
           nome_cavidade: formData.nome_cavidade,
@@ -422,23 +424,14 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
             )}
           </View>
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.buttonReturn} onPress={handleBack}>
-              <TextInter color={colors.white[100]} weight="semi-bold">
-                Voltar
-              </TextInter>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.buttonNext,
-                !isCurrentStepValid && styles.buttonDisabled,
-              ]}
+            <ReturnButton onPress={handleBack} />
+            <NextButton
               onPress={handleNext}
               disabled={!isCurrentStepValid}
-            >
-              <TextInter color={colors.white[100]} weight="semi-bold">
-                {currentStep === steps.length - 1 ? "Cadastrar" : "Continuar"}
-              </TextInter>
-            </TouchableOpacity>
+              buttonTitle={
+                currentStep === steps.length - 1 ? "Cadastrar" : "Continuar"
+              }
+            />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -478,22 +471,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     marginTop: "auto",
-  },
-  buttonNext: {
-    height: 58,
-    width: "47%",
-    backgroundColor: colors.accent[100],
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  buttonReturn: {
-    height: 58,
-    width: "47%",
-    backgroundColor: colors.dark[40],
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
   },
   buttonDisabled: {
     backgroundColor: colors.dark[50],

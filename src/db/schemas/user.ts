@@ -6,5 +6,6 @@ export const user = tableSchema({
     { name: "token", type: "string" },
     { name: "refresh_token", type: "string" },
     { name: "last_login_date", type: "string" },
+    {name: "user_name", type: "string"},
   ],
 });

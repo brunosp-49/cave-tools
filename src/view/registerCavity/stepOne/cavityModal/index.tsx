@@ -34,6 +34,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Entrada } from "../../../../types";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
+import { NextButton } from "../../../../components/button/nextButton";
+import { ReturnButton } from "../../../../components/button/returnButton";
 
 interface Props {
   isOpen: boolean;
@@ -313,7 +315,12 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
   const handleCapture = useCallback(async () => {
     if (!camera.current) {
       console.error("Camera ref not available");
-      dispatch(showError({ title: "Erro", message: "Referência da câmera não encontrada." }));
+      dispatch(
+        showError({
+          title: "Erro",
+          message: "Referência da câmera não encontrada.",
+        })
+      );
       return;
     }
     setIsLoadingImage(true);
@@ -321,27 +328,37 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
     try {
       console.log("Attempting to take photo...");
       const photo = await camera.current.takePhoto({
-          flash: 'off',
+        flash: "off",
       });
       console.log("Photo taken successfully, path:", photo.path);
 
       setCameraIsOpen(false);
 
-      const fileUri = Platform.OS === 'android' ? `file://${photo.path}` : photo.path;
+      const fileUri =
+        Platform.OS === "android" ? `file://${photo.path}` : photo.path;
       const base64DataUri = await convertFileToBase64(fileUri);
       setSelectedImage(base64DataUri);
 
       // Optional: Delete temporary file if needed
       // await FileSystem.deleteAsync(fileUri, { idempotent: true });
-
     } catch (error) {
       console.error("Error taking photo:", error);
       setCameraIsOpen(false);
 
       if (error instanceof CameraRuntimeError) {
-          dispatch(showError({ title: "Erro de Câmera", message: `(${error.code}) ${error.message}` }));
+        dispatch(
+          showError({
+            title: "Erro de Câmera",
+            message: `(${error.code}) ${error.message}`,
+          })
+        );
       } else {
-          dispatch(showError({ title: "Erro de Captura", message: "Não foi possível tirar a foto." }));
+        dispatch(
+          showError({
+            title: "Erro de Captura",
+            message: "Não foi possível tirar a foto.",
+          })
+        );
       }
     } finally {
       setIsLoadingImage(false);
@@ -377,6 +394,69 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
     if (insercao.outro && !insercao.outroTexto.trim()) return false;
 
     return true;
+  };
+
+  const onSaveEntry = () => {
+    const pontoAtual = utmConverter.convertLatLngToUtm(
+      Number(latitude),
+      Number(longitude),
+      Math.floor(Number(accuracy))
+    );
+
+    const latRef = -19.123456;
+    const lonRef = -43.123456;
+    const pontoRef = utmConverter.convertLatLngToUtm(
+      latRef,
+      lonRef,
+      Math.floor(Number(accuracy))
+    );
+    console.log({ pontoAtual, pontoRef });
+    const graus_e = pontoAtual.Easting - pontoRef.Easting;
+    const graus_n = pontoAtual.Northing - pontoRef.Northing;
+    const erro_gps = Math.sqrt(Math.pow(graus_e, 2) + Math.pow(graus_n, 2));
+    console.log({ graus_e, graus_n, erro_gps });
+    onSave({
+      principal: false,
+      foto: selectedImage,
+      coordenadas: {
+        datum,
+        coleta_automatica: isAutoGeoInfos,
+        graus_e,
+        graus_n,
+        erro_gps,
+        satelites: Number(satellites),
+        utm: {
+          zona: utmZone,
+          utm_e: Number(utmE),
+          utm_n: Number(utmN),
+          erro_gps,
+          satelites: Number(satellites),
+          elevacao: Number(altitude),
+        },
+      },
+      caracteristicas: {
+        insercao: {
+          afloramento_isolado: insercao.afloramentoIsolado,
+          afloramento_rochoso_continuo: insercao.afloramentoContinuo,
+          deposito_talus: insercao.depositoTalus,
+          dolina: insercao.dolina,
+          escarpa_rochosa_continua: insercao.escarpaContinua,
+          escarpa_rochosa_descontinua: insercao.escarpaDescontinua,
+          outro: insercao.outroTexto,
+        },
+        posicao_vertente: posicaoVertente,
+        vegetacao: {
+          campo_rupestre: vegetacao.campoRupestre,
+          campo_sujo: vegetacao.campoSujo,
+          cerrado: vegetacao.cerrado,
+          floresta_ombrofila: vegetacao.florestaOmbrofila,
+          floresta_estacional_semidecidual: vegetacao.florestaSemidecidual,
+          mata_seca: vegetacao.mataSeca,
+          outro: vegetacao.outroTexto,
+        },
+      },
+    });
+    resetStates();
   };
 
   return (
@@ -735,120 +815,63 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
           </CustomSelect>
           <Divider />
           <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={styles.buttonReturn}
+            <ReturnButton
               onPress={() => {
                 resetStates();
                 onClose();
               }}
-            >
-              <TextInter color={colors.white[100]} weight="semi-bold">
-                Cancelar
-              </TextInter>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={
-                validateFields() ? styles.buttonNext : styles.buttonNextDisabled
-              }
+              buttonTitle="Cancelar"
+            />
+            <NextButton
               disabled={!validateFields()}
-              onPress={() => {
-                const pontoAtual = utmConverter.convertLatLngToUtm(
-                  Number(latitude),
-                  Number(longitude),
-                  Math.floor(Number(accuracy))
-                );
-
-                const latRef = -19.123456;
-                const lonRef = -43.123456;
-                const pontoRef = utmConverter.convertLatLngToUtm(
-                  latRef,
-                  lonRef,
-                  Math.floor(Number(accuracy))
-                );
-                console.log({ pontoAtual, pontoRef });
-                const graus_e = pontoAtual.Easting - pontoRef.Easting;
-                const graus_n = pontoAtual.Northing - pontoRef.Northing;
-                const erro_gps = Math.sqrt(
-                  Math.pow(graus_e, 2) + Math.pow(graus_n, 2)
-                );
-                console.log({ graus_e, graus_n, erro_gps });
-                onSave({
-                  principal: false,
-                  foto: selectedImage,
-                  coordenadas: {
-                    datum,
-                    coleta_automatica: isAutoGeoInfos,
-                    graus_e,
-                    graus_n,
-                    erro_gps,
-                    satelites: Number(satellites),
-                    utm: {
-                      zona: utmZone,
-                      utm_e: Number(utmE),
-                      utm_n: Number(utmN),
-                      erro_gps,
-                      satelites: Number(satellites),
-                      elevacao: Number(altitude),
-                    },
-                  },
-                  caracteristicas: {
-                    insercao: {
-                      afloramento_isolado: insercao.afloramentoIsolado,
-                      afloramento_rochoso_continuo:
-                        insercao.afloramentoContinuo,
-                      deposito_talus: insercao.depositoTalus,
-                      dolina: insercao.dolina,
-                      escarpa_rochosa_continua: insercao.escarpaContinua,
-                      escarpa_rochosa_descontinua: insercao.escarpaDescontinua,
-                      outro: insercao.outroTexto,
-                    },
-                    posicao_vertente: posicaoVertente,
-                    vegetacao: {
-                      campo_rupestre: vegetacao.campoRupestre,
-                      campo_sujo: vegetacao.campoSujo,
-                      cerrado: vegetacao.cerrado,
-                      floresta_ombrofila: vegetacao.florestaOmbrofila,
-                      floresta_estacional_semidecidual:
-                        vegetacao.florestaSemidecidual,
-                      mata_seca: vegetacao.mataSeca,
-                      outro: vegetacao.outroTexto,
-                    },
-                  },
-                });
-                resetStates();
-              }}
-            >
-              <TextInter color={colors.white[100]} weight="semi-bold">
-                Salvar
-              </TextInter>
-            </TouchableOpacity>
+              onPress={onSaveEntry}
+              buttonTitle="Salvar"
+            />
           </View>
           {device && ( // Conditionally render Camera Modal only if device exists
-          <Modal visible={cameraIsOpen} statusBarTranslucent animationType="fade">
-            <View style={styles.cameraContainer}>
-              <Camera
-                ref={camera}
-                style={StyleSheet.absoluteFill}
-                device={device}
-                isActive={cameraIsOpen} // Control activity based on state
-                photo={true}
-                format={format}
-                onError={(error) => console.error("Camera Runtime Error:", error)}
-              />
-              {/* Camera Controls Overlay */}
-              <View style={styles.cameraControls}>
-                  <TouchableOpacity style={styles.closeButton} onPress={() => setCameraIsOpen(false)} disabled={isLoadingImage}>
-                      <Ionicons name="close" size={35} color={"#fff"} />
+            <Modal
+              visible={cameraIsOpen}
+              statusBarTranslucent
+              animationType="fade"
+            >
+              <View style={styles.cameraContainer}>
+                <Camera
+                  ref={camera}
+                  style={StyleSheet.absoluteFill}
+                  device={device}
+                  isActive={cameraIsOpen} // Control activity based on state
+                  photo={true}
+                  format={format}
+                  onError={(error) =>
+                    console.error("Camera Runtime Error:", error)
+                  }
+                />
+                {/* Camera Controls Overlay */}
+                <View style={styles.cameraControls}>
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => setCameraIsOpen(false)}
+                    disabled={isLoadingImage}
+                  >
+                    <Ionicons name="close" size={35} color={"#fff"} />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.captureButton} onPress={handleCapture} disabled={isLoadingImage}>
-                      {isLoadingImage ? <ActivityIndicator color="#fff" size="large"/> : <Ionicons name="camera" size={35} color={"#fff"} />}
+                  <TouchableOpacity
+                    style={styles.captureButton}
+                    onPress={handleCapture}
+                    disabled={isLoadingImage}
+                  >
+                    {isLoadingImage ? (
+                      <ActivityIndicator color="#fff" size="large" />
+                    ) : (
+                      <Ionicons name="camera" size={35} color={"#fff"} />
+                    )}
                   </TouchableOpacity>
                   {/* Spacer to balance close button */}
-                  <View style={{width: 50}} />
+                  <View style={{ width: 50 }} />
+                </View>
               </View>
-            </View>
-          </Modal>
-      )}
+            </Modal>
+          )}
         </View>
       </ScrollView>
     </Modal>
@@ -912,59 +935,35 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 58,
   },
-  buttonNext: {
-    height: 58,
-    width: "47%",
-    backgroundColor: colors.accent[100],
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  buttonNextDisabled: {
-    height: 58,
-    width: "47%",
-    backgroundColor: colors.accent[10],
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  buttonReturn: {
-    height: 58,
-    width: "47%",
-    backgroundColor: colors.dark[40],
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   selectedImageStyle: {
     width: "100%",
     height: "100%",
   },
   cameraControls: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     paddingVertical: 20,
     paddingBottom: 40,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-},
-captureButton: {
-  width: 70,
-  height: 70,
-  borderRadius: 35,
-  backgroundColor: 'rgba(200, 200, 200, 0.6)',
-  justifyContent: 'center',
-  alignItems: 'center',
-  borderWidth: 4,
-  borderColor: 'white'
-},
-closeButton: {
+    backgroundColor: "rgba(0,0,0,0.5)",
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+  },
+  captureButton: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "rgba(200, 200, 200, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 4,
+    borderColor: "white",
+  },
+  closeButton: {
     // position: 'absolute', // Use layout instead if possible
     // left: 20,
     padding: 15,
-},
+  },
 });

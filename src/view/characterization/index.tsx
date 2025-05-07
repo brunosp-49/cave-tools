@@ -95,13 +95,13 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
       const monthLabels: { key: string; label: string }[] = [];
 
       for (let i = 0; i <= 5; i++) {
-          const dateIterator = new Date(now);
-          dateIterator.setMonth(now.getMonth() - i);
-          const year = dateIterator.getFullYear();
-          const month = dateIterator.getMonth();
-          const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-          monthlyCounts[monthKey] = 0;
-          monthLabels.push({ key: monthKey, label: getMonthAbbreviation(month) });
+        const dateIterator = new Date(now);
+        dateIterator.setMonth(now.getMonth() - i);
+        const year = dateIterator.getFullYear();
+        const month = dateIterator.getMonth();
+        const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+        monthlyCounts[monthKey] = 0;
+        monthLabels.push({ key: monthKey, label: getMonthAbbreviation(month) });
       }
       monthLabels.reverse();
 
@@ -110,8 +110,7 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
       const earliestYear = earliestMonthDate.getFullYear();
       const earliestMonth = earliestMonthDate.getMonth();
 
-
-      allCavities.forEach(cavity => {
+      allCavities.forEach((cavity) => {
         try {
           const dataString = String(cavity.data);
           const cavityDate = new Date(dataString);
@@ -120,28 +119,47 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
             const cavityYear = cavityDate.getFullYear();
             const cavityMonth = cavityDate.getMonth();
 
-            const isInRangeSameYear = cavityYear === currentYear && cavityMonth >= earliestMonth && cavityMonth <= currentMonth;
-            const isInRangePrevYear = cavityYear === earliestYear && earliestYear < currentYear && cavityMonth >= earliestMonth;
-            const isInRangeCurrentYearAfterWrap = cavityYear === currentYear && earliestYear < currentYear && cavityMonth <= currentMonth;
+            const isInRangeSameYear =
+              cavityYear === currentYear &&
+              cavityMonth >= earliestMonth &&
+              cavityMonth <= currentMonth;
+            const isInRangePrevYear =
+              cavityYear === earliestYear &&
+              earliestYear < currentYear &&
+              cavityMonth >= earliestMonth;
+            const isInRangeCurrentYearAfterWrap =
+              cavityYear === currentYear &&
+              earliestYear < currentYear &&
+              cavityMonth <= currentMonth;
 
+            if (
+              isInRangeSameYear ||
+              isInRangePrevYear ||
+              isInRangeCurrentYearAfterWrap
+            ) {
+              const monthKey = `${cavityYear}-${String(
+                cavityMonth + 1
+              ).padStart(2, "0")}`;
 
-            if (isInRangeSameYear || isInRangePrevYear || isInRangeCurrentYearAfterWrap) {
-                const monthKey = `${cavityYear}-${String(cavityMonth + 1).padStart(2, '0')}`;
-
-                if (monthlyCounts.hasOwnProperty(monthKey)) {
-                    monthlyCounts[monthKey]++;
-                } else {
-                    console.warn(`Month key ${monthKey} not found in initialized counts.`);
-                }
+              if (monthlyCounts.hasOwnProperty(monthKey)) {
+                monthlyCounts[monthKey]++;
+              } else {
+                console.warn(
+                  `Month key ${monthKey} not found in initialized counts.`
+                );
+              }
             }
           }
         } catch (dateError) {
-          console.warn(`Could not parse date for cavity ${cavity.id}: ${cavity.data}`, dateError);
+          console.warn(
+            `Could not parse date for cavity ${cavity.id}: ${cavity.data}`,
+            dateError
+          );
         }
       });
 
       let maxCount = 0;
-      const formattedChartData: barDataItem[] = monthLabels.map(monthInfo => {
+      const formattedChartData: barDataItem[] = monthLabels.map((monthInfo) => {
         const count = monthlyCounts[monthInfo.key] || 0;
         if (count > maxCount) {
           maxCount = count;
@@ -149,20 +167,25 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
         return {
           value: count,
           label: monthInfo.label,
-          onPress: () => handleBarPress({ label: monthInfo.label, value: count }),
+          onPress: () =>
+            handleBarPress({ label: monthInfo.label, value: count }),
         };
       });
 
       setChartData(formattedChartData);
       setChartMaxValue(maxCount < 4 ? 5 : maxCount + 1);
-      console.log("Chart data processed:", formattedChartData, "Max Value:", chartMaxValue);
-
+      console.log(
+        "Chart data processed:",
+        formattedChartData,
+        "Max Value:",
+        chartMaxValue
+      );
     } catch (error) {
       console.error("Error processing chart data:", error);
       setChartData([]);
       setChartMaxValue(5); // Reset to default on error
     } finally {
-        // setIsLoadingChart(false);
+      // setIsLoadingChart(false);
     }
   }, []);
 
@@ -170,13 +193,16 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
     console.log("Setting up observer for latest cavities list...");
     const cavityCollection = database.get<CavityRegister>("cavity_register");
     const query = cavityCollection.query(Q.sortBy("data", Q.desc), Q.take(10));
-    const subscription: Subscription = query.observeWithColumns(['uploaded']).subscribe({
-      next: (updatedCavities) => {
-        console.log("List Observer triggered, updating cavities state.");
-        setLatestCavities(updatedCavities);
-      },
-      error: (error) => console.error("Error observing list cavities:", error),
-    });
+    const subscription: Subscription = query
+      .observeWithColumns(["uploaded"])
+      .subscribe({
+        next: (updatedCavities) => {
+          console.log("List Observer triggered, updating cavities state.");
+          setLatestCavities(updatedCavities);
+        },
+        error: (error) =>
+          console.error("Error observing list cavities:", error),
+      });
 
     return () => {
       console.log("Unsubscribing from cavity list observer.");
@@ -212,14 +238,18 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
   }, []);
 
   const handleUploadComplete = useCallback(() => {
-    console.log("Upload complete signal received. Refetching list and chart data...");
+    console.log(
+      "Upload complete signal received. Refetching list and chart data..."
+    );
     fetchLatestCavities(false);
     processChartData();
     setSelectedBar(null);
   }, [fetchLatestCavities, processChartData]);
 
   const handleBarPress = useCallback((item: SelectedBarInfo) => {
-      setSelectedBar(prev => (prev?.label === item.label && prev?.value === item.value ? null : item));
+    setSelectedBar((prev) =>
+      prev?.label === item.label && prev?.value === item.value ? null : item
+    );
   }, []);
 
   const renderEmptyList = () => (
@@ -246,10 +276,9 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
         ) : (
           <>
             <Header
-              uploadButton
               title="Caracterização"
               onCustomReturn={() => navigation.navigate("Tabs")}
-              onUploadSuccess={handleUploadComplete}
+              navigation={navigation}
             />
             <Divider height={35} />
             <FakeSearch
@@ -264,33 +293,34 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
             <View style={styles.chartContainer}>
               {chartData.length > 0 ? (
                 <BarChart
-                barWidth={33}
-                // --- Use stepValue instead of noOfSections ---
-                stepValue={1} // Set step to 1 for integer labels
-                // noOfSections={5} // Remove or comment out noOfSections
-                // ---------------------------------------------
-                isAnimated
-                height={165}
-                width={chartWidth}
-                data={chartData} // Pass data with onPress handlers
-                spacing={15}
-                dashWidth={0.01}
-                yAxisThickness={0}
-                xAxisThickness={1.5}
-                xAxisColor={colors.dark[60]}
-                xAxisLabelsHeight={10}
-                xAxisLabelTextStyle={styles.axisLabel}
-                yAxisTextStyle={styles.axisLabel}
-                rulesColor={colors.dark[50]}
-                rulesType="solid"
-                yAxisLabelWidth={25}
-                maxValue={chartMaxValue} // Use dynamic max value (adjusted)
-                frontColor={colors.accent[100]}
-                focusBarOnPress // Enable focus on press
-                focusedBarConfig={{ // Style for the focused bar
+                  barWidth={33}
+                  // --- Use stepValue instead of noOfSections ---
+                  stepValue={1} // Set step to 1 for integer labels
+                  // noOfSections={5} // Remove or comment out noOfSections
+                  // ---------------------------------------------
+                  isAnimated
+                  height={165}
+                  width={chartWidth}
+                  data={chartData} // Pass data with onPress handlers
+                  spacing={15}
+                  dashWidth={0.01}
+                  yAxisThickness={0}
+                  xAxisThickness={1.5}
+                  xAxisColor={colors.dark[60]}
+                  xAxisLabelsHeight={10}
+                  xAxisLabelTextStyle={styles.axisLabel}
+                  yAxisTextStyle={styles.axisLabel}
+                  rulesColor={colors.dark[50]}
+                  rulesType="solid"
+                  yAxisLabelWidth={25}
+                  maxValue={chartMaxValue} // Use dynamic max value (adjusted)
+                  frontColor={colors.accent[100]}
+                  focusBarOnPress // Enable focus on press
+                  focusedBarConfig={{
+                    // Style for the focused bar
                     color: colors.opposite[100],
-                }}
-             />
+                  }}
+                />
               ) : (
                 <ActivityIndicator color={colors.accent[100]} />
               )}

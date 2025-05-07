@@ -19,6 +19,7 @@ export const colors = {
   },
   accent: {
     100: "#36B97C",
+    30: "#20b57073",
     10: "#A9A9A9",
   },
   opposite: {

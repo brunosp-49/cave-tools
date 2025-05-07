@@ -18,7 +18,7 @@ const loadingSlice = createSlice({
     setIsCheckingLoading: (state, action) => {
       state.checkingLoading = action.payload;
     },
-    showError: (state, action) => {
+    showError: (state, action: { payload: { title: string; message: string } }) => {
       state.hasError = true;
       state.errorTitle = action.payload.title;
       state.errorMessage = action.payload.message;

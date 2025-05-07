@@ -7,11 +7,13 @@ import { Divider } from "../divider";
 interface ProgressBarProps {
   finished: boolean;
   width?: DimensionValue;
+  currentProgress?: number;
 }
 
 const ProgressBar: React.FC<ProgressBarProps> = ({
   width = "100%",
   finished,
+  currentProgress,
 }) => {
   const [progress, setProgress] = useState(finished ? 100 : 0);
 
@@ -43,7 +45,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
       </View>
       <Divider height={12} />
       <TextInter fontSize={14} color={colors.white[100]}>
-        {progress}%
+        {currentProgress ? currentProgress : progress}%
       </TextInter>
       <Divider height={12} />
     </View>

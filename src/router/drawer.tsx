@@ -30,6 +30,7 @@ import { useInternetConnection } from "../hook/useInternetConnection";
 import { resetModalState, setModalLoading } from "../redux/userSlice";
 import { useDispatch } from "react-redux";
 import { resetLoadingState, setIsCheckingLoading } from "../redux/loadingSlice";
+import { useAppSelector } from "../hook";
 
 const Drawer = createDrawerNavigator();
 
@@ -81,6 +82,7 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
   const [confirmModalVisible, setConfirmModalVisible] = React.useState(false);
   const isConnected = useInternetConnection();
   const dispatch = useDispatch();
+  const { userName } = useAppSelector((state) => state.user);
 
   // Determine the active route
   const activeRouteIndex = state?.index;
@@ -118,9 +120,9 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
     >
       <View>
         <View style={{ paddingLeft: 0 }}>
-          <TextInter color={colors.dark[60]}>👋 Olá!</TextInter>
+          <TextInter color={colors.dark[60]}>👋 Olá!!</TextInter>
           <TextInter fontSize={23} weight="medium" color={colors.white[90]}>
-            Fernanda
+            {userName.split(" ")[0]}
           </TextInter>
         </View>
         <Divider height={15} />
