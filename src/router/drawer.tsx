@@ -31,6 +31,10 @@ import { resetModalState, setModalLoading } from "../redux/userSlice";
 import { useDispatch } from "react-redux";
 import { resetLoadingState, setIsCheckingLoading } from "../redux/loadingSlice";
 import { useAppSelector } from "../hook";
+import { ProjectScreen } from "../view/project";
+import SearchProject from "../view/searchProject";
+import EditProject from "../view/editProject";
+import EditCavity from "../view/editCavity";
 
 const Drawer = createDrawerNavigator();
 
@@ -67,8 +71,28 @@ const DrawerNavigator = () => {
         options={{ headerShown: false }}
       />
       <Drawer.Screen
+        name="SearchProject"
+        component={SearchProject}
+        options={{ headerShown: false }}
+      />
+      <Drawer.Screen
         name="CharacterizationScreen"
         component={CharacterizationScreen}
+        options={{ headerShown: false }}
+      />
+        <Drawer.Screen
+        name="ProjectScreen"
+        component={ProjectScreen}
+        options={{ headerShown: false }}
+      />
+      <Drawer.Screen
+        name="EditProject"
+        component={EditProject}
+        options={{ headerShown: false }}
+      />
+      <Drawer.Screen
+        name="EditCavity"
+        component={EditCavity}
         options={{ headerShown: false }}
       />
     </Drawer.Navigator>

@@ -23,6 +23,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useInternetConnection } from "../../hook/useInternetConnection";
 import { UploadDataModal } from "./components/modal/uploadModalData";
 import { useAppSelector } from "../../hook";
+import PapersIcon from "../../components/icons/papersIcon";
 
 export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -89,21 +90,28 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
               icon: <HatManIcon />,
               id: 1,
               onPress: () => navigation.navigate("CharacterizationScreen"),
-              disabled: isConnected,
+              disabled: false,
             },
             {
               title: "Informações Topográficas",
               icon: <BookPenIcon disabled />,
               id: 2,
               onPress: () => navigation.navigate(""),
-              disabled: isConnected,
+              disabled: true,
             },
             {
               title: "Dashboard",
               icon: <PieChartIcon />,
               id: 4,
               onPress: () => navigation.navigate("Dashboard"),
-              disabled: isConnected,
+              disabled: false,
+            },
+            {
+              title: "Projetos",
+              icon: <PapersIcon />,
+              id: 5,
+              onPress: () => navigation.navigate("ProjectScreen"),
+              disabled: false,
             },
             {
               title: "Enviar Dados Pendentes",
@@ -115,7 +123,7 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
                   style={{ marginRight: 4 }}
                 />
               ),
-              id: 5,
+              id: 6,
               onPress: () => setIsUploadModalVisible(true),
               disabled: !isConnected,
             },

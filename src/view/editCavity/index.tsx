@@ -1,4 +1,5 @@
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -8,16 +9,26 @@ import {
   View,
 } from "react-native";
 import { colors } from "../../assets/colors";
-import { resetCavidadeState, updateCurrentStep } from "../../redux/cavitySlice";
+import {
+  resetCavidadeState,
+  setFullInfos,
+  updateCurrentStep,
+} from "../../redux/cavitySlice";
 import { useSelector, useDispatch } from "react-redux";
 import { Header } from "../../components/header";
 import TextInter from "../../components/textInter";
-import { FC, useEffect, useMemo, useRef, useState } from "react";
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Biota, Cavidade, RouterProps } from "../../types";
 import { SuccessModal } from "../../components/modal/successModal";
+import { RootState } from "../../redux/store";
+import { createCavityRegister, updateCavity } from "../../db/controller";
+import { showError } from "../../redux/loadingSlice";
+import { NextButton } from "../../components/button/nextButton";
+import { ReturnButton } from "../../components/button/returnButton";
+import uuid from "react-native-uuid";
 import { StepOne } from "./stepOne";
 import { StepTwo } from "./stepTwo";
-import { StepThree } from "./stepThree";
+import StepThree from "./stepThree";
 import { StepFour } from "./stepFour";
 import { StepFive } from "./stepFive";
 import { StepSix } from "./stepSix";
@@ -25,12 +36,11 @@ import { StepSeven } from "./stepSeven";
 import { StepEight } from "./stepEight";
 import { StepNine } from "./stepNine";
 import { StepTen } from "./stepTen";
-import { RootState } from "../../redux/store";
-import { createCavityRegister } from "../../db/controller";
-import { showError } from "../../redux/loadingSlice";
-import { NextButton } from "../../components/button/nextButton";
-import { ReturnButton } from "../../components/button/returnButton";
-import uuid from "react-native-uuid";
+import { database } from "../../db";
+import CavityRegister from "../../db/model/cavityRegister";
+import { Divider } from "../../components/divider";
+import { useFocusEffect } from "@react-navigation/native";
+import { formatDateToInput } from "../../util";
 
 const isFilled = (value: any): boolean => {
   if (value === null || typeof value === "undefined") {
@@ -43,10 +53,8 @@ const isFilled = (value: any): boolean => {
     return false;
   }
   if (typeof value === "number" && isNaN(value)) {
-    // Check for NaN if applicable
     return false;
   }
-  // Note: Considers 0 and false as filled. Modify if needed.
   return true;
 };
 
@@ -248,9 +256,11 @@ const validateStep = (
   }
 };
 
-const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
+const EditCavity: FC<RouterProps> = ({ navigation, route }) => {
   const dispatch = useDispatch();
   const [successSuccessModal, setSuccessModal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { currentStep, formData } = useSelector((state: RootState) => ({
     currentStep: state.cavity.currentStep,
     formData: state.cavity.cavidade,
@@ -292,48 +302,7 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
         return;
       }
       if (currentStep === steps.length - 1) {
-        console.log({
-          formData,
-          sent: {
-            registro_id: Math.random().toString(36).substring(2, 8),
-            projeto_id: formData.projeto_id,
-            responsavel: formData.responsavel,
-            nome_cavidade: formData.nome_cavidade,
-            nome_sistema: formData.nome_sistema,
-            data: formData.data
-              ? new Date(formData.data.split("/").reverse().join("-"))
-              : null,
-            municipio: formData.municipio,
-            uf: formData.uf,
-            localidade: formData.localidade,
-            entradas: JSON.stringify(
-              formData.entradas.map((entrada) => ({
-                ...entrada,
-                foto: "data:image/jpeg;base64......",
-              }))
-            ),
-            desenvolvimento_linear: formData.desenvolvimento_linear,
-            dificuldades_externas: JSON.stringify(
-              formData.dificuldades_externas
-            ),
-            aspectos_socioambientais: JSON.stringify(
-              formData.aspectos_socioambientais
-            ),
-            caracterizacao_interna: JSON.stringify(
-              formData.caracterizacao_interna
-            ),
-            topografia: JSON.stringify(formData.topografia),
-            morfologia: JSON.stringify(formData.morfologia),
-            hidrologia: JSON.stringify(formData.hidrologia),
-            sedimentos: JSON.stringify(formData.sedimentos),
-            espeleotemas: JSON.stringify(formData.espeleotemas),
-            biota: JSON.stringify(formData.biota),
-            arqueologia: JSON.stringify(formData.arqueologia),
-            paleontologia: JSON.stringify(formData.paleontologia),
-          },
-        });
-        await createCavityRegister({
-          registro_id: uuid.v4(),
+        await updateCavity(route.params.cavityId ,{
           projeto_id: formData.projeto_id,
           responsavel: formData.responsavel,
           nome_cavidade: formData.nome_cavidade,
@@ -382,6 +351,94 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
     }
   };
 
+  const fetchCavity = useCallback(async () => {
+    if (!route.params.cavityId) {
+      setError("ID da cavidade não fornecido.");
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const cavityCollection =
+        database.collections.get<CavityRegister>("cavity_register");
+      const foundCavity = await cavityCollection.find(route.params.cavityId);
+      const formattedData: Cavidade = {
+        registro_id: foundCavity.registro_id,
+        projeto_id: foundCavity.projeto_id,
+        responsavel: foundCavity.responsavel,
+        nome_cavidade: foundCavity.nome_cavidade,
+        nome_sistema: foundCavity.nome_sistema,
+        data: formatDateToInput(foundCavity.data),
+        municipio: foundCavity.municipio,
+        uf: foundCavity.uf,
+        localidade: foundCavity.localidade,
+        desenvolvimento_linear:
+          foundCavity.desenvolvimento_linear ?? undefined,
+        entradas: foundCavity.entradas
+          ? JSON.parse(foundCavity.entradas)
+          : [], // Parse entrada JSON string
+        dificuldades_externas: foundCavity.dificuldades_externas
+          ? JSON.parse(foundCavity.dificuldades_externas)
+          : { nenhuma: true }, // Default if parsing fails
+        aspectos_socioambientais: foundCavity.aspectos_socioambientais
+          ? JSON.parse(foundCavity.aspectos_socioambientais)
+          : {
+              uso_cavidade: {},
+              comunidade_envolvida: { envolvida: false },
+              area_protegida: { nao_determinado: true },
+              infraestrutura_acesso: { nenhuma: true },
+            },
+        caracterizacao_interna: foundCavity.caracterizacao_interna
+          ? JSON.parse(foundCavity.caracterizacao_interna)
+          : {
+              grupo_litologico: {},
+              infraestrutura_interna: { nenhuma: true },
+              dificuldades_progressao_interna: { nenhuma: true },
+            },
+        topografia: foundCavity.topografia
+          ? JSON.parse(foundCavity.topografia)
+          : undefined,
+        morfologia: foundCavity.morfologia
+          ? JSON.parse(foundCavity.morfologia)
+          : undefined,
+        hidrologia: foundCavity.hidrologia
+          ? JSON.parse(foundCavity.hidrologia)
+          : undefined,
+        sedimentos: foundCavity.sedimentos
+          ? JSON.parse(foundCavity.sedimentos)
+          : undefined,
+        espeleotemas: foundCavity.espeleotemas
+          ? JSON.parse(foundCavity.espeleotemas)
+          : { possui: false, lista: [] },
+        biota: foundCavity.biota ? JSON.parse(foundCavity.biota) : undefined,
+        arqueologia: foundCavity.arqueologia
+          ? JSON.parse(foundCavity.arqueologia)
+          : { possui: false },
+        paleontologia: foundCavity.paleontologia
+          ? JSON.parse(foundCavity.paleontologia)
+          : { possui: false },
+      };
+      console.log({ formattedData });
+      dispatch(setFullInfos(formattedData));
+    } catch (err) {
+      console.error("Error fetching cavity details:", err);
+      setError("Erro ao carregar detalhes da cavidade.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [route.params.cavityId]);
+
+  useEffect(() => {
+    fetchCavity();
+  }, [fetchCavity]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchCavity();
+    }, [fetchCavity])
+  );
+
   const handleBack = () => {
     if (currentStep === 0) {
       navigation.navigate("CharacterizationScreen");
@@ -395,11 +452,45 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
   };
 
   const handleSuccessModalClose = () => {
-    navigation.navigate("Home");
+    navigation.navigate("CharacterizationScreen");
     setSuccessModal(false);
     dispatch(updateCurrentStep(0));
     dispatch(resetCavidadeState());
   };
+
+  if (isLoading) {
+    return (
+      <View
+        style={{
+          height: "100%",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <ActivityIndicator size="large" color={colors.accent[100]} />
+        <Divider />
+        <TextInter color={colors.white[100]} weight="medium">
+          Carregando detalhes...
+        </TextInter>
+      </View>
+    );
+  }
+
+  if (!isLoading && error) {
+    return (
+      <View style={styles.centered}>
+        <Header
+          title="Erro"
+          navigation={navigation}
+          onCustomReturn={() => navigation.navigate("ProjectScreen")}
+        />
+        <Divider />
+        <TextInter color={colors.error[100]} style={{ marginTop: 20 }}>
+          {error}
+        </TextInter>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.main}>
@@ -413,7 +504,7 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <Header title="Cadastrar Caverna" onCustomReturn={handleBack} />
+          <Header title="Editar Caverna" onCustomReturn={handleBack} />
           <View style={styles.stepContainer}>
             {StepComponent ? (
               <StepComponent navigation={navigation} />
@@ -427,7 +518,7 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
               onPress={handleNext}
               disabled={!isCurrentStepValid}
               buttonTitle={
-                currentStep === steps.length - 1 ? "Cadastrar" : "Continuar"
+                currentStep === steps.length - 1 ? "Editar" : "Continuar"
               }
             />
           </View>
@@ -435,15 +526,15 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
       </KeyboardAvoidingView>
       <SuccessModal
         visible={successSuccessModal}
-        title="Cadastro realizado com sucesso!"
-        message="Sua caverna foi cadastrada com sucesso no sistema."
+        title="Cavidade editada com sucesso!"
+        message="Sua caverna foi editada com sucesso."
         onPress={handleSuccessModalClose}
       />
     </SafeAreaView>
   );
 };
 
-export default RegisterCavity;
+export default EditCavity;
 
 const styles = StyleSheet.create({
   main: {
@@ -473,5 +564,11 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     backgroundColor: colors.dark[50],
     opacity: 0.7,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "flex-start",
+    alignItems: "center",
+    backgroundColor: colors.dark[90],
   },
 });

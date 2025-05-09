@@ -4,25 +4,26 @@ import {
   SafeAreaView,
   StyleSheet,
   View,
-  ActivityIndicator, // Import ActivityIndicator for loading
+  ActivityIndicator,
+  Platform,
+  ScrollView,
 } from "react-native";
-import { Header } from "../../components/header"; // Adjust path
-import { colors } from "../../assets/colors"; // Adjust path
-import TextInter from "../../components/textInter"; // Adjust path
-import { Divider } from "../../components/divider"; // Adjust path
+import { Header } from "../../components/header";
+import { colors } from "../../assets/colors";
+import TextInter from "../../components/textInter";
+import { Divider } from "../../components/divider";
 import { BarChart, barDataItem } from "react-native-gifted-charts";
-import { CavityCard } from "./components/cavityCard"; // Adjust path
-import { FC, useState, useEffect, useCallback } from "react"; // Import useEffect, useCallback
-import { RouterProps } from "../../types"; // Adjust path
-import { DetailScreen } from "./components/detailScreen"; // Adjust path
-import { FakeSearch } from "../../components/fakeSearch"; // Adjust path
-
-// --- WatermelonDB Imports ---
+import { CavityCard } from "./components/cavityCard";
+import { FC, useState, useEffect, useCallback } from "react";
+import { RouterProps } from "../../types";
+import { DetailScreenCavity } from "./components/detailScreenCavity";
+import { FakeSearch } from "../../components/fakeSearch";
 import { Q } from "@nozbe/watermelondb";
 import { Subscription } from "rxjs";
 import CavityRegister from "../../db/model/cavityRegister";
 import { database } from "../../db";
 import { useFocusEffect } from "@react-navigation/native";
+import { FakeBottomTab } from "../../components/fakeBottomTab";
 
 const getMonthAbbreviation = (monthIndex: number): string => {
   const months = [
@@ -66,9 +67,7 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
     console.log("Fetching latest cavities...");
     try {
       const cavityCollection = database.get<CavityRegister>("cavity_register");
-      const fetchedCavities = await cavityCollection
-        .query(Q.sortBy("data", Q.desc), Q.take(10))
-        .fetch();
+      const fetchedCavities = await cavityCollection.query(Q.sortBy("data", Q.desc)).fetch(); // Fetch all
       setLatestCavities(fetchedCavities);
     } catch (error) {
       console.error("Error fetching cavities:", error);
@@ -81,16 +80,13 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
 
   const processChartData = useCallback(async () => {
     console.log("Processing chart data...");
-    // Set a loading state specifically for the chart if needed
-    // setIsLoadingChart(true);
     try {
       const cavityCollection = database.get<CavityRegister>("cavity_register");
       const allCavities = await cavityCollection.query().fetch();
 
       const now = new Date();
       const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth(); // 0-11
-
+      const currentMonth = now.getMonth();
       const monthlyCounts: { [key: string]: number } = {};
       const monthLabels: { key: string; label: string }[] = [];
 
@@ -143,10 +139,6 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
 
               if (monthlyCounts.hasOwnProperty(monthKey)) {
                 monthlyCounts[monthKey]++;
-              } else {
-                console.warn(
-                  `Month key ${monthKey} not found in initialized counts.`
-                );
               }
             }
           }
@@ -183,16 +175,15 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
     } catch (error) {
       console.error("Error processing chart data:", error);
       setChartData([]);
-      setChartMaxValue(5); // Reset to default on error
+      setChartMaxValue(5);
     } finally {
-      // setIsLoadingChart(false);
     }
   }, []);
 
   useEffect(() => {
     console.log("Setting up observer for latest cavities list...");
     const cavityCollection = database.get<CavityRegister>("cavity_register");
-    const query = cavityCollection.query(Q.sortBy("data", Q.desc), Q.take(10));
+    const query = cavityCollection.query(Q.sortBy("data", Q.desc)); // Fetch all
     const subscription: Subscription = query
       .observeWithColumns(["uploaded"])
       .subscribe({
@@ -213,18 +204,10 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
   useFocusEffect(
     useCallback(() => {
       console.log("Screen focused, fetching data...");
-      // Fetch data for the list (showLoading=true for initial focus load)
       fetchLatestCavities(true);
-      // Fetch and process data for the chart
       processChartData();
-      // Hide tooltip when screen focuses
       setSelectedBar(null);
-
-      // Optional: Return a cleanup function if needed when screen blurs
-      // return () => {
-      //   console.log("Screen blurred");
-      // };
-    }, [fetchLatestCavities, processChartData]) // Dependencies for the focus effect
+    }, [fetchLatestCavities, processChartData])
   );
 
   const handleOpenDetail = useCallback((cavityId: string) => {
@@ -236,15 +219,6 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
     setDetailIsVisible(false);
     setSelectedCavityId(null);
   }, []);
-
-  const handleUploadComplete = useCallback(() => {
-    console.log(
-      "Upload complete signal received. Refetching list and chart data..."
-    );
-    fetchLatestCavities(false);
-    processChartData();
-    setSelectedBar(null);
-  }, [fetchLatestCavities, processChartData]);
 
   const handleBarPress = useCallback((item: SelectedBarInfo) => {
     setSelectedBar((prev) =>
@@ -266,90 +240,108 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.main}>
-      <View style={styles.container}>
-        {detailIsVisible && selectedCavityId ? (
-          <DetailScreen
-            cavityId={selectedCavityId}
-            navigation={navigation}
-            onClose={handleCloseDetail}
-          />
-        ) : (
-          <>
-            <Header
-              title="Caracterização"
-              onCustomReturn={() => navigation.navigate("Tabs")}
+      <ScrollView style={{ flex: 1 }}>{/* Make ScrollView take up available space */}
+        <View style={styles.container}>
+          {detailIsVisible && selectedCavityId ? (
+            <DetailScreenCavity
+              cavityId={selectedCavityId}
               navigation={navigation}
+              onClose={handleCloseDetail}
             />
-            <Divider height={35} />
-            <FakeSearch
-              placeholder="Ficha de Caracterização" // Improved placeholder
-              onPress={() => navigation.navigate("SearchCavity")}
-            />
-            <Divider height={24} />
-            <TextInter fontSize={19} weight="medium" color={colors.white[100]}>
-              Dashboard (Visão Geral)
-            </TextInter>
-            <Divider height={24} />
-            <View style={styles.chartContainer}>
-              {chartData.length > 0 ? (
-                <BarChart
-                  barWidth={33}
-                  // --- Use stepValue instead of noOfSections ---
-                  stepValue={1} // Set step to 1 for integer labels
-                  // noOfSections={5} // Remove or comment out noOfSections
-                  // ---------------------------------------------
-                  isAnimated
-                  height={165}
-                  width={chartWidth}
-                  data={chartData} // Pass data with onPress handlers
-                  spacing={15}
-                  dashWidth={0.01}
-                  yAxisThickness={0}
-                  xAxisThickness={1.5}
-                  xAxisColor={colors.dark[60]}
-                  xAxisLabelsHeight={10}
-                  xAxisLabelTextStyle={styles.axisLabel}
-                  yAxisTextStyle={styles.axisLabel}
-                  rulesColor={colors.dark[50]}
-                  rulesType="solid"
-                  yAxisLabelWidth={25}
-                  maxValue={chartMaxValue} // Use dynamic max value (adjusted)
-                  frontColor={colors.accent[100]}
-                  focusBarOnPress // Enable focus on press
-                  focusedBarConfig={{
-                    // Style for the focused bar
-                    color: colors.opposite[100],
-                  }}
-                />
-              ) : (
-                <ActivityIndicator color={colors.accent[100]} />
+          ) : (
+            <>
+              <Header
+                title="Caracterização"
+                onCustomReturn={() =>
+                  navigation.navigate("Tabs", { screen: "Home" })
+                }
+                navigation={navigation}
+              />
+              <Divider height={35} />
+              <FakeSearch
+                placeholder="Ficha de Caracterização"
+                onPress={() => navigation.navigate("SearchCavity")}
+              />
+              <Divider height={24} />
+              <TextInter
+                fontSize={19}
+                weight="medium"
+                color={colors.white[100]}
+              >
+                Dashboard (Visão Geral)
+              </TextInter>
+              <Divider height={24} />
+              <View style={styles.chartContainer}>
+                {chartData.length > 0 ? (
+                  <BarChart
+                    barWidth={33}
+                    stepValue={1}
+                    isAnimated
+                    height={165}
+                    width={chartWidth}
+                    data={chartData}
+                    spacing={15}
+                    dashWidth={0.01}
+                    yAxisThickness={0}
+                    xAxisThickness={1.5}
+                    xAxisColor={colors.dark[60]}
+                    xAxisLabelsHeight={10}
+                    xAxisLabelTextStyle={styles.axisLabel}
+                    yAxisTextStyle={styles.axisLabel}
+                    rulesColor={colors.dark[50]}
+                    rulesType="solid"
+                    yAxisLabelWidth={25}
+                    maxValue={chartMaxValue}
+                    frontColor={colors.accent[100]}
+                    focusBarOnPress
+                    focusedBarConfig={{
+                      color: colors.opposite[100],
+                    }}
+                  />
+                ) : (
+                  <ActivityIndicator color={colors.accent[100]} />
+                )}
+              </View>
+              {selectedBar && (
+                <View style={styles.selectedBarContainer}>
+                  <TextInter color={colors.white[100]}>
+                    {selectedBar.label}: {selectedBar.value}
+                  </TextInter>
+                </View>
               )}
-            </View>
-            <Divider height={30} />
-            <TextInter fontSize={19} weight="medium" color={colors.white[100]}>
-              Últimas Cavidades
-            </TextInter>
-            <Divider height={24} />
-            <FlatList
-              data={latestCavities}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <CavityCard
-                  cavity={item}
-                  onPress={() => handleOpenDetail(item.id)}
+              <Divider height={30} />
+              <TextInter
+                fontSize={19}
+                weight="medium"
+                color={colors.white[100]}
+              >
+                Últimas Cavidades
+              </TextInter>
+              <Divider height={24} />
+              <View style={styles.flatListContainer}>
+                <FlatList
+                  data={latestCavities}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => (
+                    <CavityCard
+                      cavity={item}
+                      onPress={() => handleOpenDetail(item.id)}
+                    />
+                  )}
+                  ItemSeparatorComponent={() => <Divider height={12} />}
+                  ListEmptyComponent={renderEmptyList}
+                  contentContainerStyle={styles.flatListContent}
                 />
-              )}
-              ItemSeparatorComponent={() => <Divider height={12} />}
-              ListEmptyComponent={renderEmptyList}
-              contentContainerStyle={
-                latestCavities.length === 0
-                  ? styles.emptyListContent
-                  : undefined
-              }
-            />
-          </>
-        )}
-      </View>
+              </View>
+            </>
+          )}
+        </View>
+      </ScrollView>
+      <FakeBottomTab
+        onPress={() =>
+          navigation.navigate("Tabs", { screen: "RegisterCavity" })
+        }
+      />
     </SafeAreaView>
   );
 };
@@ -362,7 +354,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingBottom: 15,
+    paddingBottom: 15 + (Platform.OS === "ios" ? 110 : 84),
   },
   chartContainer: {
     alignItems: "center",
@@ -386,6 +378,13 @@ const styles = StyleSheet.create({
   },
   emptyListContent: {
     flexGrow: 1,
-    justifyContent: "center",
+  },
+  selectedBarContainer: {
+    marginTop: 10,
+    alignItems: "center",
+  },
+  flatListContent: {},
+  flatListContainer: {
   },
 });
+

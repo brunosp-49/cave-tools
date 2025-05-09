@@ -596,6 +596,9 @@ const cavitySlice = createSlice({
         console.warn(`Cannot toggle 'outroEnabled' for section '${section}' as 'possui' is false or section/tipos doesn't exist.`);
       }
     },
+    setFullInfos(state, action: PayloadAction<Cavidade>) {
+      state.cavidade = action.payload;
+    }
   },
 });
 
@@ -625,6 +628,7 @@ export const {
   toggleUsoCavidadeOutroEnabled,
   setUsoCavidadeOutroText,
   toggleArchPalOutroEnabled,
+  setFullInfos,
 } = cavitySlice.actions;
 
 export default cavitySlice.reducer;

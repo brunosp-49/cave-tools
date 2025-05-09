@@ -8,6 +8,7 @@ export interface SvgIconProps {
 
 export interface RouterProps {
   navigation: DrawerNavigationProp<any, any>;
+  route?: any;
 }
 
 export interface UserModel {
@@ -556,6 +557,7 @@ export interface ProjectPayload {
   nome_projeto: string;
   inicio: string;
   descricao_projeto: string;
+  responsavel: string;
 }
 
 export interface ProjectModel {
@@ -564,6 +566,7 @@ export interface ProjectModel {
   nome_projeto: string;
   inicio: string;
   descricao_projeto: string;
+  responsavel: string;
 }
 
 export interface CavityRegisterData {

@@ -17,6 +17,7 @@ interface UserState {
   daysToExpire: number;
   isModalVisible: boolean; // Added to control modal visibility itself if needed
   searchCharacterization: string;
+  searchProjects: string;
   userName: string;
 }
 
@@ -31,6 +32,7 @@ const initialState: UserState = {
   daysToExpire: 0,
   isModalVisible: false, // Assuming modal starts hidden
   searchCharacterization: "",
+  searchProjects: "",
   userName: "",
 };
 
@@ -89,6 +91,9 @@ const userStateSlice = createSlice({
     onChangeSearchCharacterization: (state, action: PayloadAction<string>) => {
       state.searchCharacterization = action.payload;
     },
+    onChangeSearchProjects: (state, action: PayloadAction<string>) => {
+      state.searchProjects = action.payload;
+    },
   },
 });
 
@@ -125,7 +130,8 @@ export const {
   setModalVisibility,
   resetModalState,
   onChangeSearchCharacterization,
-  setUserName,  
+  setUserName,
+  onChangeSearchProjects
 } = userStateSlice.actions;
 
 // Export the reducer
