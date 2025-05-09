@@ -88,7 +88,7 @@ export const createProjects = async (
 ): Promise<void> => {
   try {
     const projectCollection = database.collections.get<Project>("project");
-
+    console.log({ projects });
     await database.write(async () => {
       for (const projectData of projects) {
         await projectCollection.create((project) => {
@@ -97,6 +97,7 @@ export const createProjects = async (
           project.nome_projeto = projectData.nome_projeto;
           project.inicio = projectData.inicio;
           project.descricao_projeto = projectData.descricao_projeto;
+          project.responsavel = projectData.responsavel;
           project.uploaded = true;
         });
       }
@@ -108,7 +109,9 @@ export const createProjects = async (
   }
 };
 
-export const createProject = async (projectData: ProjectPayload): Promise<void> => {
+export const createProject = async (
+  projectData: ProjectPayload
+): Promise<void> => {
   try {
     const projectCollection = database.collections.get<Project>("project");
 
@@ -119,6 +122,7 @@ export const createProject = async (projectData: ProjectPayload): Promise<void> 
         project.nome_projeto = projectData.nome_projeto;
         project.inicio = String(new Date());
         project.descricao_projeto = projectData.descricao_projeto;
+        project.responsavel = projectData.responsavel;
         project.uploaded = false;
       });
     });
@@ -207,7 +211,8 @@ export const fetchAllProjects = async (): Promise<ProjectModel[]> => {
       nome_projeto: project.nome_projeto,
       inicio: project.inicio,
       descricao_projeto: project.descricao_projeto,
-
+      responsavel: project.responsavel,
+      uploaded: project.uploaded,
     }));
   } catch (error) {
     console.error("Error fetching projects:", error);
@@ -300,7 +305,6 @@ export const syncPendingCavities = async (): Promise<{
   }
 };
 
-
 export const syncPendingProjects = async (): Promise<{
   success: boolean;
   syncedCount: number;
@@ -328,6 +332,7 @@ export const syncPendingProjects = async (): Promise<{
       nome_projeto: project.nome_projeto,
       inicio: project.inicio,
       descricao_projeto: project.descricao_projeto,
+      responsavel: project.responsavel,
     }));
 
     console.log("Project sync payload:", payload);
@@ -336,7 +341,7 @@ export const syncPendingProjects = async (): Promise<{
     // const response = await api.post('/projetos/sync/', payload); // Example endpoint
 
     // console.log("API project sync successful. Response data:", response.data);
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate network delay
     console.log("Simulated API project sync successful.");
     // --- End API Call ---
 
@@ -379,12 +384,30 @@ export const updateCavity = async (
 
     await database.write(async () => {
       await cavity.update((cav) => {
+        cav._raw.id = updatedData.registro_id || cav._raw.id;
+        cav.registro_id = updatedData.registro_id || cav.registro_id;
+        cav.projeto_id = updatedData.projeto_id || cav.projeto_id;
         cav.responsavel = updatedData.responsavel || cav.responsavel;
         cav.nome_cavidade = updatedData.nome_cavidade || cav.nome_cavidade;
+        cav.nome_sistema = updatedData.nome_sistema || cav.nome_sistema;
         cav.data = updatedData.data || cav.data;
-        cav.entradas = updatedData.entradas
-          ? JSON.stringify(updatedData.entradas)
-          : cav.entradas;
+        cav.municipio = updatedData.municipio || cav.municipio;
+        cav.uf = updatedData.uf || cav.uf;
+        cav.localidade = updatedData.localidade || cav.localidade;
+        cav.entradas = updatedData.entradas || cav.entradas;
+        cav.desenvolvimento_linear =
+          updatedData.desenvolvimento_linear || cav.desenvolvimento_linear;
+        cav.dificuldades_externas = updatedData.dificuldades_externas || cav.dificuldades_externas;
+        cav.aspectos_socioambientais = updatedData.aspectos_socioambientais || cav.aspectos_socioambientais;
+        cav.caracterizacao_interna = updatedData.caracterizacao_interna || cav.caracterizacao_interna;
+        cav.topografia = updatedData.topografia || cav.topografia;
+        cav.morfologia = updatedData.morfologia || cav.morfologia;
+        cav.hidrologia = updatedData.hidrologia || cav.hidrologia;
+        cav.sedimentos = updatedData.sedimentos || cav.sedimentos;
+        cav.espeleotemas = updatedData.espeleotemas || cav.espeleotemas;
+        cav.biota = updatedData.biota || cav.biota;
+        cav.arqueologia = updatedData.arqueologia || cav.arqueologia;
+        cav.paleontologia = updatedData.paleontologia || cav.paleontologia;
       });
     });
 
@@ -414,6 +437,32 @@ export const updateUser = async (
     console.log("User updated successfully!");
   } catch (error) {
     console.error("Error updating user:", error);
+  }
+};
+
+export const updateProject = async (
+  project_id: string,
+  updatedData: Partial<ProjectPayload>
+): Promise<void> => {
+  try {
+    const projectCollection = database.collections.get<Project>("project");
+    const project = await projectCollection.find(project_id);
+
+    await database.write(async () => {
+      await project.update((proj) => {
+        proj.fk_cliente = String(updatedData.fk_cliente) || proj.fk_cliente;
+        proj.nome_projeto = updatedData.nome_projeto || proj.nome_projeto;
+        proj.inicio = updatedData.inicio || proj.inicio;
+        proj.descricao_projeto =
+          updatedData.descricao_projeto || proj.descricao_projeto;
+        proj.responsavel = updatedData.responsavel || proj.responsavel;
+        proj.uploaded = proj.uploaded;
+      });
+    });
+
+    console.log("Project updated successfully!");
+  } catch (error) {
+    console.error("Error updating project:", error);
   }
 };
 

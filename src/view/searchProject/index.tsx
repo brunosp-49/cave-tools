@@ -11,111 +11,106 @@ import { Header } from "../../components/header";
 import { FC, useCallback, useEffect, useState } from "react";
 import { RouterProps } from "../../types";
 import { Divider } from "../../components/divider";
-import { CavityCard } from "../characterization/components/cavityCard";
 import { Search } from "../../components/search";
-import { useAppSelector } from "../../hook";
-import { onChangeSearchCharacterization } from "../../redux/userSlice";
+import { onChangeSearchProjects } from "../../redux/userSlice";
 import { AppDispatch, RootState } from "../../redux/store";
-import CavityRegister from "../../db/model/cavityRegister";
 import { useDebounce } from "use-debounce";
 import { database } from "../../db";
 import { Q } from "@nozbe/watermelondb";
 import { Subscription } from "rxjs";
 import TextInter from "../../components/textInter";
-import { DetailScreenCavity } from "../characterization/components/detailScreenCavity";
+import Project from "../../db/model/project";
+import { ProjectCard } from "../project/components/projectCard";
+import { DetailScreenProject } from "../project/components/detailScreenProject";
 
-const SearchCavity: FC<RouterProps> = ({ navigation }) => {
+const SearchProject: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
-  const { searchCharacterization } = useSelector(
-    (state: RootState) => state.user
-  );
+  const { searchProjects } = useSelector((state: RootState) => state.user);
 
   // --- State ---
-  const [searchResults, setSearchResults] = useState<CavityRegister[]>([]);
+  const [searchResults, setSearchResults] = useState<Project[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [detailIsVisible, setDetailIsVisible] = useState(false);
-  const [selectedCavityId, setSelectedCavityId] = useState<string | null>(null);
-  const [debouncedSearchTerm] = useDebounce(searchCharacterization, 300);
-  const [allCavities, setAllCavities] = useState<CavityRegister[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null
+  );
+  const [debouncedSearchTerm] = useDebounce(searchProjects, 300);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
 
-  const fetchAllCavities = useCallback(async () => {
+  const fetchAllProjects = useCallback(async () => {
     setIsSearching(true);
     try {
-      const cavityCollection = database.get<CavityRegister>("cavity_register");
-      const fetchedCavities = await cavityCollection
-        .query(Q.sortBy("data", Q.desc))
+      const projectCollection = database.get<Project>("project");
+      const fetchedProjects = await projectCollection
+        .query(Q.sortBy("inicio", Q.desc))
         .fetch();
-      setAllCavities(fetchedCavities);
+      setAllProjects(fetchedProjects);
       if (!debouncedSearchTerm) {
-        setSearchResults(fetchedCavities);
+        setSearchResults(fetchedProjects);
       }
     } catch (error) {
-      console.error("Error observing cavities:", error);
-      setIsSearching(false);
+      console.error("Error fetching all projects:", error);
     } finally {
       setIsSearching(false);
     }
   }, [debouncedSearchTerm]);
 
   useEffect(() => {
-    fetchAllCavities();
-  }, [fetchAllCavities]);
+    fetchAllProjects();
+  }, [fetchAllProjects]);
 
   useEffect(() => {
     const searchTerm = debouncedSearchTerm.trim();
 
     if (!searchTerm) {
-      setSearchResults(allCavities);
+      setSearchResults(allProjects); // Show all projects when search term is empty
       setIsSearching(false);
       return;
     }
 
     setIsSearching(true);
-    const cavityCollection = database.get<CavityRegister>("cavity_register");
-    const query = cavityCollection.query(
+    const projectCollection = database.get<Project>("project");
+    const query = projectCollection.query(
       Q.or(
         Q.where(
-          "nome_cavidade",
+          "nome_projeto",
           Q.like(`%${Q.sanitizeLikeString(searchTerm)}%`)
         ),
-        Q.where("registro_id", Q.like(`%${Q.sanitizeLikeString(searchTerm)}%`))
-        // Add more Q.where clauses inside Q.or() to search other fields
-        // Q.where('municipio', Q.like(`%${Q.sanitizeLikeString(searchTerm)}%`))
+        Q.where("_id", Q.like(`%${Q.sanitizeLikeString(searchTerm)}%`))
       ),
-      Q.sortBy("nome_cavidade", Q.asc) // Sort results alphabetically
-      // Q.take(20) // Optionally limit results
+      Q.sortBy("nome_projeto", Q.asc)
     );
 
     const subscription: Subscription = query.observe().subscribe({
       next: (results) => {
         setSearchResults(results);
-        setIsSearching(false); 
+        setIsSearching(false);
       },
       error: (error) => {
         console.error("Error observing search results:", error);
         setIsSearching(false);
-        setSearchResults([]); 
+        setSearchResults([]);
       },
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [debouncedSearchTerm, allCavities]);
+  }, [debouncedSearchTerm, allProjects]); // Add allProjects as a dependency
 
-  const handleOpenDetail = useCallback((cavityId: string) => {
-    setSelectedCavityId(cavityId);
+  const handleOpenDetail = useCallback((projectId: string) => {
+    setSelectedProjectId(projectId);
     setDetailIsVisible(true);
   }, []);
 
   const handleCloseDetail = useCallback(() => {
     setDetailIsVisible(false);
-    setSelectedCavityId(null);
+    setSelectedProjectId(null);
   }, []);
 
   const handleReturn = useCallback(() => {
-    dispatch(onChangeSearchCharacterization(""));
-    navigation.navigate("CharacterizationScreen");
+    dispatch(onChangeSearchProjects(""));
+    navigation.navigate("ProjectScreen");
   }, [dispatch, navigation]);
 
   const renderEmptyList = () => {
@@ -137,11 +132,11 @@ const SearchCavity: FC<RouterProps> = ({ navigation }) => {
         </View>
       );
     }
-    if (!debouncedSearchTerm && allCavities.length === 0) {
+    if (!debouncedSearchTerm && allProjects.length === 0) {
       return (
         <View style={styles.emptyListContainer}>
           <TextInter color={colors.dark[60]}>
-            Nenhuma cavidade cadastrada.
+            Nenhum projeto cadastrado.
           </TextInter>
         </View>
       );
@@ -150,46 +145,45 @@ const SearchCavity: FC<RouterProps> = ({ navigation }) => {
       return (
         <View style={styles.emptyListContainer}>
           <TextInter color={colors.dark[60]}>
-            Digite para pesquisar cavidades.
+            Digite para pesquisar projetos.
           </TextInter>
         </View>
       );
     }
+
     return null;
   };
 
   return (
     <SafeAreaView style={styles.main}>
       <View style={styles.container}>
-        {detailIsVisible && selectedCavityId ? (
-          <DetailScreenCavity
+        {detailIsVisible && selectedProjectId ? (
+          <DetailScreenProject
             navigation={navigation}
             onClose={handleCloseDetail}
-            cavityId={selectedCavityId}
+            projectId={selectedProjectId}
           />
         ) : (
           <>
             <Header
-              title="Pesquisar Cavidades"
+              title="Pesquisar Projetos"
               navigation={navigation}
               onCustomReturn={handleReturn}
             />
             <Divider height={34} />
             <Search
-              placeholder="Ficha de Caracterização" 
+              placeholder="Projetos"
               autoFocus
-              value={searchCharacterization}
-              onChangeText={(text) =>
-                dispatch(onChangeSearchCharacterization(text))
-              }
+              value={searchProjects}
+              onChangeText={(text) => dispatch(onChangeSearchProjects(text))}
             />
             <Divider height={16} />
             <FlatList
               data={searchResults}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
-                <CavityCard
-                  cavity={item}
+                <ProjectCard
+                  project={item}
                   onPress={() => handleOpenDetail(item.id)}
                 />
               )}
@@ -207,9 +201,8 @@ const SearchCavity: FC<RouterProps> = ({ navigation }) => {
   );
 };
 
-export default SearchCavity;
+export default SearchProject;
 
-// --- Styles ---
 const styles = StyleSheet.create({
   main: {
     backgroundColor: colors.dark[90],
@@ -224,11 +217,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-start",
     alignItems: "center",
-    marginTop: 50, // Or adjust as needed
-    paddingHorizontal: 20, // Add padding for text centering
+    marginTop: 50,
+    paddingHorizontal: 20,
   },
   emptyListContent: {
-    flexGrow: 1, // Ensure container grows if list is empty
-    justifyContent: "center", // Center the empty component vertically
+    flexGrow: 1,
+    justifyContent: "center",
   },
 });

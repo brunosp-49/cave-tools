@@ -1,4 +1,5 @@
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -8,24 +9,36 @@ import {
 } from "react-native";
 import { colors } from "../../assets/colors";
 import { Header } from "../../components/header";
-import { FC, useState } from "react";
+import { FC, useCallback, useEffect, useState } from "react";
 import { RouterProps } from "../../types";
 import { SuccessModal } from "../../components/modal/successModal";
 import { Input } from "../../components/input";
 import { Divider } from "../../components/divider";
 import { NextButton } from "../../components/button/nextButton";
 import { ReturnButton } from "../../components/button/returnButton";
-import { createProject, fetchAllUsers } from "../../db/controller";
+import {
+  createProject,
+  fetchAllUsers,
+  updateProject,
+} from "../../db/controller";
 import uuid from "react-native-uuid";
 import { useDispatch } from "react-redux";
 import { showError } from "../../redux/loadingSlice";
+import { database } from "../../db";
+import Project from "../../db/model/project";
+import TextInter from "../../components/textInter";
+import { formatDateToInput } from "../../util";
+import { useFocusEffect } from "@react-navigation/native";
 
-const RegisterProject: FC<RouterProps> = ({ navigation }) => {
+const EditProject: FC<RouterProps> = ({ navigation, route }) => {
   const [successSuccessModal, setSuccessModal] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
   const [responsible, setResponsible] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [project, setProject] = useState<Project | null>(null);
   const dispatch = useDispatch();
 
   const saveProject = async () => {
@@ -34,8 +47,8 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
       if (user.length === 0) {
         throw new Error("Erro ao cadastrar, tente novamente");
       }
-      await createProject({
-        id: uuid.v4(),
+      await updateProject(route.params.projectId, {
+        id: route.params.projectId,
         descricao_projeto: description,
         nome_projeto: name,
         fk_cliente: user[0].user_id,
@@ -52,12 +65,97 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
       console.log(error);
       dispatch(
         showError({
-          message: "Erro ao cadastrar o projeto",
+          message: "Erro ao editar o projeto",
           title: "Por favor, tente novamente.",
         })
       );
     }
   };
+
+  const fetchProject = useCallback(async () => {
+    // Use useCallback
+    if (!route.params.projectId) {
+      setError("ID do projeto não fornecido.");
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const projectCollection = database.collections.get<Project>("project");
+      const foundProject = await projectCollection.find(route.params.projectId);
+      setProject(foundProject);
+      setName(foundProject.nome_projeto || "");
+      setDescription(foundProject.descricao_projeto || "");
+      setDate(formatDateToInput(foundProject.inicio) || "");
+      setResponsible(foundProject.responsavel || "");
+    } catch (err) {
+      console.error("Error fetching project details:", err);
+      setError("Erro ao carregar detalhes do projeto.");
+      setProject(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [route.params.projectId]);
+
+  useEffect(() => {
+    fetchProject();
+  }, [fetchProject]);
+
+  useFocusEffect(
+    // Use useFocusEffect
+    useCallback(() => {
+      fetchProject(); // Call fetchProject when the screen is focused
+    }, [fetchProject])
+  );
+
+  if (isLoading) {
+    return (
+      <View
+        style={{
+          height: "100%",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <ActivityIndicator size="large" color={colors.accent[100]} />
+        <Divider />
+        <TextInter color={colors.white[100]} weight="medium">
+          Carregando detalhes...
+        </TextInter>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centered}>
+        <Header
+          title="Erro"
+          navigation={navigation}
+          onCustomReturn={() => navigation.navigate("ProjectScreen")}
+        />
+        <Divider />
+        <TextInter color={colors.error[100]} style={{ marginTop: 20 }}>
+          {error}
+        </TextInter>
+      </View>
+    );
+  }
+
+  if (!project) {
+    return (
+      <View style={styles.centered}>
+        <Header
+          title="Não Encontrado"
+          navigation={navigation}
+          onCustomReturn={() => navigation.navigate("ProjectScreen")}
+        />
+        <Divider />
+        <TextInter style={{ marginTop: 20 }}>Projeto não encontrada.</TextInter>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.main}>
@@ -68,11 +166,9 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
         <ScrollView>
           <View style={styles.container}>
             <Header
-              title="Cadastrar Projeto"
-              onCustomReturn={() =>
-                navigation.navigate("Tabs", { screen: "Home" })
-              }
+              title="Editar Projeto"
               navigation={navigation}
+              onCustomReturn={() => navigation.navigate("ProjectScreen")}
             />
             <Divider />
             <View style={styles.bodyContainer}>
@@ -109,22 +205,22 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
                   setName("");
                   setDescription("");
                   setDate("");
-                  navigation.navigate("Tabs", { screen: "Home" });
+                  navigation.navigate("ProjectScreen");
                 }}
               />
               <NextButton
                 onPress={saveProject}
-                buttonTitle="Cadastrar"
+                buttonTitle="Editar"
                 disabled={!name || !description}
               />
             </View>
           </View>
           <SuccessModal
             visible={successSuccessModal}
-            title="Cadastro realizado com sucesso!"
-            message="Seu projeto foi cadastrado com sucesso no sistema."
+            title="Projeto editado com sucesso!"
+            message="Seu projeto foi editado com sucesso."
             onPress={() => {
-              navigation.navigate("Tabs", { screen: "Home" });
+              navigation.navigate("ProjectScreen");
               setSuccessModal(false);
             }}
           />
@@ -134,7 +230,7 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
   );
 };
 
-export default RegisterProject;
+export default EditProject;
 
 const styles = StyleSheet.create({
   main: {
@@ -160,5 +256,11 @@ const styles = StyleSheet.create({
   bodyContainer: {
     flex: 1,
     width: "100%",
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "flex-start",
+    alignItems: "center",
+    backgroundColor: colors.dark[90],
   },
 });

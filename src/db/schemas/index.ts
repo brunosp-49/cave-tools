@@ -4,7 +4,7 @@ import { user } from './user'
 import { project } from './project'
 
 export default appSchema({
-  version: 5,
+  version: 6,
   tables: [
     cavityRegister,
     user,

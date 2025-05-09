@@ -1,5 +1,6 @@
-import React, { useState, useEffect, FC, useMemo } from "react";
+import React, { useState, useEffect, FC, useRef, useMemo } from "react";
 import {
+  FlatList,
   Image,
   StyleSheet,
   TouchableOpacity,
@@ -25,6 +26,7 @@ import {
   updateCavidadeData,
 } from "../../../redux/cavitySlice";
 import { fetchAllProjects } from "../../../db/controller";
+import Project from "../../../db/model/project";
 
 interface SelectOption {
   id: string;
@@ -61,7 +63,7 @@ const ufOptions: SelectOption[] = [
   { id: 'TO', value: 'Tocantins' }
 ].sort((a, b) => a.value.localeCompare(b.value));
 
-export const StepOne: FC<RouterProps> = ({ navigation }) => {
+export const StepOne: FC<RouterProps> = ({navigation}) => {
   const [cavityModalIsOpen, setCavityModalIsOpen] = useState(false);
   const dispatch = useDispatch();
   const cavidade = useSelector((state: RootState) => state.cavity.cavidade);
@@ -72,7 +74,7 @@ export const StepOne: FC<RouterProps> = ({ navigation }) => {
     null
   );
 
-    const selectedUfOption = useMemo(() => {
+  const selectedUfOption = useMemo(() => {
     return ufOptions.find(opt => opt.id === cavidade.uf);
   }, [cavidade.uf]);
 
@@ -96,18 +98,21 @@ export const StepOne: FC<RouterProps> = ({ navigation }) => {
     const loadProjects = async () => {
       setIsLoadingProjects(true);
       try {
-        const projects: ProjectModel[] = await fetchAllProjects();
+        const projects: ProjectModel[] = await fetchAllProjects(); // Assuming Project type has _id and nome_projeto
+        console.log(projects);
         if (isMounted) {
           const options = projects.map((project) => ({
-            id: String(project._id),
+            id: String(project._id), // Use .id if available, fallback to _id
             value: project.nome_projeto,
           }));
+          console.log({ options });
           setProjectOptions(options);
 
-          // Find and set selectedProject based on cavidade.projeto_id
-          const currentProject = options.find((opt) => opt.id === cavidade.projeto_id);
-          setSelectedProject(currentProject || null); // Ensure selectedProject is updated
-
+          // If cavidade.projeto_id is already filled, find and set the selectedProject
+          if (cavidade.projeto_id) {
+            const current = options.find((opt) => opt.id === cavidade.projeto_id);
+            if (current) setSelectedProject(current);
+          }
           setIsLoadingProjects(false);
         }
       } catch (error) {
@@ -120,8 +125,8 @@ export const StepOne: FC<RouterProps> = ({ navigation }) => {
 
     loadProjects();
     return () => {
-      isMounted = false;
-      unsubscribe();
+      isMounted = false; // Cleanup function
+      unsubscribe(); // Remove focus listener
     };
   }, [cavidade.projeto_id, navigation]);
 
@@ -149,10 +154,10 @@ export const StepOne: FC<RouterProps> = ({ navigation }) => {
         placeholder="Selecione um projeto"
         label="Selecione o projeto"
         required
-        value={selectedProject?.value || ""}
+        value={selectedProject?.value || ""} // Display selected project name
         onChangeText={(obj: SelectOption) => {
           setSelectedProject(obj);
-          handleInputChange(["projeto_id"], obj.id);
+          handleInputChange(["projeto_id"], obj.id); // Save project ID to Redux
         }}
         optionsList={projectOptions}
       />
@@ -295,4 +300,3 @@ const styles = StyleSheet.create({
   },
   buttonInside: {},
 });
-

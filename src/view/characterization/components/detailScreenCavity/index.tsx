@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Dimensions,
   Image,
   ScrollView,
   StyleSheet,
@@ -39,13 +40,14 @@ import { LabelText } from "../../../../components/labelText";
 import CavityRegister from "../../../../db/model/cavityRegister";
 import { database } from "../../../../db";
 import { formatDate } from "../../../../util";
+import { LongButton } from "../../../../components/longButton";
 
 interface DetailScreenProps extends RouterProps {
   onClose: () => void;
   cavityId: string;
 }
 
-export const DetailScreen: FC<DetailScreenProps> = ({
+export const DetailScreenCavity: FC<DetailScreenProps> = ({
   navigation,
   onClose,
   cavityId,
@@ -85,7 +87,8 @@ export const DetailScreen: FC<DetailScreenProps> = ({
     return (
       <View
         style={{
-          height: "100%",
+          minHeight: "100%",
+          height: Dimensions.get("screen").height * .9,
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -988,6 +991,12 @@ export const DetailScreen: FC<DetailScreenProps> = ({
           />
         </View>
         <Divider height={18} />
+        {!cavity.uploaded && (
+          <LongButton
+            title="Editar"
+            onPress={() => navigation.navigate("EditCavity", { cavityId })}
+          />
+        )}
       </View>
     </ScrollView>
   );
