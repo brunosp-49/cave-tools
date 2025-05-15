@@ -61,8 +61,6 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
     return () => clearTimeout(timer); // Cleanup timer if component unmounts
   }, [successOpacity]);
 
-  console.log({ userName });
-
   return (
     <SafeAreaView style={styles.main}>
       <View style={styles.container}>

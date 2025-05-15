@@ -292,46 +292,6 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
         return;
       }
       if (currentStep === steps.length - 1) {
-        console.log({
-          formData,
-          sent: {
-            registro_id: Math.random().toString(36).substring(2, 8),
-            projeto_id: formData.projeto_id,
-            responsavel: formData.responsavel,
-            nome_cavidade: formData.nome_cavidade,
-            nome_sistema: formData.nome_sistema,
-            data: formData.data
-              ? new Date(formData.data.split("/").reverse().join("-"))
-              : null,
-            municipio: formData.municipio,
-            uf: formData.uf,
-            localidade: formData.localidade,
-            entradas: JSON.stringify(
-              formData.entradas.map((entrada) => ({
-                ...entrada,
-                foto: "data:image/jpeg;base64......",
-              }))
-            ),
-            desenvolvimento_linear: formData.desenvolvimento_linear,
-            dificuldades_externas: JSON.stringify(
-              formData.dificuldades_externas
-            ),
-            aspectos_socioambientais: JSON.stringify(
-              formData.aspectos_socioambientais
-            ),
-            caracterizacao_interna: JSON.stringify(
-              formData.caracterizacao_interna
-            ),
-            topografia: JSON.stringify(formData.topografia),
-            morfologia: JSON.stringify(formData.morfologia),
-            hidrologia: JSON.stringify(formData.hidrologia),
-            sedimentos: JSON.stringify(formData.sedimentos),
-            espeleotemas: JSON.stringify(formData.espeleotemas),
-            biota: JSON.stringify(formData.biota),
-            arqueologia: JSON.stringify(formData.arqueologia),
-            paleontologia: JSON.stringify(formData.paleontologia),
-          },
-        });
         await createCavityRegister({
           registro_id: uuid.v4(),
           projeto_id: formData.projeto_id,

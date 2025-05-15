@@ -69,7 +69,6 @@ export const DetailScreenCavity: FC<DetailScreenProps> = ({
         const cavityCollection =
           database.collections.get<CavityRegister>("cavity_register");
         const foundCavity = await cavityCollection.find(cavityId); // Find by ID
-        console.log({ foundCavity });
         setCavity(foundCavity);
       } catch (err) {
         console.error("Error fetching cavity details:", err);
@@ -318,7 +317,6 @@ export const DetailScreenCavity: FC<DetailScreenProps> = ({
       cachoeira: "Cachoeira",
       nenhuma: "Nenhuma",
     });
-  console.log({ cavity });
   const formatMorfologia = (morf?: MorfologiaData): string[] => {
     if (!morf) return ["Não informado"];
     const padrao = formatFlags(morf.padrao_planimetrico, {

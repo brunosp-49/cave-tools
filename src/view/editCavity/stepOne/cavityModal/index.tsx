@@ -179,7 +179,6 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
     setIsLoading(true);
     Geolocation.getCurrentPosition(
       (position) => {
-        console.log({ position });
         const { latitude, longitude, accuracy, altitude } = position.coords;
         const { satellites = 0 } = position.extras || {}; // Quantidade de satélites, se disponível
 
@@ -189,7 +188,6 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
           longitude,
           Math.floor(Number(accuracy))
         );
-        console.log({ utm });
         // convertLatLngToUtm
         // Atualizando os estados com as informações
         setLatitude(String(latitude));
@@ -198,7 +196,6 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
         setAltitude(String(altitude)); // Elevação
         setSatellites(String(satellites)); // Quantidade de satélites
         if (typeof utm !== "string") {
-          console.log({ utmZone: utm.ZoneNumber + utm.ZoneLetter });
           setUtmZone(utm.ZoneNumber + utm.ZoneLetter); // Zona UTM
         }
         if (typeof utm !== "string") {
@@ -207,14 +204,6 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
         if (typeof utm !== "string") {
           setUtmN(String(utm.Northing)); // Coordenada UTM N
         }
-        console.log({
-          accuracy,
-          altitude,
-          satellites,
-          utmZone,
-          utmE,
-          utmN,
-        });
         setShowGeoInputs(true);
         setIsLoading(false);
         setIsAutoGeoInfos(true);
@@ -410,11 +399,9 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
       lonRef,
       Math.floor(Number(accuracy))
     );
-    console.log({ pontoAtual, pontoRef });
     const graus_e = pontoAtual.Easting - pontoRef.Easting;
     const graus_n = pontoAtual.Northing - pontoRef.Northing;
     const erro_gps = Math.sqrt(Math.pow(graus_e, 2) + Math.pow(graus_n, 2));
-    console.log({ graus_e, graus_n, erro_gps });
     onSave({
       principal: false,
       foto: selectedImage,

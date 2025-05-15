@@ -339,7 +339,7 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
       </ScrollView>
       <FakeBottomTab
         onPress={() =>
-          navigation.navigate("Tabs", { screen: "RegisterCavity" })
+          navigation.navigate("RegisterCavity")
         }
       />
     </SafeAreaView>

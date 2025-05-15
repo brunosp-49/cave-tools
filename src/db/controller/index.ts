@@ -20,7 +20,6 @@ export const createCavityRegister = async (
   cavityData: CavityRegisterData
 ): Promise<boolean> => {
   try {
-    console.log({ date: cavityData.data });
     const cavityCollection =
       database.collections.get<CavityRegister>("cavity_register");
 
@@ -88,7 +87,6 @@ export const createProjects = async (
 ): Promise<void> => {
   try {
     const projectCollection = database.collections.get<Project>("project");
-    console.log({ projects });
     await database.write(async () => {
       for (const projectData of projects) {
         await projectCollection.create((project) => {
@@ -505,9 +503,7 @@ export const deleteAllCavities = async (): Promise<void> => {
 export const deleteUser = async (user_id: string): Promise<void> => {
   try {
     const userCollection = database.collections.get<User>("user");
-    console.log({ userCollection });
     const user = await userCollection.find(user_id);
-    console.log({ user245: user });
     await database.write(async () => {
       await user.markAsDeleted();
       await user.destroyPermanently();
