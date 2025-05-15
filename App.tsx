@@ -15,7 +15,6 @@ export default function App() {
   useEffect(()=>{
     (async()=>{
       const user = await fetchAllUsers();
-      console.log({user})
       if (user.length > 0) {
         dispatch(setUserName(user[0].user_name));
       }

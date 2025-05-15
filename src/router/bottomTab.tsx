@@ -1,7 +1,7 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { colors } from "../assets/colors";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import PlusIcon from "../components/icons/plusIcon";
 import DashboardIcon from "../components/icons/dashboardIcon";
 import HomeIcon from "../components/icons/homeIcon";
@@ -10,6 +10,9 @@ import Dashboard from "../view/dashboard";
 import HomeIconSelected from "../components/icons/homeIconSelected";
 import DashboardIconSelected from "../components/icons/dashboardIconSelected";
 import { HomeScreen } from "../view/home";
+import { useNavigation } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import type { ParamListBase } from "@react-navigation/native";
 
 const Tab = createBottomTabNavigator();
 
@@ -48,21 +51,23 @@ const BottomTabNavigator = () => {
         }}
       />
       <Tab.Screen
-        name="RegisterCavity"
-        component={RegisterCavity}
+        name="addButton"
+        component={RegisterCavity} // Set the component to RegisterCavity
         options={{
-          tabBarIcon: ({ focused, color, size }) => (
-            <View style={styles.iconContainer}>
-              <View
-                style={[
-                  styles.buttonContainerCircle,
-                  focused && { backgroundColor: colors.dark[80] },
-                ]}
-              >
-                <PlusIcon />
+          tabBarButton: (props) => {
+            const navigation =
+              useNavigation<BottomTabNavigationProp<ParamListBase>>();
+            return (
+              <View style={styles.iconContainer}>
+                <TouchableOpacity
+                  style={styles.buttonContainerCircle}
+                  onPress={() => navigation.navigate("RegisterCavity")} // Navigate to RegisterCavity
+                >
+                  <PlusIcon />
+                </TouchableOpacity>
               </View>
-            </View>
-          ),
+            );
+          },
           headerShown: false,
         }}
       />

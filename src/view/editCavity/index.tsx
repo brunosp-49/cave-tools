@@ -419,7 +419,6 @@ const EditCavity: FC<RouterProps> = ({ navigation, route }) => {
           ? JSON.parse(foundCavity.paleontologia)
           : { possui: false },
       };
-      console.log({ formattedData });
       dispatch(setFullInfos(formattedData));
     } catch (err) {
       console.error("Error fetching cavity details:", err);

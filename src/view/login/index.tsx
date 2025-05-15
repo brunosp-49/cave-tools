@@ -173,13 +173,10 @@ export const Login: FC<RouterProps> = ({ navigation }) => {
       setPassword("");
       setLoading(false);
       setOffline(false); // Assume online initially on focus
-      console.log(174)
       // If we are not checking user anymore (meaning form should be visible), check connection again
       if (!checkingUser) {
-        console.log(177)
            checkConnection();
       }
-      console.log(180)
       // If checkingUser is true, useLayoutEffect's checkConnection will handle it.
 
     }, [checkingUser, checkConnection]) // Add dependencies

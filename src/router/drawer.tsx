@@ -35,6 +35,7 @@ import { ProjectScreen } from "../view/project";
 import SearchProject from "../view/searchProject";
 import EditProject from "../view/editProject";
 import EditCavity from "../view/editCavity";
+import RegisterCavity from "../view/registerCavity";
 
 const Drawer = createDrawerNavigator();
 
@@ -64,6 +65,11 @@ const DrawerNavigator = () => {
         name="RegisterProject"
         component={RegisterProject}
         options={{ headerShown: false }}
+      />
+      <Drawer.Screen
+        name="RegisterCavity"
+        component={RegisterCavity}
+        options={{headerShown: false}}
       />
       <Drawer.Screen
         name="SearchCavity"

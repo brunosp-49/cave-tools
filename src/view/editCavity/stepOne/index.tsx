@@ -99,13 +99,11 @@ export const StepOne: FC<RouterProps> = ({navigation}) => {
       setIsLoadingProjects(true);
       try {
         const projects: ProjectModel[] = await fetchAllProjects(); // Assuming Project type has _id and nome_projeto
-        console.log(projects);
         if (isMounted) {
           const options = projects.map((project) => ({
             id: String(project._id), // Use .id if available, fallback to _id
             value: project.nome_projeto,
           }));
-          console.log({ options });
           setProjectOptions(options);
 
           // If cavidade.projeto_id is already filled, find and set the selectedProject
