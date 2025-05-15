@@ -36,6 +36,7 @@ import SearchProject from "../view/searchProject";
 import EditProject from "../view/editProject";
 import EditCavity from "../view/editCavity";
 import RegisterCavity from "../view/registerCavity";
+import { TopographyScreen } from "../view/topography";
 
 const Drawer = createDrawerNavigator();
 
@@ -69,7 +70,7 @@ const DrawerNavigator = () => {
       <Drawer.Screen
         name="RegisterCavity"
         component={RegisterCavity}
-        options={{headerShown: false}}
+        options={{ headerShown: false }}
       />
       <Drawer.Screen
         name="SearchCavity"
@@ -86,7 +87,7 @@ const DrawerNavigator = () => {
         component={CharacterizationScreen}
         options={{ headerShown: false }}
       />
-        <Drawer.Screen
+      <Drawer.Screen
         name="ProjectScreen"
         component={ProjectScreen}
         options={{ headerShown: false }}
@@ -99,6 +100,11 @@ const DrawerNavigator = () => {
       <Drawer.Screen
         name="EditCavity"
         component={EditCavity}
+        options={{ headerShown: false }}
+      />
+      <Drawer.Screen
+        name="TopographyScreen"
+        component={TopographyScreen}
         options={{ headerShown: false }}
       />
     </Drawer.Navigator>
@@ -204,6 +210,28 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
             borderRadius: 10,
             backgroundColor:
               activeRouteName === "Dashboard" ? colors.accent[100] : undefined,
+          }}
+          labelStyle={{
+            color: colors.white[90],
+            fontSize: 14,
+          }}
+        />
+        <DrawerItem
+          icon={() => (
+            <Ionicons
+              name="pie-chart-outline"
+              size={20}
+              color={colors.white[100]}
+            />
+          )}
+          label="Topography"
+          onPress={() => navigation.navigate("TopographyScreen")}
+          style={{
+            borderRadius: 10,
+            backgroundColor:
+              activeRouteName === "TopographyScreen"
+                ? colors.accent[100]
+                : undefined,
           }}
           labelStyle={{
             color: colors.white[90],

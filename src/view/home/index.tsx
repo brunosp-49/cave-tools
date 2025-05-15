@@ -92,10 +92,10 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
             },
             {
               title: "Informações Topográficas",
-              icon: <BookPenIcon disabled />,
+              icon: <BookPenIcon />,
               id: 2,
-              onPress: () => navigation.navigate(""),
-              disabled: true,
+              onPress: () => navigation.navigate("TopographyScreen"),
+              disabled: false,
             },
             {
               title: "Dashboard",
