@@ -44,6 +44,13 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSAppleMusicUsageDescription</key>
+		<string>We do not use Apple Music or any other music app, we only put this permission because it
+			was requested to be able to submit to the store.</string>
+		<key>NSBluetoothAlwaysUsageDescription</key>
+		<string>Utilizamos o seu bluetooth para prevenção de fraudes</string>
+		<key>NSBluetoothPeripheralUsageDescription</key>
+		<string>Utilizamos o seu bluetooth para prevenção de fraudes</string>
     <key>NSCameraUsageDescription</key>
     <string>The app accesses your camera to let you take photos.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

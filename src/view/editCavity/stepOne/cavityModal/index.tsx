@@ -22,7 +22,7 @@ import {
   useCameraFormat,
 } from "react-native-vision-camera";
 import { LongButton } from "../../../../components/longButton";
-import Geolocation from "@react-native-community/geolocation";
+import Geolocation from "react-native-geolocation-service";
 import UTMConverter from "utm-latlng";
 import { useDispatch } from "react-redux";
 import { showError } from "../../../../redux/loadingSlice";

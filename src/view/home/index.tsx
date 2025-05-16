@@ -1,5 +1,7 @@
 import {
+  Alert,
   Animated,
+  BackHandler,
   FlatList,
   SafeAreaView,
   StyleSheet,
@@ -24,6 +26,9 @@ import { useInternetConnection } from "../../hook/useInternetConnection";
 import { UploadDataModal } from "./components/modal/uploadModalData";
 import { useAppSelector } from "../../hook";
 import PapersIcon from "../../components/icons/papersIcon";
+import { FakeBottomTab } from "../../components/fakeBottomTab";
+import { StatusBar } from "expo-status-bar";
+import { useFocusEffect } from "@react-navigation/native";
 
 export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -61,6 +66,46 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
     return () => clearTimeout(timer); // Cleanup timer if component unmounts
   }, [successOpacity]);
 
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        // Esta função é chamada quando o botão nativo de voltar é pressionado
+        // e a HomeScreen está focada.
+
+        // Verificamos se podemos voltar na pilha atual do Drawer.
+        // Após um reset para HomeScreen, navigation.canGoBack() DEVERIA ser false.
+        // Se for false, significa que HomeScreen é a raiz da pilha de histórico atual.
+        if (!navigation.canGoBack()) {
+          // Se não puder voltar (ou seja, é a primeira tela na pilha resetada),
+          // mostramos um alerta para confirmar a saída.
+          Alert.alert(
+            "Sair do Aplicativo",
+            "Você tem certeza que quer sair?",
+            [
+              { text: "Cancelar", style: "cancel", onPress: () => {} }, // Não faz nada
+              { text: "Sair", style: "destructive", onPress: () => BackHandler.exitApp() } // Fecha o aplicativo
+            ]
+          );
+          // Retornamos true para indicar que tratamos o evento do botão voltar.
+          // Isso impede o React Navigation de fazer qualquer ação padrão (como ir para Login).
+          return true;
+        }
+
+        // Se navigation.canGoBack() for true (improvável após o reset, mas por segurança),
+        // deixamos o React Navigation lidar com isso (o que seria um bug na lógica do reset).
+        // Ou, se você tivesse outras telas empilhadas SOBRE a HomeScreen no Drawer (o que não é o caso aqui),
+        // retornar false permitiria o goBack() para essas telas.
+        return false;
+      };
+
+      // Adiciona o listener
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      // Remove o listener quando a tela perde o foco
+      return () => subscription.remove();
+    }, [navigation]) // Dependência: navigation
+  );
+
   return (
     <SafeAreaView style={styles.main}>
       <View style={styles.container}>
@@ -87,7 +132,7 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
               title: "Caracterização Espeleológica",
               icon: <HatManIcon />,
               id: 1,
-              onPress: () => navigation.navigate("CharacterizationScreen"),
+              onPress: () => navigation.navigate("CavityScreen"),
               disabled: false,
             },
             {
@@ -162,6 +207,8 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
           </TextInter>
         </Animated.View>
       )}
+      <FakeBottomTab onPress={() => navigation.navigate("RegisterCavity")} />
+      <StatusBar style="inverted" backgroundColor={colors.dark[90]} />
     </SafeAreaView>
   );
 };

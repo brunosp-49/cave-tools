@@ -344,7 +344,7 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
 
   const handleBack = () => {
     if (currentStep === 0) {
-      navigation.navigate("CharacterizationScreen");
+      navigation.navigate("CavityScreen");
       dispatch(resetCavidadeState());
     } else {
       dispatch(updateCurrentStep(currentStep - 1));
@@ -355,7 +355,7 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
   };
 
   const handleSuccessModalClose = () => {
-    navigation.navigate("Home");
+    navigation.navigate("CavityScreen");
     setSuccessModal(false);
     dispatch(updateCurrentStep(0));
     dispatch(resetCavidadeState());

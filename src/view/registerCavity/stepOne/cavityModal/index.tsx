@@ -22,7 +22,6 @@ import {
   useCameraFormat,
 } from "react-native-vision-camera";
 import { LongButton } from "../../../../components/longButton";
-import Geolocation from "@react-native-community/geolocation";
 import UTMConverter from "utm-latlng";
 import { useDispatch } from "react-redux";
 import { showError } from "../../../../redux/loadingSlice";
@@ -36,6 +35,8 @@ import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { NextButton } from "../../../../components/button/nextButton";
 import { ReturnButton } from "../../../../components/button/returnButton";
+import Geolocation from 'react-native-geolocation-service';
+import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 
 interface Props {
   isOpen: boolean;
@@ -175,54 +176,118 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
     setIsAutoGeoInfos(false);
   };
 
-  const getCurrentPosition = () => {
+    const getCurrentPosition = useCallback(async () => {
     setIsLoading(true);
-    Geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude, accuracy, altitude } = position.coords;
-        const { satellites = 0 } = position.extras || {}; // Quantidade de satélites, se disponível
+    try {
+      // Request location permission first
+      const permission = await request(
+        Platform.OS === 'ios'
+          ? PERMISSIONS.IOS.LOCATION_WHEN_IN_USE
+          : PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
+      );
 
-        // Convertendo Latitude/Longitude para UTM
-        const utm = utmConverter.convertLatLngToUtm(
-          latitude,
-          longitude,
-          Math.floor(Number(accuracy))
-        );
-        // convertLatLngToUtm
-        // Atualizando os estados com as informações
-        setLatitude(String(latitude));
-        setLongitude(String(longitude));
-        setAccuracy(String(accuracy)); // Erro GPS
-        setAltitude(String(altitude)); // Elevação
-        setSatellites(String(satellites)); // Quantidade de satélites
-        if (typeof utm !== "string") {
-          setUtmZone(utm.ZoneNumber + utm.ZoneLetter); // Zona UTM
-        }
-        if (typeof utm !== "string") {
-          setUtmE(String(utm.Easting)); // Coordenada UTM E
-        }
-        if (typeof utm !== "string") {
-          setUtmN(String(utm.Northing)); // Coordenada UTM N
-        }
-        setShowGeoInputs(true);
+      if (permission !== RESULTS.GRANTED) {
+        // Handle the case where the user denies permission
         setIsLoading(false);
-        setIsAutoGeoInfos(true);
-      },
-      (error) => {
         dispatch(
           showError({
-            title: "Erro ao obter localização",
+            title: "Permissão de Localização Negada",
             message:
-              "Autorize e mantenha a localização ativa para coletar automaticamente a sua localização.",
-          })
+              "A coleta automática de localização requer permissão de localização.",
+          }),
         );
-        requestPermissions();
+        return;
+      }
+      if(permission !== RESULTS.GRANTED) return;
+      // Permission is granted, get the current position
+      Geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude, accuracy, altitude } = position.coords;
+          const { satellites = 0 } = position?.extras || {}; // Satellites are optional
+
+          // Convert latitude and longitude to numbers.  Important!
+          const latNum = Number(latitude);
+          const lonNum = Number(longitude);
+          const accuracyNum = Number(accuracy);
+          const altitudeNum = Number(altitude);
+          const satellitesNum = Number(satellites);
+
+          // Check if the conversion resulted in valid numbers
+          if (isNaN(latNum) || latNum < -90 || latNum > 90 || isNaN(lonNum) || lonNum < -180 || lonNum > 180) {
+            dispatch(
+              showError({
+                title: "Coordenadas Inválidas",
+                message:
+                  "A localização retornou coordenadas inválidas.",
+              }),
+            );
+            setIsLoading(false);
+            return;
+          }
+
+          // Check for valid accuracy
+          if (isNaN(accuracyNum) || accuracyNum < 0) {
+            dispatch(
+              showError({
+                title: "Erro de Localização",
+                message: "A precisão da localização é inválida.",
+              }),
+            );
+             setIsLoading(false);
+            return;
+          }
+          console.log({accuracy:  Math.floor(accuracyNum), latNum, lonNum})
+          const utm = utmConverter.convertLatLngToUtm(
+            latNum,
+            lonNum,
+            Math.floor(accuracyNum), // Pass the numeric accuracy
+          );
+
+          console.log({utm})
+
+          setLatitude(String(latNum));
+          setLongitude(String(lonNum));
+          setAccuracy(String(accuracyNum));
+          setAltitude(String(altitudeNum));
+          setSatellites(String(satellitesNum)); //  pass the numeric value
+          if (typeof utm !== "string") {
+            setUtmZone(utm.ZoneNumber + utm.ZoneLetter);
+          }
+          if (typeof utm !== "string") {
+             setUtmE(String(utm.Easting));
+          }
+          if (typeof utm !== "string") {
+            setUtmN(String(utm.Northing));
+          }
+          setShowGeoInputs(true);
+          setIsLoading(false);
+          setIsAutoGeoInfos(true);
+        },
+        (error) => {
+          dispatch(
+            showError({
+              title: "Erro ao obter localização",
+              message:
+                "Ocorreu um erro ao obter a localização: " + error.message,
+            }),
+          );
+          setIsLoading(false);
+          console.error(error.code, error.message);
+        },
+        { accuracy: { android: "balanced", ios: "nearestTenMeters"} },
+      );
+    } catch (error: any) {
+       dispatch(
+          showError({
+            title: "Erro ao obter permissão de localização",
+            message:
+              "Ocorreu um erro ao obter a permissão de localização: " + error.message,
+          }),
+        );
         setIsLoading(false);
-        console.error(error.code, error.message);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-    );
-  };
+        console.error("Error requesting location permission:", error);
+    }
+  }, [dispatch, utmConverter]);
 
   const pickImageFromGallery = useCallback(async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -273,7 +338,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
     } finally {
       setIsLoadingImage(false);
     }
-  }, [dispatch]);
+  }, [dispatch, convertFileToBase64]);
 
   const takePhotoWithCamera = useCallback(async () => {
     const status = await Camera.getCameraPermissionStatus();
@@ -659,7 +724,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             placeholder="Digite o DATUM"
             label="DATUM"
             value={datum}
-            onChangeText={(e) => setDatum(e)}
+            onChangeText={setDatum}
           />
           <TextInter color={colors.white[100]} weight="medium">
             Coordenadas Geográficas *
@@ -689,6 +754,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
                     placeholder="Digite a longitude"
                     value={longitude}
                     keyboardType="numeric"
+                    onChangeText={setLongitude}
                   />
                 </View>
                 <View style={styles.dubleRightContainer}>
@@ -697,6 +763,8 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
                     label="Latitude"
                     value={latitude}
                     keyboardType="numeric"
+                    onChangeText={setLatitude}
+
                   />
                 </View>
               </View>
@@ -921,7 +989,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     height: 58,
-  },
+},
   selectedImageStyle: {
     width: "100%",
     height: "100%",
