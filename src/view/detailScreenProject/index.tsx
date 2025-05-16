@@ -2,49 +2,39 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   View,
 } from "react-native";
-import { Divider } from "../../../../components/divider";
-import { Header } from "../../../../components/header";
-import TextInter from "../../../../components/textInter";
-import { colors } from "../../../../assets/colors";
-import { RouterProps } from "../../../../types";
+import { Divider } from "../../components/divider";
+import { Header } from "../../components/header";
+import TextInter from "../../components/textInter";
+import { colors } from "../../assets/colors";
+import { RouterProps } from "../../types";
 import { FC, useCallback, useEffect, useState } from "react";
-import { LabelText } from "../../../../components/labelText";
-import { database } from "../../../../db";
-import Project from "../../../../db/model/project";
-import { formatDate } from "../../../../util";
-import { LongButton } from "../../../../components/longButton";
-import { ProjectCard } from "../projectCard";
-import CavityRegister from "../../../../db/model/cavityRegister";
+import { LabelText } from "../../components/labelText";
+import { database } from "../../db";
+import Project from "../../db/model/project";
+import { formatDate } from "../../util";
+import { LongButton } from "../../components/longButton";
+import { ProjectCard } from "../project/components/projectCard";
+import CavityRegister from "../../db/model/cavityRegister";
 import { Q } from "@nozbe/watermelondb";
-import { CavityCard } from "../../../characterization/components/cavityCard";
+import { CavityCard } from "../cavity/components/cavityCard";
 import { useFocusEffect } from "@react-navigation/native";
-import { DetailScreenCavity } from "../../../characterization/components/detailScreenCavity";
+import { DetailScreenCavity } from "../detailScreenCavity";
 
-interface DetailScreenProps extends RouterProps {
-  onClose: () => void;
-  projectId: string;
-}
-
-export const DetailScreenProject: FC<DetailScreenProps> = ({
-  navigation,
-  onClose,
-  projectId,
-}) => {
+export const DetailScreenProject: FC<RouterProps> = ({ navigation, route }) => {
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [latestCavities, setLatestCavities] = useState<CavityRegister[]>([]);
   const [isLoadingCavities, setIsLoadingCavities] = useState(true);
-  const [selectedCavityId, setSelectedCavityId] = useState<string | null>(null);
-  const [detailIsVisible, setDetailIsVisible] = useState(false);
 
   useEffect(() => {
     const fetchProject = async () => {
-      if (!projectId) {
+      if (!route.params.projectId) {
         setError("ID do projeto não fornecido.");
         setIsLoading(false);
         return;
@@ -53,7 +43,9 @@ export const DetailScreenProject: FC<DetailScreenProps> = ({
       setError(null);
       try {
         const projectCollection = database.collections.get<Project>("project");
-        const foundProject = await projectCollection.find(projectId); // Find by ID
+        const foundProject = await projectCollection.find(
+          route.params.projectId
+        ); // Find by ID
         console.log({ foundProject });
         setProject(foundProject);
       } catch (err) {
@@ -66,16 +58,10 @@ export const DetailScreenProject: FC<DetailScreenProps> = ({
     };
 
     fetchProject();
-  }, [projectId]);
+  }, [route.params.projectId]);
 
   const handleOpenDetail = useCallback((cavityId: string) => {
-    setSelectedCavityId(cavityId);
-    setDetailIsVisible(true);
-  }, []);
-
-  const handleCloseDetail = useCallback(() => {
-    setDetailIsVisible(false);
-    setSelectedCavityId(null);
+    navigation.navigate("DetailScreenCavity", { cavityId });
   }, []);
 
   const fetchLatestCavities = useCallback(async (showLoading = true) => {
@@ -87,7 +73,7 @@ export const DetailScreenProject: FC<DetailScreenProps> = ({
       const cavityCollection = database.get<CavityRegister>("cavity_register");
       const fetchedCavities = await cavityCollection
         .query(
-          Q.where("projeto_id", projectId),
+          Q.where("projeto_id", route.params.projectId),
           Q.sortBy("data", Q.desc)
         )
         .fetch();
@@ -129,7 +115,7 @@ export const DetailScreenProject: FC<DetailScreenProps> = ({
   if (error) {
     return (
       <View style={styles.centered}>
-        <Header title="Erro" navigation={navigation} onCustomReturn={onClose} />
+        <Header title="Erro" navigation={navigation} />
         <Divider />
         <TextInter color={colors.error[100]} style={{ marginTop: 20 }}>
           {error}
@@ -141,11 +127,7 @@ export const DetailScreenProject: FC<DetailScreenProps> = ({
   if (!project) {
     return (
       <View style={styles.centered}>
-        <Header
-          title="Não Encontrado"
-          navigation={navigation}
-          onCustomReturn={onClose}
-        />
+        <Header title="Não Encontrado" navigation={navigation} />
         <Divider />
         <TextInter style={{ marginTop: 20 }}>Projeto não encontrada.</TextInter>
       </View>
@@ -178,86 +160,80 @@ export const DetailScreenProject: FC<DetailScreenProps> = ({
   );
 
   return (
+    <SafeAreaView style={styles.main}>
     <ScrollView showsVerticalScrollIndicator={false}>
-      {detailIsVisible && selectedCavityId ? (
-        <DetailScreenCavity
-          cavityId={selectedCavityId}
-          navigation={navigation}
-          onClose={handleCloseDetail}
+      <Header
+        title="Visualizar Projeto"
+        navigation={navigation}
+        onCustomReturn={() => navigation.navigate("ProjectScreen")}
+      />
+      <Divider />
+      <View style={styles.container}>
+        <TextInter color={colors.white[100]} fontSize={19}>
+          Registro
+        </TextInter>
+        <Divider />
+        <LabelText
+          label="Nome"
+          text={project.nome_projeto || "Não informado"}
         />
-      ) : (
+        <Divider />
+        <LabelText
+          label="Usuário responsável"
+          text={project.responsavel || "Não informado"}
+        />
+        <Divider />
+        <LabelText
+          label="Descrição"
+          text={project.descricao_projeto || "Não informado"}
+        />
+        <Divider />
+        <LabelText
+          label="Data da criação"
+          text={formatDate(project.inicio) || "Não informado"}
+        />
+      </View>
+      <Divider />
+      {!project.uploaded && (
         <>
-          <Header
-            title="Visualizar Projeto"
-            navigation={navigation}
-            onCustomReturn={onClose}
-          />
-          <Divider />
-          <View style={styles.container}>
-            <TextInter color={colors.white[100]} fontSize={19}>
-              Registro
-            </TextInter>
-            <Divider />
-            <LabelText
-              label="Nome"
-              text={project.nome_projeto || "Não informado"}
-            />
-            <Divider />
-            <LabelText
-              label="Usuário responsável"
-              text={project.responsavel || "Não informado"}
-            />
-            <Divider />
-            <LabelText
-              label="Descrição"
-              text={project.descricao_projeto || "Não informado"}
-            />
-            <Divider />
-            <LabelText
-              label="Data da criação"
-              text={formatDate(project.inicio) || "Não informado"}
-            />
-          </View>
-          <Divider />
-          {!project.uploaded && (
-            <>
-              <LongButton
-                title="Editar"
-                onPress={() =>
-                  navigation.navigate("EditProject", { projectId: project.id })
-                }
-              />
-              <Divider />
-            </>
-          )}
-          <TextInter fontSize={18} weight="medium" color={colors.white[100]}>
-            Cavidades do projeto(salvas offline)
-          </TextInter>
-          <Divider />
-          <FlatList
-            data={latestCavities}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <CavityCard
-                cavity={item}
-                onPress={() => handleOpenDetail(item.id)}
-              />
-            )}
-            ItemSeparatorComponent={() => <Divider height={12} />}
-            ListEmptyComponent={renderEmptyList}
-            contentContainerStyle={
-              latestCavities.length === 0
-                ? styles.emptyListContent
-                : { paddingBottom: Platform.OS === "ios" ? 110 : 84 }
+          <LongButton
+            title="Editar"
+            onPress={() =>
+              navigation.navigate("EditProject", { projectId: project.id })
             }
           />
+          <Divider />
         </>
       )}
+      <TextInter fontSize={18} weight="medium" color={colors.white[100]}>
+        Cavidades do projeto(salvas offline)
+      </TextInter>
+      <Divider />
+      <FlatList
+        data={latestCavities}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <CavityCard cavity={item} onPress={() => handleOpenDetail(item.id)} />
+        )}
+        ItemSeparatorComponent={() => <Divider height={12} />}
+        ListEmptyComponent={renderEmptyList}
+        contentContainerStyle={
+          latestCavities.length === 0
+            ? styles.emptyListContent
+            : { paddingBottom: Platform.OS === "ios" ? 110 : 84 }
+        }
+      />
     </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  main: {
+    backgroundColor: colors.dark[90],
+    flex: 1,
+    paddingHorizontal: 20,
+  },
   container: {
     flex: 1,
     borderWidth: 1,

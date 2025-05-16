@@ -2,14 +2,16 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  Platform,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   View,
 } from "react-native";
-import { Divider } from "../../../../components/divider";
-import { Header } from "../../../../components/header";
-import TextInter from "../../../../components/textInter";
-import { colors } from "../../../../assets/colors";
+import { Divider } from "../../components/divider";
+import { Header } from "../../components/header";
+import TextInter from "../../components/textInter";
+import { colors } from "../../assets/colors";
 import {
   Arqueologia,
   AspectosSocioambientais,
@@ -34,31 +36,28 @@ import {
   SedimentosData,
   Uso_cavidade,
   Vegetacao,
-} from "../../../../types";
+} from "../../types";
 import { FC, useEffect, useState } from "react";
-import { LabelText } from "../../../../components/labelText";
-import CavityRegister from "../../../../db/model/cavityRegister";
-import { database } from "../../../../db";
-import { formatDate } from "../../../../util";
-import { LongButton } from "../../../../components/longButton";
+import { LabelText } from "../../components/labelText";
+import CavityRegister from "../../db/model/cavityRegister";
+import { database } from "../../db";
+import { formatDate } from "../../util";
+import { LongButton } from "../../components/longButton";
+import Project from "../../db/model/project";
+import { useFocusEffect } from "@react-navigation/native";
 
-interface DetailScreenProps extends RouterProps {
-  onClose: () => void;
-  cavityId: string;
-}
-
-export const DetailScreenCavity: FC<DetailScreenProps> = ({
+export const DetailScreenCavity: FC<RouterProps> = ({
   navigation,
-  onClose,
-  cavityId,
+  route
 }) => {
   const [cavity, setCavity] = useState<CavityRegister | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
 
   useEffect(() => {
     const fetchCavity = async () => {
-      if (!cavityId) {
+      if (!route.params.cavityId) {
         setError("ID da cavidade não fornecido.");
         setIsLoading(false);
         return;
@@ -68,8 +67,13 @@ export const DetailScreenCavity: FC<DetailScreenProps> = ({
       try {
         const cavityCollection =
           database.collections.get<CavityRegister>("cavity_register");
-        const foundCavity = await cavityCollection.find(cavityId); // Find by ID
+        const foundCavity = await cavityCollection.find(route.params.cavityId);
         setCavity(foundCavity);
+        const projectCollection = database.collections.get<Project>("project");
+        const foundProject = await projectCollection.find(
+          foundCavity.projeto_id as string
+        );
+        setProject(foundProject);
       } catch (err) {
         console.error("Error fetching cavity details:", err);
         setError("Erro ao carregar detalhes da cavidade.");
@@ -80,14 +84,18 @@ export const DetailScreenCavity: FC<DetailScreenProps> = ({
     };
 
     fetchCavity();
-  }, [cavityId]);
+  }, [route.params.cavityId]);
+
+  useFocusEffect(()=>{
+    console.log(JSON.stringify(navigation.getState(), null, 90));
+  })
 
   if (isLoading) {
     return (
       <View
         style={{
           minHeight: "100%",
-          height: Dimensions.get("screen").height * .9,
+          height: Dimensions.get("screen").height * 0.9,
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -104,7 +112,7 @@ export const DetailScreenCavity: FC<DetailScreenProps> = ({
   if (error) {
     return (
       <View style={styles.centered}>
-        <Header title="Erro" navigation={navigation} onCustomReturn={onClose} />
+        <Header title="Erro" navigation={navigation} />
         <Divider />
         <TextInter color={colors.error[100]} style={{ marginTop: 20 }}>
           {error}
@@ -119,7 +127,6 @@ export const DetailScreenCavity: FC<DetailScreenProps> = ({
         <Header
           title="Não Encontrado"
           navigation={navigation}
-          onCustomReturn={onClose}
         />
         <Divider />
         <TextInter style={{ marginTop: 20 }}>
@@ -511,17 +518,23 @@ export const DetailScreenCavity: FC<DetailScreenProps> = ({
   );
 
   return (
+    <SafeAreaView style={styles.main}>
     <ScrollView showsVerticalScrollIndicator={false}>
       <Header
         title="Visualizar Caracterização"
         navigation={navigation}
-        onCustomReturn={onClose}
+        onCustomReturn={() => navigation.navigate("CavityScreen")}
       />
       <Divider />
       <View style={styles.container}>
         <TextInter color={colors.white[100]} fontSize={19}>
           Registro
         </TextInter>
+        <Divider />
+        <LabelText
+          label="Projeto"
+          text={project?.nome_projeto || "Não informado"}
+        />
         <Divider />
         <LabelText
           label="Responsável pelo registro"
@@ -608,6 +621,11 @@ export const DetailScreenCavity: FC<DetailScreenProps> = ({
               <LabelText
                 label="Elevação (m)"
                 text={entrada.coordenadas?.utm?.elevacao?.toString() ?? "N/A"}
+              />
+              <Divider height={12} />
+              <LabelText
+                label="Quant. de Satélites"
+                text={entrada.coordenadas?.satelites.toString() || "N/A"}
               />
               <Divider height={12} />
               <LabelText
@@ -992,15 +1010,21 @@ export const DetailScreenCavity: FC<DetailScreenProps> = ({
         {!cavity.uploaded && (
           <LongButton
             title="Editar"
-            onPress={() => navigation.navigate("EditCavity", { cavityId })}
+            onPress={() => navigation.navigate("EditCavity", { cavityId: route.params.cavityId })}
           />
         )}
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  main: {
+    backgroundColor: colors.dark[90],
+    flex: 1,
+    paddingHorizontal: 20,
+  },
   container: {
     flex: 1,
     borderWidth: 1,
@@ -1008,6 +1032,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 25,
+    marginBottom: 20,
   },
   image: {
     width: 161,

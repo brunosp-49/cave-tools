@@ -1,4 +1,5 @@
 import {
+  BackHandler,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -8,7 +9,7 @@ import {
 } from "react-native";
 import { colors } from "../../assets/colors";
 import { Header } from "../../components/header";
-import { FC, useState } from "react";
+import { FC, useCallback, useState } from "react";
 import { RouterProps } from "../../types";
 import { SuccessModal } from "../../components/modal/successModal";
 import { Input } from "../../components/input";
@@ -19,6 +20,7 @@ import { createProject, fetchAllUsers } from "../../db/controller";
 import uuid from "react-native-uuid";
 import { useDispatch } from "react-redux";
 import { showError } from "../../redux/loadingSlice";
+import { useFocusEffect } from "@react-navigation/native";
 
 const RegisterProject: FC<RouterProps> = ({ navigation }) => {
   const [successSuccessModal, setSuccessModal] = useState(false);
@@ -59,6 +61,23 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
     }
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        console.log("CavityScreen: Botão nativo de voltar pressionado!");
+        navigation.navigate("CavityScreen");
+        return true;
+      };
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      return () => {
+        console.log("CavityScreen: Removendo listener do botão de voltar.");
+        subscription.remove();
+      };
+    }, [navigation])
+  );
+
+
   return (
     <SafeAreaView style={styles.main}>
       <KeyboardAvoidingView
@@ -70,7 +89,7 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
             <Header
               title="Cadastrar Projeto"
               onCustomReturn={() =>
-                navigation.navigate("Tabs", { screen: "Home" })
+                navigation.navigate("ProjectScreen")
               }
               navigation={navigation}
             />
@@ -109,7 +128,7 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
                   setName("");
                   setDescription("");
                   setDate("");
-                  navigation.navigate("Tabs", { screen: "Home" });
+                  navigation.navigate("HomeScreen");
                 }}
               />
               <NextButton
@@ -124,7 +143,7 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
             title="Cadastro realizado com sucesso!"
             message="Seu projeto foi cadastrado com sucesso no sistema."
             onPress={() => {
-              navigation.navigate("Tabs", { screen: "Home" });
+              navigation.navigate("HomeScreen");
               setSuccessModal(false);
             }}
           />

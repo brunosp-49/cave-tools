@@ -37,7 +37,7 @@ const Dashboard: FC<RouterProps> = ({ navigation }) => {
               onCustomReturn={() =>
                 currentStep > 0
                   ? setCurrentStep(currentStep - 1)
-                  : navigation.navigate("Home")
+                  : navigation.navigate("HomeScreen")
               }
             />
             <StepComponent />

@@ -16,7 +16,7 @@ import { BarChart, barDataItem } from "react-native-gifted-charts";
 import { CavityCard } from "./components/cavityCard";
 import { FC, useState, useEffect, useCallback } from "react";
 import { RouterProps } from "../../types";
-import { DetailScreenCavity } from "./components/detailScreenCavity";
+import { DetailScreenCavity } from "../detailScreenCavity";
 import { FakeSearch } from "../../components/fakeSearch";
 import { Q } from "@nozbe/watermelondb";
 import { Subscription } from "rxjs";
@@ -48,12 +48,10 @@ interface SelectedBarInfo {
   value: number;
 }
 
-export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
+export const CavityScreen: FC<RouterProps> = ({ navigation }) => {
   const screenWidth = Dimensions.get("window").width;
   const chartWidth = screenWidth - 115;
 
-  const [detailIsVisible, setDetailIsVisible] = useState(false);
-  const [selectedCavityId, setSelectedCavityId] = useState<string | null>(null);
   const [latestCavities, setLatestCavities] = useState<CavityRegister[]>([]);
   const [isLoadingCavities, setIsLoadingCavities] = useState(true);
   const [chartData, setChartData] = useState<barDataItem[]>([]);
@@ -211,13 +209,8 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
   );
 
   const handleOpenDetail = useCallback((cavityId: string) => {
-    setSelectedCavityId(cavityId);
-    setDetailIsVisible(true);
-  }, []);
-
-  const handleCloseDetail = useCallback(() => {
-    setDetailIsVisible(false);
-    setSelectedCavityId(null);
+    console.log(JSON.stringify(navigation.getState(), null, 2));
+    navigation.navigate("DetailScreenCavity", { cavityId });
   }, []);
 
   const handleBarPress = useCallback((item: SelectedBarInfo) => {
@@ -240,20 +233,12 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.main}>
-      <ScrollView style={{ flex: 1 }}>{/* Make ScrollView take up available space */}
+      <ScrollView style={{ flex: 1 }}>
         <View style={styles.container}>
-          {detailIsVisible && selectedCavityId ? (
-            <DetailScreenCavity
-              cavityId={selectedCavityId}
-              navigation={navigation}
-              onClose={handleCloseDetail}
-            />
-          ) : (
-            <>
               <Header
                 title="Caracterização"
                 onCustomReturn={() =>
-                  navigation.navigate("Tabs", { screen: "Home" })
+                  navigation.navigate("HomeScreen")
                 }
                 navigation={navigation}
               />
@@ -333,8 +318,6 @@ export const CharacterizationScreen: FC<RouterProps> = ({ navigation }) => {
                   contentContainerStyle={styles.flatListContent}
                 />
               </View>
-            </>
-          )}
         </View>
       </ScrollView>
       <FakeBottomTab

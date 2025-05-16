@@ -21,7 +21,7 @@ import { Subscription } from "rxjs";
 import TextInter from "../../components/textInter";
 import Project from "../../db/model/project";
 import { ProjectCard } from "../project/components/projectCard";
-import { DetailScreenProject } from "../project/components/detailScreenProject";
+import { DetailScreenProject } from "../detailScreenProject";
 
 const SearchProject: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -30,10 +30,6 @@ const SearchProject: FC<RouterProps> = ({ navigation }) => {
   // --- State ---
   const [searchResults, setSearchResults] = useState<Project[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [detailIsVisible, setDetailIsVisible] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-    null
-  );
   const [debouncedSearchTerm] = useDebounce(searchProjects, 300);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
 
@@ -99,13 +95,7 @@ const SearchProject: FC<RouterProps> = ({ navigation }) => {
   }, [debouncedSearchTerm, allProjects]); // Add allProjects as a dependency
 
   const handleOpenDetail = useCallback((projectId: string) => {
-    setSelectedProjectId(projectId);
-    setDetailIsVisible(true);
-  }, []);
-
-  const handleCloseDetail = useCallback(() => {
-    setDetailIsVisible(false);
-    setSelectedProjectId(null);
+    navigation.navigate("DetailScreenProject", { projectId });
   }, []);
 
   const handleReturn = useCallback(() => {
@@ -157,14 +147,6 @@ const SearchProject: FC<RouterProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.main}>
       <View style={styles.container}>
-        {detailIsVisible && selectedProjectId ? (
-          <DetailScreenProject
-            navigation={navigation}
-            onClose={handleCloseDetail}
-            projectId={selectedProjectId}
-          />
-        ) : (
-          <>
             <Header
               title="Pesquisar Projetos"
               navigation={navigation}
@@ -194,8 +176,6 @@ const SearchProject: FC<RouterProps> = ({ navigation }) => {
               }
               keyboardShouldPersistTaps="handled"
             />
-          </>
-        )}
       </View>
     </SafeAreaView>
   );

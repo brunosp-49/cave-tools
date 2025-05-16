@@ -27,6 +27,7 @@ import {
   isTokenAlmostExpired,
   isTokenExpired,
   refreshUserToken,
+  requestLocationPermissions,
 } from "../../../../util";
 import { DefaultModal } from "../../../../components/modal/defaultModal";
 import { useDispatch, useSelector } from "react-redux";
@@ -313,6 +314,7 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
 
   useEffect(() => {
     if (visible) {
+      requestLocationPermissions();
       if (!initialCheckInvoked) {
         setInitialCheckInvoked(true);
         initialCheck().then((outcome) => {

@@ -13,7 +13,7 @@ import TextInter from "../../components/textInter"; // Adjust path
 import { Divider } from "../../components/divider"; // Adjust path
 import { FC, useState, useEffect, useCallback } from "react"; // Import useEffect, useCallback
 import { RouterProps } from "../../types"; // Adjust path
-import { DetailScreenProject } from "./components/detailScreenProject"; // Adjust path
+import { DetailScreenProject } from "../detailScreenProject"; // Adjust path
 import { FakeSearch } from "../../components/fakeSearch"; // Adjust path
 
 // --- WatermelonDB Imports ---
@@ -26,10 +26,6 @@ import Project from "../../db/model/project";
 import { FakeBottomTab } from "../../components/fakeBottomTab";
 
 export const ProjectScreen: FC<RouterProps> = ({ navigation }) => {
-  const [detailIsVisible, setDetailIsVisible] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-    null
-  );
   const [latestCavities, setLatestCavities] = useState<Project[]>([]);
   const [isLoadingCavities, setIsLoadingCavities] = useState(true);
 
@@ -79,24 +75,17 @@ export const ProjectScreen: FC<RouterProps> = ({ navigation }) => {
   useFocusEffect(
     useCallback(() => {
       console.log("Screen focused, fetching data...");
-      // Fetch data for the list (showLoading=true for initial focus load)
       fetchLatestCavities(true);
 
       // Optional: Return a cleanup function if needed when screen blurs
       // return () => {
       //   console.log("Screen blurred");
       // };
-    }, [fetchLatestCavities]) // Dependencies for the focus effect
+    }, [fetchLatestCavities])
   );
 
   const handleOpenDetail = useCallback((projectId: string) => {
-    setSelectedProjectId(projectId);
-    setDetailIsVisible(true);
-  }, []);
-
-  const handleCloseDetail = useCallback(() => {
-    setDetailIsVisible(false);
-    setSelectedProjectId(null);
+    navigation.navigate("DetailScreenProject", { projectId });
   }, []);
 
   const renderEmptyList = () => (
@@ -115,52 +104,37 @@ export const ProjectScreen: FC<RouterProps> = ({ navigation }) => {
     <SafeAreaView style={styles.main}>
       <ScrollView>
         <View style={styles.container}>
-          {detailIsVisible && selectedProjectId ? (
-            <DetailScreenProject
-              projectId={selectedProjectId}
-              navigation={navigation}
-              onClose={handleCloseDetail}
-            />
-          ) : (
-            <>
-              <Header
-                title="Projetos"
-                onCustomReturn={() => navigation.navigate("Tabs")}
-                navigation={navigation}
+          <Header
+            title="Projetos"
+            onCustomReturn={() => navigation.navigate("HomeScreen")}
+            navigation={navigation}
+            
+          />
+          <Divider height={35} />
+          <FakeSearch
+            placeholder="Projetos"
+            onPress={() => navigation.navigate("SearchProject")}
+          />
+          <Divider height={30} />
+          <TextInter fontSize={19} weight="medium" color={colors.white[100]}>
+            Últimos Projetos
+          </TextInter>
+          <Divider height={24} />
+          <FlatList
+            data={latestCavities}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <ProjectCard
+                project={item}
+                onPress={() => handleOpenDetail(item.id)}
               />
-              <Divider height={35} />
-              <FakeSearch
-                placeholder="Projetos"
-                onPress={() => navigation.navigate("SearchProject")}
-              />
-              <Divider height={30} />
-              <TextInter
-                fontSize={19}
-                weight="medium"
-                color={colors.white[100]}
-              >
-                Últimos Projetos
-              </TextInter>
-              <Divider height={24} />
-              <FlatList
-                data={latestCavities}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <ProjectCard
-                    project={item}
-                    onPress={() => handleOpenDetail(item.id)}
-                  />
-                )}
-                ItemSeparatorComponent={() => <Divider height={12} />}
-                ListEmptyComponent={renderEmptyList}
-                contentContainerStyle={
-                  latestCavities.length === 0
-                    ? styles.emptyListContent
-                    : undefined
-                }
-              />
-            </>
-          )}
+            )}
+            ItemSeparatorComponent={() => <Divider height={12} />}
+            ListEmptyComponent={renderEmptyList}
+            contentContainerStyle={
+              latestCavities.length === 0 ? styles.emptyListContent : undefined
+            }
+          />
         </View>
       </ScrollView>
       <FakeBottomTab onPress={() => navigation.navigate("RegisterProject")} />

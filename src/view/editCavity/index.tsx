@@ -440,7 +440,7 @@ const EditCavity: FC<RouterProps> = ({ navigation, route }) => {
 
   const handleBack = () => {
     if (currentStep === 0) {
-      navigation.navigate("CharacterizationScreen");
+      navigation.navigate("CavityScreen");
       dispatch(resetCavidadeState());
     } else {
       dispatch(updateCurrentStep(currentStep - 1));
@@ -451,7 +451,7 @@ const EditCavity: FC<RouterProps> = ({ navigation, route }) => {
   };
 
   const handleSuccessModalClose = () => {
-    navigation.navigate("CharacterizationScreen");
+    navigation.navigate("CavityScreen");
     setSuccessModal(false);
     dispatch(updateCurrentStep(0));
     dispatch(resetCavidadeState());
