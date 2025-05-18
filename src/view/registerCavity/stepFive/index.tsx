@@ -1,5 +1,5 @@
-import React, { FC, useCallback } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import React, { FC, useCallback, useMemo } from "react"; // Adicionado useMemo e FC
+import { ScrollView, StyleSheet, View } from "react-native"; // ScrollView pode ser útil para conteúdo longo
 import { StatusBar } from "expo-status-bar";
 import { colors } from "../../../assets/colors";
 import { Divider } from "../../../components/divider";
@@ -7,39 +7,80 @@ import TextInter from "../../../components/textInter";
 import { Checkbox } from "../../../components/checkbox";
 import { Input } from "../../../components/input";
 
-// Import Redux hooks, state/dispatch types, and the action
 import { useDispatch, useSelector } from "react-redux";
-import { AppDispatch, RootState } from "../../../redux/store"; // Adjust path
-import { updateCavidadeData } from "../../../redux/cavitySlice"; // Adjust path
+import { AppDispatch, RootState } from "../../../redux/store";
+import { updateCavidadeData } from "../../../redux/cavitySlice";
 
-// Import specific types used in this step
 import {
   Topografia,
   Morfologia,
   Padrao_planimetrico_predominante,
   Forma_predominante,
-} from "../../../types"; // Adjust path
+  RouterProps, // Importar RouterProps
+} from "../../../types";
 
-// Define types for handler keys for better type safety
+// Interface para as props do StepFive
+// Se StepComponentProps já está definido em um arquivo de tipos central, importe-o de lá.
+interface StepFiveProps extends RouterProps {
+  validationAttempted: boolean;
+}
+
 type EspeleometriaKeys = keyof NonNullable<Topografia["espeleometria"]>;
 type PrevisaoKeys = keyof NonNullable<Topografia["previsao"]>;
 type PadraoPlaniKeys = keyof Padrao_planimetrico_predominante;
 type FormaPredominanteKeys = keyof Forma_predominante;
 
-export const StepFive = () => {
-  // --- Redux Setup ---
+// Função auxiliar para verificar se um campo está preenchido
+const isFieldFilled = (value: any): boolean => {
+  if (value === null || typeof value === "undefined") return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  return true;
+};
+
+export const StepFive: FC<StepFiveProps> = ({
+  navigation,
+  route,
+  validationAttempted,
+}) => {
   const dispatch = useDispatch<AppDispatch>();
   const cavidade = useSelector((state: RootState) => state.cavity.cavidade);
-  // Use defaults for top-level optional objects
+
   const topografia: Partial<Topografia> = cavidade.topografia ?? {};
   const morfologia: Partial<Morfologia> = cavidade.morfologia ?? {};
-  // Deeper defaults for easier access
   const espeleometria = topografia.espeleometria ?? {};
   const previsao = topografia.previsao ?? {};
   const padraoPlanimetrico = morfologia.padrao_planimetrico ?? {};
   const formaSecoes = morfologia.forma_secoes ?? {};
 
-  // --- Generic Update Handler ---
+  // Lógica de Erros Específicos para StepFive
+  const stepFiveErrors = useMemo(() => {
+    if (!validationAttempted) {
+      return {};
+    }
+    const errors: { [key: string]: string } = {};
+    const errorMsgRequired = "Este campo é obrigatório.";
+
+    // Validação para "Outro" de Padrão planimétrico
+    if (
+      padraoPlanimetrico.outro !== undefined &&
+      !isFieldFilled(padraoPlanimetrico.outro)
+    ) {
+      errors.padrao_planimetrico_outro = errorMsgRequired;
+    }
+
+    // Validação para "Outro" de Forma predominante
+    if (formaSecoes.outro !== undefined && !isFieldFilled(formaSecoes.outro)) {
+      errors.forma_secoes_outro = errorMsgRequired;
+    }
+
+    // Outras validações do StepFive podem ser adicionadas aqui se necessário
+    // Por exemplo, se os campos de Espeleometria fossem obrigatórios:
+    // if (!isFieldFilled(espeleometria.projecao_horizontal)) errors.projecao_horizontal = errorMsgRequired;
+    // etc.
+
+    return errors;
+  }, [validationAttempted, padraoPlanimetrico, formaSecoes]);
+
   const handleUpdate = useCallback(
     (path: (string | number)[], value: any) => {
       dispatch(updateCavidadeData({ path, value }));
@@ -47,69 +88,67 @@ export const StepFive = () => {
     [dispatch]
   );
 
-  // --- Specific Handlers ---
-
   const handleTopografiaEspeleoChange = useCallback(
     (fieldName: EspeleometriaKeys, text: string) => {
-      const num = parseFloat(text);
+      if (text.trim() === "") {
+        handleUpdate(["topografia", "espeleometria", fieldName], undefined);
+        return;
+      }
+      const num = parseFloat(text.replace(",", "."));
       const path = ["topografia", "espeleometria", fieldName];
       handleUpdate(path, isNaN(num) ? undefined : num);
     },
-    [dispatch]
-  ); // Removed handleUpdate dependency, dispatch is enough
+    [handleUpdate] // Removido dispatch, handleUpdate já o tem
+  );
 
   const handleTopografiaPrevisaoChange = useCallback(
     (fieldName: PrevisaoKeys, text: string) => {
       const path = ["topografia", "previsao", fieldName];
-      handleUpdate(path, text); // BCRA and UIS are strings
+      handleUpdate(path, text);
     },
-    [dispatch]
+    [handleUpdate] // Removido dispatch
   );
 
   const handlePadraoPlaniChange = useCallback(
     (fieldName: PadraoPlaniKeys) => {
       const path = ["morfologia", "padrao_planimetrico", fieldName];
-      const currentValue = padraoPlanimetrico[fieldName] || false;
-      const newValue = !currentValue;
-      handleUpdate(path, newValue);
-      // Clear 'outro' text if 'Outro' checkbox is unchecked
-      if (fieldName === "outro" && !newValue) {
-        handleUpdate(["morfologia", "padrao_planimetrico", "outro"], "");
+      const currentValue = padraoPlanimetrico[fieldName]; // Pode ser boolean ou string para 'outro'
+
+      if (fieldName === "outro") {
+        const isCurrentlyActive = padraoPlanimetrico.outro !== undefined;
+        const newValue = isCurrentlyActive ? undefined : ""; // Se ativo, desativa (undefined); senão, ativa (string vazia)
+        handleUpdate(path, newValue);
+      } else {
+        handleUpdate(path, !currentValue); // Para os booleanos
       }
     },
-    [dispatch, padraoPlanimetrico]
+    [padraoPlanimetrico, handleUpdate] // Removido dispatch
   );
 
   const handleFormaPredominanteChange = useCallback(
     (fieldName: FormaPredominanteKeys) => {
       const path = ["morfologia", "forma_secoes", fieldName];
-      const currentValue = formaSecoes[fieldName] || false;
-      const newValue = !currentValue;
-      handleUpdate(path, newValue);
-      // Clear 'outro' text if 'Outro' checkbox is unchecked
-      if (fieldName === "outro" && !newValue) {
-        handleUpdate(["morfologia", "forma_secoes", "outro"], "");
+      const currentValue = formaSecoes[fieldName]; // Pode ser boolean ou string para 'outro'
+
+      if (fieldName === "outro") {
+        const isCurrentlyActive = formaSecoes.outro !== undefined;
+        const newValue = isCurrentlyActive ? undefined : "";
+        handleUpdate(path, newValue);
+      } else {
+        handleUpdate(path, !currentValue);
       }
     },
-    [dispatch, formaSecoes]
+    [formaSecoes, handleUpdate] // Removido dispatch
   );
 
-  // --- JSX ---
   return (
-    <View
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <Divider />
       <TextInter color={colors.white[100]} fontSize={19} weight="medium">
         Topografia (Mapa da Cavidade)
       </TextInter>
       <Divider />
-      {/* Typo in original UI? "Grupo litológico" seems out of place here, removed title */}
-      {/* Assuming Espeleometria section starts here */}
-      <TextInter
-        color={colors.white[100]}
-        weight="medium"
-      >
+      <TextInter color={colors.white[100]} weight="medium">
         Espeleometria
       </TextInter>
       <Divider height={16} />
@@ -117,16 +156,26 @@ export const StepFive = () => {
         label="Projeção horizontal (m)"
         placeholder="Digite a projeção horizontal"
         keyboardType="numeric"
-        value={String(espeleometria.projecao_horizontal ?? "")}
+        value={
+          espeleometria.projecao_horizontal !== undefined
+            ? String(espeleometria.projecao_horizontal).replace(".", ",")
+            : ""
+        }
         onChangeText={(text) =>
           handleTopografiaEspeleoChange("projecao_horizontal", text)
         }
+        // hasError={!!stepFiveErrors.projecao_horizontal} // Descomente se for obrigatório
+        // errorMessage={stepFiveErrors.projecao_horizontal}
       />
       <Input
         label="Desnível do piso (m)"
         placeholder="Digite o desnível do piso"
         keyboardType="numeric"
-        value={String(espeleometria.desnivel_piso ?? "")}
+        value={
+          espeleometria.desnivel_piso !== undefined
+            ? String(espeleometria.desnivel_piso).replace(".", ",")
+            : ""
+        }
         onChangeText={(text) =>
           handleTopografiaEspeleoChange("desnivel_piso", text)
         }
@@ -135,20 +184,25 @@ export const StepFive = () => {
         label="Área (m²)"
         placeholder="Digite a área"
         keyboardType="numeric"
-        value={String(espeleometria.area ?? "")}
+        value={
+          espeleometria.area !== undefined
+            ? String(espeleometria.area).replace(".", ",")
+            : ""
+        }
         onChangeText={(text) => handleTopografiaEspeleoChange("area", text)}
       />
       <Input
         label="Volume (m³)"
         placeholder="Digite o volume"
         keyboardType="numeric"
-        value={String(espeleometria.volume ?? "")}
+        value={
+          espeleometria.volume !== undefined
+            ? String(espeleometria.volume).replace(".", ",")
+            : ""
+        }
         onChangeText={(text) => handleTopografiaEspeleoChange("volume", text)}
       />
-      <TextInter
-        color={colors.white[100]}
-        weight="medium"
-      >
+      <TextInter color={colors.white[100]} weight="medium">
         Previsão (Classificação)
       </TextInter>
       <Divider height={16} />
@@ -168,10 +222,7 @@ export const StepFive = () => {
         Morfologia
       </TextInter>
       <Divider />
-      <TextInter
-        color={colors.white[100]}
-        weight="medium"
-      >
+      <TextInter color={colors.white[100]} weight="medium">
         Padrão planimétrico predominante
       </TextInter>
       <Divider height={12} />
@@ -218,12 +269,11 @@ export const StepFive = () => {
       />
       <Divider height={12} />
       <Checkbox
-        label="Outro"
-        checked={!!padraoPlanimetrico.outro}
+        label="Outro (Padrão)"
+        checked={padraoPlanimetrico.outro !== undefined}
         onChange={() => handlePadraoPlaniChange("outro")}
       />
-      {/* Conditional Input for Outro Padrão */}
-      {!!padraoPlanimetrico.outro && (
+      {padraoPlanimetrico.outro !== undefined && (
         <>
           <Divider height={12} />
           <Input
@@ -233,16 +283,15 @@ export const StepFive = () => {
             onChangeText={(text) =>
               handleUpdate(["morfologia", "padrao_planimetrico", "outro"], text)
             }
+            hasError={!!stepFiveErrors.padrao_planimetrico_outro}
+            errorMessage={stepFiveErrors.padrao_planimetrico_outro}
+            required // Indica visualmente que é obrigatório
           />
         </>
       )}
       <Divider />
 
-      {/* Forma predominante Section */}
-      <TextInter
-        color={colors.white[100]}
-        weight="medium"
-      >
+      <TextInter color={colors.white[100]} weight="medium">
         Forma predominante das seções
       </TextInter>
       <Divider height={12} />
@@ -331,12 +380,11 @@ export const StepFive = () => {
       />
       <Divider height={12} />
       <Checkbox
-        label="Outro"
-        checked={!!formaSecoes.outro}
+        label="Outro (Forma)"
+        checked={formaSecoes.outro !== undefined}
         onChange={() => handleFormaPredominanteChange("outro")}
       />
-      {/* Conditional Input for Outro Forma */}
-      {!!formaSecoes.outro && (
+      {formaSecoes.outro !== undefined && (
         <>
           <Divider height={12} />
           <Input
@@ -346,10 +394,12 @@ export const StepFive = () => {
             onChangeText={(text) =>
               handleUpdate(["morfologia", "forma_secoes", "outro"], text)
             }
+            hasError={!!stepFiveErrors.forma_secoes_outro}
+            errorMessage={stepFiveErrors.forma_secoes_outro}
+            required // Indica visualmente que é obrigatório
           />
         </>
       )}
-
       <StatusBar style="light" />
     </View>
   );
@@ -358,12 +408,24 @@ export const StepFive = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    height: "100%",
-    width: "100%",
+    // height: "100%", // Removido para flexibilidade
+    // width: "100%", // Removido
     paddingBottom: 30,
   },
-  secondLayer: {
-    paddingLeft: 30,
-    marginTop: 10,
+  // Removido secondLayer pois não é usado aqui, mas pode ser adicionado se necessário para sub-itens
+  // secondLayer: {
+  //   paddingLeft: 30,
+  //   marginTop: 10,
+  // },
+  inputSpacing: {
+    // Estilo para espaçamento abaixo dos Inputs "Outro"
+    marginBottom: 12,
+  },
+  errorText: {
+    // Estilo para mensagens de erro (se precisar de uma geral para a seção)
+    color: colors.error[100],
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: 8,
   },
 });

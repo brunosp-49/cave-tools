@@ -34,7 +34,8 @@ export const checkIfIsBlank = (value: string) => {
 
 export const formatDate = (date: string): string => {
   try {
-    const [year, month, day] = date.split("T")[0].split("-");
+    const confirmIsADate = new Date(date).toISOString();
+    const [year, month, day] = confirmIsADate.split("T")[0].split("-");
     const parsedDate = new Date(Number(year), Number(month) - 1, Number(day));
 
     if (isNaN(parsedDate.getTime())) {

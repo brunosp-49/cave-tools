@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
   SafeAreaView,
   StyleSheet,
@@ -22,6 +23,7 @@ import TextInter from "../../components/textInter";
 import Project from "../../db/model/project";
 import { ProjectCard } from "../project/components/projectCard";
 import { DetailScreenProject } from "../detailScreenProject";
+import { useFocusEffect } from "@react-navigation/native";
 
 const SearchProject: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -93,6 +95,24 @@ const SearchProject: FC<RouterProps> = ({ navigation }) => {
       subscription.unsubscribe();
     };
   }, [debouncedSearchTerm, allProjects]); // Add allProjects as a dependency
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        dispatch(onChangeSearchProjects(""));
+        navigation.navigate("ProjectScreen");
+        return true;
+      };
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => {
+        subscription.remove();
+      };
+    }, [navigation])
+  );
 
   const handleOpenDetail = useCallback((projectId: string) => {
     navigation.navigate("DetailScreenProject", { projectId });

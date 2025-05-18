@@ -57,7 +57,15 @@ export interface Dificuldades_externas {
   cachoeira?: boolean;
   trechos_escorregadios?: boolean;
   passagem_curso_agua?: boolean;
+  outroEnabled?: boolean;
+  outro?: string;
   nenhuma?: boolean;
+}
+
+export interface GeneralSelectOption<T = any> {
+  id: string | number; 
+  value: T;
+  label: string;
 }
 
 export interface Uso_cavidade {
@@ -113,6 +121,8 @@ export interface Infraestrutura_interna {
   corda?: boolean;
   iluminacao_artificial?: boolean;
   ponto_ancoragem?: boolean;
+  outros?: string;
+  outroEnabled?: boolean;
   nenhuma?: boolean;
 }
 
@@ -239,6 +249,8 @@ export interface Sedimentos {
         origem?: "autoctone" | "aloctone" | "mista";
       };
     };
+    outros?: string;
+    outroEnabled?: boolean;
   };
   sedimentacao_organica?: {
     possui?: boolean;
@@ -283,6 +295,8 @@ export interface Sedimentos {
       vestigios_ninhos?: boolean;
       pelotas_regurgitacao?: boolean;
     };
+    outros?: string;
+    outroEnabled?: boolean;
   };
 }
 
@@ -384,6 +398,7 @@ export interface Cavidade {
   entradas: {
     principal: boolean;
     foto: string | null;
+    nome: string;
     coordenadas: {
       datum: string;
       coleta_automatica: boolean;
@@ -421,6 +436,7 @@ export interface Cavidade {
     grupo_litologico: Grupo_litologico;
     desenvolvimento_predominante?: string;
     estado_conservacao?: string;
+    estado_conservacao_detalhes?: string;
     infraestrutura_interna: Infraestrutura_interna;
     dificuldades_progressao_interna: Dificuldades_progressao_interna;
   };
@@ -454,6 +470,7 @@ export interface Cavidade {
 export interface Entrada {
   principal: boolean;
   foto: string | null;
+  nome: string;
   coordenadas: {
     datum: string;
     coleta_automatica: boolean;
@@ -569,6 +586,16 @@ export interface ProjectModel {
   responsavel: string;
 }
 
+export interface UploadProjectPayload {
+  _id: string;
+  fk_cliente: string;
+  nome_projeto: string;
+  inicio: string;
+  descricao_projeto: string;
+  responsavel: string;
+  cavities: Cavidade[];
+}
+
 export interface CavityRegisterData {
   registro_id: string; // Required, will be used as the primary ID
   projeto_id: string;
@@ -612,6 +639,7 @@ export interface CaracterizacaoInterna {
   grupo_litologico?: Grupo_litologico; // Made optional
   desenvolvimento_predominante?: string;
   estado_conservacao?: string;
+  estado_conservacao_detalhes?: string;
   infraestrutura_interna?: Infraestrutura_interna; // Made optional
   dificuldades_progressao_interna?: Dificuldades_progressao_interna; // Made optional
 }
@@ -627,6 +655,8 @@ export interface Dificuldades_externas {
   cachoeira?: boolean;
   trechos_escorregadios?: boolean;
   passagem_curso_agua?: boolean;
+  outroEnabled?: boolean;
+  outro?: string;
   nenhuma?: boolean;
 }
 
@@ -748,6 +778,8 @@ export interface SedimentacaoClasticaTipo {
 export interface SedimentacaoClastica {
   possui?: boolean;
   tipo?: SedimentacaoClasticaTipo;
+  outros?: string;
+  outroEnabled?: boolean;
 }
 
 export interface Guano {
@@ -769,6 +801,8 @@ export interface SedimentacaoOrganicaTipo {
 export interface SedimentacaoOrganica {
   possui?: boolean;
   tipo?: SedimentacaoOrganicaTipo;
+  outros?: string;
+  outroEnabled?: boolean;
 }
 
 export interface SedimentosData {

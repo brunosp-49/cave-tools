@@ -28,7 +28,7 @@ import { FakeBottomTab } from "../../components/fakeBottomTab";
 export const ProjectScreen: FC<RouterProps> = ({ navigation }) => {
   const [latestCavities, setLatestCavities] = useState<Project[]>([]);
   const [isLoadingCavities, setIsLoadingCavities] = useState(true);
-
+console.log({latestCavities})
   const fetchLatestCavities = useCallback(async (showLoading = true) => {
     if (showLoading) {
       setIsLoadingCavities(true);
@@ -108,7 +108,7 @@ export const ProjectScreen: FC<RouterProps> = ({ navigation }) => {
             title="Projetos"
             onCustomReturn={() => navigation.navigate("HomeScreen")}
             navigation={navigation}
-            
+
           />
           <Divider height={35} />
           <FakeSearch

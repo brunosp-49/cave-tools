@@ -1,4 +1,11 @@
-import React, { FC, useCallback, useRef, useState } from "react";
+import React, {
+  FC,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Image,
@@ -8,6 +15,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   View,
+  Alert, // Importar Alert
 } from "react-native";
 import { Divider } from "../../../../components/divider";
 import TextInter from "../../../../components/textInter";
@@ -22,13 +30,10 @@ import {
   useCameraFormat,
 } from "react-native-vision-camera";
 import { LongButton } from "../../../../components/longButton";
-import Geolocation from "react-native-geolocation-service";
 import UTMConverter from "utm-latlng";
 import { useDispatch } from "react-redux";
 import { showError } from "../../../../redux/loadingSlice";
-import { requestPermissions } from "../../../../util";
 import { CustomSelect } from "../../../../components/customSelect";
-import { launchImageLibraryAsync } from "expo-image-picker";
 import UploadIcon from "../../../../components/icons/uploadIcon";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Entrada } from "../../../../types";
@@ -36,28 +41,33 @@ import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { NextButton } from "../../../../components/button/nextButton";
 import { ReturnButton } from "../../../../components/button/returnButton";
+import Geolocation from "react-native-geolocation-service";
+import { request, PERMISSIONS, RESULTS } from "react-native-permissions";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Entrada) => void;
+  disabled?: boolean;
 }
 
-interface InsercaoState {
-  afloramentoContinuo: boolean;
-  afloramentoIsolado: boolean;
-  escarpaContinua: boolean;
-  escarpaDescontinua: boolean;
-  dolina: boolean;
-  depositoTalus: boolean;
-  outro: boolean;
-  outroTexto: string;
-}
+const isFilled = (value: any): boolean => {
+  if (value === null || typeof value === "undefined") return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  if (Array.isArray(value) && value.length === 0) return false;
+  if (typeof value === "number" && isNaN(value)) return false;
+  return true;
+};
 
-export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
+export const CavityModal: React.FC<Props> = ({
+  isOpen,
+  onClose,
+  onSave,
+  disabled: propDisabled = false,
+}) => {
   const [datum, setDatum] = useState<string>("SIRGAS 2000");
   const [showGeoInputs, setShowGeoInputs] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoadingGeo, setIsLoadingGeo] = useState<boolean>(false);
   const [latitude, setLatitude] = useState<string>("");
   const [longitude, setLongitude] = useState<string>("");
   const [accuracy, setAccuracy] = useState<string>("");
@@ -77,14 +87,13 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
     outro: false,
     outroTexto: "",
   });
-
+  const [name, setName] = useState("");
   const [posicaoVertente, setPosicaoVertente] = useState({
     topo: false,
     alta: false,
     media: false,
     baixa: false,
   });
-
   const [vegetacao, setVegetacao] = useState({
     cerrado: false,
     campoRupestre: false,
@@ -96,12 +105,17 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
     outroTexto: "",
   });
   const [isAutoGeoInfos, setIsAutoGeoInfos] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null); // Stores base64 data URI string or null
-  const [isLoadingImage, setIsLoadingImage] = useState<boolean>(false); // Loading indicator for image processing
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isLoadingImage, setIsLoadingImage] = useState<boolean>(false);
   const [cameraIsOpen, setCameraIsOpen] = useState<boolean>(false);
   const dispatch = useDispatch();
   const device = useCameraDevice("back") as CameraDevice | undefined;
   const camera = useRef<Camera>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const [validationAttempted, setValidationAttempted] = useState(false); // Novo estado
+
+  const isEffectivelyDisabled = propDisabled || isLoadingGeo || isLoadingImage;
 
   const convertFileToBase64 = async (uri: string): Promise<string | null> => {
     setIsLoadingImage(true);
@@ -132,10 +146,11 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
     }
   };
 
-  const resetStates = () => {
+  const resetStates = useCallback(() => {
+    setName("");
     setDatum("SIRGAS 2000");
     setShowGeoInputs(false);
-    setIsLoading(false);
+    setIsLoadingGeo(false);
     setLatitude("");
     setLongitude("");
     setAccuracy("");
@@ -173,56 +188,231 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
       outroTexto: "",
     });
     setIsAutoGeoInfos(false);
-  };
+    setValidationAttempted(false); // Resetar tentativa de validação
+  }, []);
 
-  const getCurrentPosition = () => {
-    setIsLoading(true);
-    Geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude, accuracy, altitude } = position.coords;
-        const { satellites = 0 } = position.extras || {}; // Quantidade de satélites, se disponível
+  useEffect(() => {
+    if (isOpen) {
+      // resetStates(); // Descomente se quiser resetar ao abrir
+    } else {
+      resetStates(); // Resetar ao fechar (se não foi salvo)
+    }
+  }, [isOpen, resetStates]);
 
-        // Convertendo Latitude/Longitude para UTM
-        const utm = utmConverter.convertLatLngToUtm(
-          latitude,
-          longitude,
-          Math.floor(Number(accuracy))
-        );
-        // convertLatLngToUtm
-        // Atualizando os estados com as informações
-        setLatitude(String(latitude));
-        setLongitude(String(longitude));
-        setAccuracy(String(accuracy)); // Erro GPS
-        setAltitude(String(altitude)); // Elevação
-        setSatellites(String(satellites)); // Quantidade de satélites
-        if (typeof utm !== "string") {
-          setUtmZone(utm.ZoneNumber + utm.ZoneLetter); // Zona UTM
-        }
-        if (typeof utm !== "string") {
-          setUtmE(String(utm.Easting)); // Coordenada UTM E
-        }
-        if (typeof utm !== "string") {
-          setUtmN(String(utm.Northing)); // Coordenada UTM N
-        }
-        setShowGeoInputs(true);
-        setIsLoading(false);
-        setIsAutoGeoInfos(true);
-      },
-      (error) => {
+  const modalErrors = useMemo(() => {
+    if (!validationAttempted) return {};
+    const errors: { [key: string]: string } = {};
+    const msg = "Campo obrigatório";
+
+    if (!isFilled(name)) errors.name = msg;
+    if (!isFilled(datum)) errors.datum = msg;
+    if (!selectedImage) errors.selectedImage = "Foto da entrada é obrigatória.";
+
+    if (showGeoInputs) {
+      if (!isFilled(latitude)) errors.latitude = msg;
+      if (!isFilled(longitude)) errors.longitude = msg;
+      if (!isFilled(accuracy)) errors.accuracy = msg;
+      if (!isFilled(altitude)) errors.altitude = msg;
+      if (!isFilled(satellites)) errors.satellites = msg;
+      if (!isFilled(utmZone)) errors.utmZone = msg;
+      if (!isFilled(utmE)) errors.utmE = msg;
+      if (!isFilled(utmN)) errors.utmN = msg;
+    } else if (!isAutoGeoInfos) {
+      // Se não é coleta automática e os campos não estão visíveis, é um erro
+      errors.coordenadas =
+        "Coordenadas são obrigatórias (colete ou insira manualmente).";
+    }
+
+    if (insercao.outro && !isFilled(insercao.outroTexto))
+      errors.insercaoOutroTexto = msg;
+    if (vegetacao.outro && !isFilled(vegetacao.outroTexto))
+      errors.vegetacaoOutroTexto = msg;
+
+    return errors;
+  }, [
+    validationAttempted,
+    name,
+    datum,
+    selectedImage,
+    showGeoInputs,
+    latitude,
+    longitude,
+    accuracy,
+    altitude,
+    satellites,
+    utmZone,
+    utmE,
+    utmN,
+    insercao,
+    vegetacao,
+    isAutoGeoInfos,
+  ]);
+
+  const validateFields = useCallback(() => {
+    // A lógica de validação já está refletida em `modalErrors`.
+    // Se `modalErrors` estiver vazio após `validationAttempted` ser true, os campos são válidos.
+    // Para a função `validateFields` ser usada por `onSaveEntry` e pelo botão,
+    // podemos apenas checar se o objeto `modalErrors` (calculado com base na tentativa) está vazio.
+    // No entanto, para o botão, vamos depender de `Object.keys(modalErrors).length === 0` APÓS `validationAttempted`
+    // A função `validateFields` original pode ser mantida para uma verificação explícita se preferir.
+    // Por simplicidade, vou usar a lógica original de `validateFields` aqui.
+    if (!isFilled(name) || !isFilled(datum) || !selectedImage) return false;
+    if (showGeoInputs) {
+      if (
+        !isFilled(latitude) ||
+        !isFilled(longitude) ||
+        !isFilled(accuracy) ||
+        !isFilled(altitude) ||
+        !isFilled(satellites) ||
+        !isFilled(utmZone) ||
+        !isFilled(utmE) ||
+        !isFilled(utmN)
+      ) {
+        return false;
+      }
+    } else if (!isAutoGeoInfos) {
+      return false;
+    }
+    if (vegetacao.outro && !isFilled(vegetacao.outroTexto)) return false;
+    if (insercao.outro && !isFilled(insercao.outroTexto)) return false;
+    return true;
+  }, [
+    name,
+    datum,
+    selectedImage,
+    showGeoInputs,
+    latitude,
+    longitude,
+    accuracy,
+    altitude,
+    satellites,
+    utmZone,
+    utmE,
+    utmN,
+    vegetacao,
+    insercao,
+    isAutoGeoInfos,
+  ]);
+
+  const getCurrentPosition = useCallback(async () => {
+    if (isEffectivelyDisabled) return;
+    setIsLoadingGeo(true);
+    try {
+      const permission = await request(
+        Platform.OS === "ios"
+          ? PERMISSIONS.IOS.LOCATION_WHEN_IN_USE
+          : PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION
+      );
+
+      if (permission !== RESULTS.GRANTED) {
+        setIsLoadingGeo(false);
         dispatch(
           showError({
-            title: "Erro ao obter localização",
+            title: "Permissão de Localização Negada",
             message:
-              "Autorize e mantenha a localização ativa para coletar automaticamente a sua localização.",
+              "A coleta automática de localização requer permissão de localização.",
           })
         );
-        requestPermissions();
-        setIsLoading(false);
-        console.error(error.code, error.message);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-    );
-  };
+        return;
+      }
+
+      Geolocation.getCurrentPosition(
+        (position) => {
+          const {
+            latitude: lat,
+            longitude: lon,
+            accuracy: acc,
+            altitude: alt,
+          } = position.coords;
+          const { satellites: sats = 0 } = position?.extras || {};
+
+          const latNum = Number(lat);
+          const lonNum = Number(lon);
+          const accuracyNum = parseFloat(String(acc));
+          const altitudeNum = alt !== null ? parseFloat(String(alt)) : 0;
+          const satellitesNum = Number(sats);
+
+          if (
+            isNaN(latNum) ||
+            latNum < -90 ||
+            latNum > 90 ||
+            isNaN(lonNum) ||
+            lonNum < -180 ||
+            lonNum > 180
+          ) {
+            dispatch(
+              showError({
+                title: "Coordenadas Inválidas",
+                message: "A localização retornou coordenadas inválidas.",
+              })
+            );
+            setIsLoadingGeo(false);
+            return;
+          }
+          if (isNaN(accuracyNum) || accuracyNum < 0) {
+            dispatch(
+              showError({
+                title: "Erro de Localização",
+                message: "A precisão da localização é inválida.",
+              })
+            );
+            setIsLoadingGeo(false);
+            return;
+          }
+
+          const utmResult = utmConverter.convertLatLngToUtm(
+            latNum,
+            lonNum,
+            Math.floor(accuracyNum)
+          );
+
+          setLatitude(String(latNum));
+          setLongitude(String(lonNum));
+          setAccuracy(String(accuracyNum));
+          setAltitude(String(altitudeNum));
+          setSatellites(String(satellitesNum));
+          if (typeof utmResult !== "string") {
+            setUtmZone(utmResult.ZoneNumber + utmResult.ZoneLetter);
+            setUtmE(String(utmResult.Easting));
+            setUtmN(String(utmResult.Northing));
+          } else {
+            dispatch(
+              showError({
+                title: "Erro UTM",
+                message: `Não foi possível converter para UTM: ${utmResult}`,
+              })
+            );
+          }
+          setShowGeoInputs(true);
+          setIsLoadingGeo(false);
+          setIsAutoGeoInfos(true);
+        },
+        (error) => {
+          dispatch(
+            showError({
+              title: "Erro ao obter localização",
+              message: `(${error.code}) ${error.message}`,
+            })
+          );
+          setIsLoadingGeo(false);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 10000,
+          accuracy: { android: "high", ios: "best" },
+        }
+      );
+    } catch (error: any) {
+      dispatch(
+        showError({
+          title: "Erro de Permissão",
+          message: `Erro ao obter permissão de localização: ${error.message}`,
+        })
+      );
+      setIsLoadingGeo(false);
+    }
+  }, [dispatch, utmConverter, isEffectivelyDisabled]);
 
   const pickImageFromGallery = useCallback(async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -363,62 +553,47 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
     },
   ]);
 
-  const requiredFields = [
-    datum,
-    latitude,
-    longitude,
-    accuracy,
-    altitude,
-    satellites,
-    utmZone,
-    utmE,
-    utmN,
-    selectedImage,
-  ];
-
-  const validateFields = () => {
-    if (requiredFields.some((field) => !field)) return false;
-
-    if (vegetacao.outro && !vegetacao.outroTexto.trim()) return false;
-    if (insercao.outro && !insercao.outroTexto.trim()) return false;
-
-    return true;
-  };
-
   const onSaveEntry = () => {
-    const pontoAtual = utmConverter.convertLatLngToUtm(
-      Number(latitude),
-      Number(longitude),
-      Math.floor(Number(accuracy))
-    );
+    setValidationAttempted(true);
 
-    const latRef = -19.123456;
-    const lonRef = -43.123456;
-    const pontoRef = utmConverter.convertLatLngToUtm(
-      latRef,
-      lonRef,
-      Math.floor(Number(accuracy))
-    );
-    const graus_e = pontoAtual.Easting - pontoRef.Easting;
-    const graus_n = pontoAtual.Northing - pontoRef.Northing;
-    const erro_gps = Math.sqrt(Math.pow(graus_e, 2) + Math.pow(graus_n, 2));
+    if (!validateFields()) {
+      Alert.alert(
+        "Campos Obrigatórios",
+        "Por favor, preencha todos os campos sinalizados."
+      );
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ y: 0, animated: true });
+      }
+      return;
+    }
+
+    const latNum = Number(latitude);
+    const lonNum = Number(longitude);
+    const accNum = Number(accuracy);
+    const altNum = Number(altitude);
+    const satNum = Number(satellites);
+    const utmENum = Number(utmE);
+    const utmNNum = Number(utmN);
+    let erro_gps_calculado = accNum;
+
     onSave({
       principal: false,
       foto: selectedImage,
+      nome: name,
       coordenadas: {
         datum,
         coleta_automatica: isAutoGeoInfos,
-        graus_e,
-        graus_n,
-        erro_gps,
-        satelites: Number(satellites),
+        graus_e: utmENum,
+        graus_n: utmNNum,
+        erro_gps: erro_gps_calculado,
+        satelites: satNum,
         utm: {
           zona: utmZone,
-          utm_e: Number(utmE),
-          utm_n: Number(utmN),
-          erro_gps,
-          satelites: Number(satellites),
-          elevacao: Number(altitude),
+          utm_e: utmENum,
+          utm_n: utmNNum,
+          erro_gps: erro_gps_calculado,
+          satelites: satNum,
+          elevacao: altNum,
         },
       },
       caracteristicas: {
@@ -447,14 +622,30 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
   };
 
   return (
-    <Modal statusBarTranslucent visible={isOpen}>
-      <ScrollView>
+    <Modal
+      statusBarTranslucent
+      visible={isOpen}
+      onRequestClose={onClose}
+      animationType="slide"
+    >
+      <ScrollView keyboardShouldPersistTaps="handled" ref={scrollViewRef}>
         <View style={styles.container}>
           <Divider />
           <TextInter color={colors.white[100]} fontSize={19} weight="medium">
             Características da entrada
           </TextInter>
           <Divider />
+          <Input
+            placeholder="Digite o nome da entrada"
+            label="Nome da Entrada"
+            required
+            value={name}
+            onChangeText={setName}
+            disabled={isEffectivelyDisabled}
+            hasError={!!modalErrors.name}
+            errorMessage={modalErrors.name}
+          />
+
           <TextInter color={colors.white[100]} weight="medium">
             Inserção
           </TextInter>
@@ -463,6 +654,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Afloramento rochoso contínuo"
             checked={insercao.afloramentoContinuo}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setInsercao((prev) => ({
                 ...prev,
                 afloramentoContinuo: !prev.afloramentoContinuo,
@@ -474,6 +666,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Afloramento isolado"
             checked={insercao.afloramentoIsolado}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setInsercao((prev) => ({
                 ...prev,
                 afloramentoIsolado: !prev.afloramentoIsolado,
@@ -485,6 +678,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Escarpa rochosa contínua"
             checked={insercao.escarpaContinua}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setInsercao((prev) => ({
                 ...prev,
                 escarpaContinua: !prev.escarpaContinua,
@@ -496,6 +690,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Escarpa rochosa descontínua"
             checked={insercao.escarpaDescontinua}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setInsercao((prev) => ({
                 ...prev,
                 escarpaDescontinua: !prev.escarpaDescontinua,
@@ -507,6 +702,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Dolina"
             checked={insercao.dolina}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setInsercao((prev) => ({ ...prev, dolina: !prev.dolina }))
             }
           />
@@ -515,6 +711,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Depósito de talús"
             checked={insercao.depositoTalus}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setInsercao((prev) => ({
                 ...prev,
                 depositoTalus: !prev.depositoTalus,
@@ -523,9 +720,10 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
           />
           <Divider height={12} />
           <Checkbox
-            label="Outro"
+            label="Outro (Inserção)"
             checked={insercao.outro}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setInsercao((prev) => ({ ...prev, outro: !prev.outro }))
             }
           />
@@ -533,13 +731,16 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
           {insercao.outro && (
             <Input
               placeholder="Especifique aqui"
-              label="Outro"
+              label="Outro Inserção"
               value={insercao.outroTexto}
               onChangeText={(text) =>
                 setInsercao((prev) => ({ ...prev, outroTexto: text }))
               }
+              hasError={!!modalErrors.insercaoOutroTexto}
+              errorMessage={modalErrors.insercaoOutroTexto}
             />
           )}
+
           <TextInter color={colors.white[100]} weight="medium">
             Posição na vertente
           </TextInter>
@@ -548,6 +749,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Topo"
             checked={posicaoVertente.topo}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setPosicaoVertente((prev) => ({ ...prev, topo: !prev.topo }))
             }
           />
@@ -556,6 +758,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Alta"
             checked={posicaoVertente.alta}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setPosicaoVertente((prev) => ({ ...prev, alta: !prev.alta }))
             }
           />
@@ -564,6 +767,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Média"
             checked={posicaoVertente.media}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setPosicaoVertente((prev) => ({ ...prev, media: !prev.media }))
             }
           />
@@ -572,10 +776,12 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Baixa"
             checked={posicaoVertente.baixa}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setPosicaoVertente((prev) => ({ ...prev, baixa: !prev.baixa }))
             }
           />
           <Divider height={12} />
+
           <TextInter color={colors.white[100]} weight="medium">
             Vegetação Regional
           </TextInter>
@@ -584,6 +790,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Cerrado"
             checked={vegetacao.cerrado}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setVegetacao((prev) => ({ ...prev, cerrado: !prev.cerrado }))
             }
           />
@@ -592,6 +799,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Campo rupestre"
             checked={vegetacao.campoRupestre}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setVegetacao((prev) => ({
                 ...prev,
                 campoRupestre: !prev.campoRupestre,
@@ -603,6 +811,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Floresta estacional semidecidual"
             checked={vegetacao.florestaSemidecidual}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setVegetacao((prev) => ({
                 ...prev,
                 florestaSemidecidual: !prev.florestaSemidecidual,
@@ -614,6 +823,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Floresta ombrófila"
             checked={vegetacao.florestaOmbrofila}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setVegetacao((prev) => ({
                 ...prev,
                 florestaOmbrofila: !prev.florestaOmbrofila,
@@ -625,6 +835,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Mata seca"
             checked={vegetacao.mataSeca}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setVegetacao((prev) => ({ ...prev, mataSeca: !prev.mataSeca }))
             }
           />
@@ -633,14 +844,16 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
             label="Campo sujo"
             checked={vegetacao.campoSujo}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setVegetacao((prev) => ({ ...prev, campoSujo: !prev.campoSujo }))
             }
           />
           <Divider height={12} />
           <Checkbox
-            label="Outro"
+            label="Outro (Vegetação)"
             checked={vegetacao.outro}
             onChange={() =>
+              !isEffectivelyDisabled &&
               setVegetacao((prev) => ({ ...prev, outro: !prev.outro }))
             }
           />
@@ -648,35 +861,55 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
           {vegetacao.outro && (
             <Input
               placeholder="Especifique aqui"
-              label="Outro"
+              label="Outra Vegetação"
               value={vegetacao.outroTexto}
               onChangeText={(text) =>
                 setVegetacao((prev) => ({ ...prev, outroTexto: text }))
               }
+              disabled={isEffectivelyDisabled}
+              hasError={!!modalErrors.vegetacaoOutroTexto}
+              errorMessage={modalErrors.vegetacaoOutroTexto}
             />
           )}
+
           <Input
             placeholder="Digite o DATUM"
             label="DATUM"
             value={datum}
-            onChangeText={(e) => setDatum(e)}
+            onChangeText={setDatum}
+            required
+            disabled={isEffectivelyDisabled}
+            hasError={!!modalErrors.datum}
+            errorMessage={modalErrors.datum}
           />
+
           <TextInter color={colors.white[100]} weight="medium">
             Coordenadas Geográficas *
           </TextInter>
+          {!!modalErrors.coordenadas && (
+            <TextInter
+              color={colors.error[100]}
+              fontSize={12}
+              style={styles.errorText}
+            >
+              {modalErrors.coordenadas}
+            </TextInter>
+          )}
+
           {!showGeoInputs ? (
             <>
               <Divider height={10} />
               <LongButton
                 title="Inserir Manualmente"
                 onPress={() => setShowGeoInputs(true)}
-                disabled={isLoading}
+                disabled={isEffectivelyDisabled}
               />
               <Divider height={10} />
               <LongButton
                 title="Coletar Automaticamente"
                 onPress={getCurrentPosition}
-                isLoading={isLoading}
+                isLoading={isLoadingGeo}
+                disabled={isEffectivelyDisabled || isLoadingGeo}
               />
             </>
           ) : (
@@ -686,76 +919,118 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
                 <View style={styles.dubleLeftContainer}>
                   <Input
                     label="Longitude"
-                    placeholder="Digite a longitude"
+                    placeholder="Ex: -43.123456"
                     value={longitude}
                     keyboardType="numeric"
+                    onChangeText={setLongitude}
+                    disabled={isEffectivelyDisabled}
+                    required
+                    hasError={!!modalErrors.longitude}
+                    errorMessage={modalErrors.longitude}
                   />
                 </View>
                 <View style={styles.dubleRightContainer}>
                   <Input
-                    placeholder="Digite a latitude"
+                    placeholder="Ex: -19.123456"
                     label="Latitude"
                     value={latitude}
                     keyboardType="numeric"
+                    onChangeText={setLatitude}
+                    disabled={isEffectivelyDisabled}
+                    required
+                    hasError={!!modalErrors.latitude}
+                    errorMessage={modalErrors.latitude}
                   />
                 </View>
               </View>
               <View style={styles.dubleInputContainer}>
                 <View style={styles.dubleLeftContainer}>
                   <Input
-                    label="Precisão"
-                    placeholder="Digite a precisão"
+                    label="Precisão (m)"
+                    placeholder="Ex: 10.00"
                     value={accuracy}
+                    numericType="decimal"
+                    decimalPlaces={2}
                     keyboardType="numeric"
-                    onChangeText={(e) => setAccuracy(e)}
+                    onChangeText={setAccuracy}
+                    disabled={isEffectivelyDisabled}
+                    required
+                    hasError={!!modalErrors.accuracy}
+                    errorMessage={modalErrors.accuracy}
                   />
                 </View>
                 <View style={styles.dubleRightContainer}>
                   <Input
-                    placeholder="Digite a altitude"
-                    label="Altitude"
+                    placeholder="Ex: 800.00"
+                    label="Altitude (m)"
                     value={altitude}
                     keyboardType="numeric"
-                    onChangeText={(e) => setAltitude(e)}
+                    numericType="decimal"
+                    decimalPlaces={2}
+                    onChangeText={setAltitude}
+                    disabled={isEffectivelyDisabled}
+                    required
+                    hasError={!!modalErrors.altitude}
+                    errorMessage={modalErrors.altitude}
                   />
                 </View>
               </View>
               <View style={styles.dubleInputContainer}>
-                <View style={styles.dubleRightContainer}>
+                <View style={styles.dubleLeftContainer}>
                   <Input
-                    placeholder="Satélites"
+                    placeholder="Ex: 15"
                     label="Quant. de Satélites"
                     value={satellites}
                     keyboardType="numeric"
-                    onChangeText={(e) => setSatellites(e)}
+                    onChangeText={setSatellites}
+                    disabled={isEffectivelyDisabled}
+                    required
+                    hasError={!!modalErrors.satellites}
+                    errorMessage={modalErrors.satellites}
                   />
                 </View>
                 <View style={styles.dubleRightContainer}>
                   <Input
-                    placeholder="Digite a Zona UTM"
+                    placeholder="Ex: 23K"
                     label="Zona UTM"
                     value={utmZone}
-                    onChangeText={(e) => setUtmZone(e)}
+                    onChangeText={setUtmZone}
+                    disabled={isEffectivelyDisabled}
+                    required
+                    hasError={!!modalErrors.utmZone}
+                    errorMessage={modalErrors.utmZone}
                   />
                 </View>
               </View>
               <View style={styles.dubleInputContainer}>
-                <View style={styles.dubleRightContainer}>
+                <View style={styles.dubleLeftContainer}>
                   <Input
-                    placeholder="Digite a UTM E"
+                    placeholder="Ex: 678901.00"
                     label="UTM E"
                     value={utmE}
                     keyboardType="numeric"
-                    onChangeText={(e) => setUtmE(e)}
+                    numericType="decimal"
+                    decimalPlaces={2}
+                    onChangeText={setUtmE}
+                    disabled={isEffectivelyDisabled}
+                    required
+                    hasError={!!modalErrors.utmE}
+                    errorMessage={modalErrors.utmE}
                   />
                 </View>
                 <View style={styles.dubleRightContainer}>
                   <Input
-                    placeholder="Digite a UTM N"
+                    placeholder="Ex: 7890123.00"
                     label="UTM N"
                     value={utmN}
                     keyboardType="numeric"
-                    onChangeText={(e) => setUtmN(e)}
+                    numericType="decimal"
+                    decimalPlaces={2}
+                    onChangeText={setUtmN}
+                    disabled={isEffectivelyDisabled}
+                    required
+                    hasError={!!modalErrors.utmN}
+                    errorMessage={modalErrors.utmN}
                   />
                 </View>
               </View>
@@ -764,6 +1039,7 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
           <Divider />
           <CustomSelect
             label="Foto da entrada da cavidade"
+            required
             optionsList={[
               {
                 id: "1",
@@ -776,8 +1052,16 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
                 onPress: takePhotoWithCamera,
               },
             ]}
+            hasError={!!modalErrors.selectedImage}
+            errorMessage={modalErrors.selectedImage}
           >
-            <View style={styles.uploadContainer}>
+            <View
+              style={[
+                styles.uploadContainer,
+                isEffectivelyDisabled && styles.disabledUploadContainer,
+                !!modalErrors.selectedImage && styles.uploadError,
+              ]}
+            >
               {isLoadingImage ? (
                 <ActivityIndicator size="small" color={colors.accent[100]} />
               ) : selectedImage ? (
@@ -788,10 +1072,12 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
                 />
               ) : (
                 <>
-                  <UploadIcon />
+                  <UploadIcon disabled={isEffectivelyDisabled} />
                   <TextInter
                     weight="regular"
-                    color={colors.dark[60]}
+                    color={
+                      isEffectivelyDisabled ? colors.dark[50] : colors.dark[60]
+                    }
                     style={{ marginTop: 5 }}
                   >
                     Selecionar Imagem
@@ -804,22 +1090,27 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
           <View style={styles.buttonContainer}>
             <ReturnButton
               onPress={() => {
-                resetStates();
-                onClose();
+                if (!isEffectivelyDisabled) {
+                  resetStates();
+                  onClose();
+                }
               }}
               buttonTitle="Cancelar"
+              disabled={isEffectivelyDisabled}
             />
             <NextButton
-              disabled={!validateFields()}
+              disabled={isEffectivelyDisabled}
               onPress={onSaveEntry}
               buttonTitle="Salvar"
             />
           </View>
-          {device && ( // Conditionally render Camera Modal only if device exists
+
+          {device && (
             <Modal
               visible={cameraIsOpen}
               statusBarTranslucent
               animationType="fade"
+              onRequestClose={() => !isLoadingImage && setCameraIsOpen(false)}
             >
               <View style={styles.cameraContainer}>
                 <Camera
@@ -833,11 +1124,10 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
                     console.error("Camera Runtime Error:", error)
                   }
                 />
-                {/* Camera Controls Overlay */}
                 <View style={styles.cameraControls}>
                   <TouchableOpacity
                     style={styles.closeButton}
-                    onPress={() => setCameraIsOpen(false)}
+                    onPress={() => !isLoadingImage && setCameraIsOpen(false)}
                     disabled={isLoadingImage}
                   >
                     <Ionicons name="close" size={35} color={"#fff"} />
@@ -853,7 +1143,6 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
                       <Ionicons name="camera" size={35} color={"#fff"} />
                     )}
                   </TouchableOpacity>
-                  {/* Spacer to balance close button */}
                   <View style={{ width: 50 }} />
                 </View>
               </View>
@@ -868,10 +1157,8 @@ export const CavityModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    height: "110%",
-    width: "100%",
     paddingBottom: 30,
-    paddingTop: 20,
+    paddingTop: Platform.OS === "ios" ? 40 : 20,
     backgroundColor: colors.dark[90],
     paddingHorizontal: 20,
   },
@@ -898,22 +1185,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
+  disabledUploadContainer: {
+    backgroundColor: colors.dark[70],
+    opacity: 0.7,
+  },
+  uploadError: {
+    borderColor: colors.error[100],
+  },
   cameraContainer: {
     flex: 1,
-  },
-  button: {
-    position: "absolute",
-    bottom: 70,
-    alignSelf: "center",
-    width: 80,
-    height: 80,
-    borderRadius: 80 / 2,
-    borderWidth: 5,
-    borderColor: colors.white[90],
-    backgroundColor: "rgba(255, 255, 255, 0.548)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: "black",
   },
   buttonContainer: {
     flexDirection: "row",
@@ -921,10 +1202,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     height: 58,
+    marginTop: 20,
   },
   selectedImageStyle: {
-    width: "100%",
-    height: "100%",
+    width: "95%",
+    height: "95%",
+    borderRadius: 5,
   },
   cameraControls: {
     position: "absolute",
@@ -932,8 +1215,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingVertical: 20,
-    paddingBottom: 40,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
+    backgroundColor: "rgba(0,0,0,0.4)",
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
@@ -942,15 +1225,21 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: "rgba(200, 200, 200, 0.6)",
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 4,
+    borderWidth: 3,
     borderColor: "white",
   },
   closeButton: {
-    // position: 'absolute', // Use layout instead if possible
-    // left: 20,
     padding: 15,
+  },
+  inputSpacing: {
+    marginBottom: 10,
+  },
+  errorText: {
+    color: colors.error[100],
+    fontSize: 12,
+    marginTop: 2,
   },
 });

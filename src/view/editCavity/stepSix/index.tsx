@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { FC, useCallback, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Divider } from "../../../components/divider";
@@ -6,21 +6,60 @@ import TextInter from "../../../components/textInter";
 import { colors } from "../../../assets/colors";
 import { Checkbox } from "../../../components/checkbox";
 import { Input } from "../../../components/input";
-import { Hidrologia } from "../../../types";
+import { Hidrologia, RouterProps } from "../../../types"; 
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "../../../redux/store";
 import { updateCavidadeData } from "../../../redux/cavitySlice";
+
+interface StepSixProps extends RouterProps {
+  validationAttempted: boolean;
+}
 
 type HidrologiaFeatureKey = Exclude<keyof Hidrologia, "outro">;
 type HidrologiaTipoValue = NonNullable<
   NonNullable<Hidrologia["curso_agua"]>["tipo"]
 >;
 
-export const StepSix = () => {
+const isFieldFilled = (value: any): boolean => {
+    if (value === null || typeof value === "undefined") return false;
+    if (typeof value === "string" && value.trim() === "") return false;
+    return true;
+};
+
+export const StepSix: FC<StepSixProps> = ({ navigation, route, validationAttempted }) => {
   const dispatch = useDispatch<AppDispatch>();
   const cavidade = useSelector((state: RootState) => state.cavity.cavidade);
 
   const hidrologia = cavidade.hidrologia ?? {};
+  const stepSixErrors = useMemo(() => {
+    if (!validationAttempted) {
+      return {};
+    }
+    const errors: { [key: string]: string } = {};
+    const errorMsgRequired = "Selecione um tipo.";
+    const errorMsgOutroRequired = "Este campo é obrigatório.";
+
+    const checkFeatureError = (featureName: HidrologiaFeatureKey) => {
+      const feature = hidrologia[featureName];
+      if (feature?.possui && !isFieldFilled(feature.tipo)) {
+        errors[featureName] = errorMsgRequired;
+      }
+    };
+
+    checkFeatureError("curso_agua");
+    checkFeatureError("lago");
+    checkFeatureError("sumidouro");
+    checkFeatureError("surgencia");
+    checkFeatureError("gotejamento");
+    checkFeatureError("condensacao");
+    checkFeatureError("empossamento");
+    checkFeatureError("exudacao");
+
+    if (hidrologia.outro !== undefined && !isFieldFilled(hidrologia.outro)) {
+        errors.hidrologia_outro = errorMsgOutroRequired;
+    }
+    return errors;
+  }, [validationAttempted, hidrologia]);
 
   const handleUpdate = useCallback(
     (path: (string | number)[], value: any) => {
@@ -36,12 +75,14 @@ export const StepSix = () => {
       const currentlyPossui = currentFeatureState?.possui || false;
 
       if (currentlyPossui) {
-        handleUpdate(featurePath, undefined);
+        // Ao desmarcar "Possui", limpa o objeto inteiro da feature
+        handleUpdate(featurePath, undefined); 
       } else {
+        // Ao marcar "Possui", inicializa com 'tipo' undefined para forçar seleção
         handleUpdate(featurePath, { possui: true, tipo: undefined });
       }
     },
-    [dispatch, hidrologia]
+    [handleUpdate, hidrologia]
   );
 
   const handleTypeChange = useCallback(
@@ -50,21 +91,21 @@ export const StepSix = () => {
       const currentType = hidrologia[featureName]?.tipo;
       handleUpdate(typePath, currentType === typeValue ? undefined : typeValue);
     },
-    [dispatch, hidrologia]
+    [handleUpdate, hidrologia]
   );
 
   const handleOutroTextChange = useCallback(
     (text: string) => {
       handleUpdate(["hidrologia", "outro"], text);
     },
-    [dispatch]
+    [handleUpdate]
   );
 
-  const handleOutroCheckboxToggle = useCallback(() => {
-    if (hidrologia.outro) {
-      handleUpdate(["hidrologia", "outro"], "");
-    }
-  }, [dispatch, hidrologia.outro]);
+  const handleFinalOutroToggle = useCallback(() => {
+    const outroPath = ["hidrologia", "outro"];
+    const isCurrentlyActive = hidrologia.outro !== undefined; 
+    handleUpdate(outroPath, isCurrentlyActive ? undefined : "");
+  }, [handleUpdate, hidrologia.outro]);
 
   const renderFeatureSection = (
     featureKey: HidrologiaFeatureKey,
@@ -73,6 +114,7 @@ export const StepSix = () => {
     const featureState = hidrologia[featureKey];
     const possui = featureState?.possui || false;
     const currentType = featureState?.tipo;
+    const hasErrorForFeature = !!stepSixErrors[featureKey];
 
     return (
       <View key={featureKey}>
@@ -86,6 +128,11 @@ export const StepSix = () => {
             <TextInter color={colors.white[100]} weight="medium">
               Selecione o tipo de {label.toLowerCase()}
             </TextInter>
+            {hasErrorForFeature && (
+                <TextInter color={colors.error[100]} fontSize={12} style={styles.errorText}>
+                    {stepSixErrors[featureKey]}
+                </TextInter>
+            )}
             <Divider height={12} />
             <Checkbox
               label="Perene"
@@ -102,9 +149,7 @@ export const StepSix = () => {
             <Checkbox
               label="Não soube informar"
               checked={currentType === "nao_soube_informar"}
-              onChange={() =>
-                handleTypeChange(featureKey, "nao_soube_informar")
-              }
+              onChange={() => handleTypeChange(featureKey, "nao_soube_informar")}
             />
           </View>
         )}
@@ -112,17 +157,6 @@ export const StepSix = () => {
       </View>
     );
   };
-
-  const handleFinalOutroToggle = useCallback(() => {
-    const outroPath = ["hidrologia", "outro"];
-    const isCurrentlyEnabled = hidrologia.outro != null;
-
-    if (isCurrentlyEnabled) {
-      handleUpdate(outroPath, undefined);
-    } else {
-      handleUpdate(outroPath, "");
-    }
-  }, [dispatch, hidrologia.outro]);
 
   return (
     <View style={styles.container}>
@@ -139,18 +173,22 @@ export const StepSix = () => {
       {renderFeatureSection("condensacao", "Condensação")}
       {renderFeatureSection("empossamento", "Empoçamento")}
       {renderFeatureSection("exudacao", "Exudação")}
+      
       <Checkbox
-        label="Outro"
-        checked={hidrologia.outro != null}
+        label="Outro (Fenômeno Hidrológico)"
+        checked={hidrologia.outro !== undefined}
         onChange={handleFinalOutroToggle}
       />
       <Divider height={12} />
-      {hidrologia.outro != null && (
+      {hidrologia.outro !== undefined && (
         <Input
           placeholder="Especifique aqui"
           label="Qual outro fenômeno hidrológico?"
           value={hidrologia.outro || ""}
           onChangeText={handleOutroTextChange}
+          hasError={!!stepSixErrors.hidrologia_outro}
+          errorMessage={stepSixErrors.hidrologia_outro}
+          required
         />
       )}
       <StatusBar style="light" />
@@ -161,12 +199,19 @@ export const StepSix = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    height: "100%",
-    width: "100%",
     paddingBottom: 30,
   },
   secondLayer: {
-    paddingLeft: 30,
+    paddingLeft: 20,
     marginTop: 10,
+  },
+  errorText: {
+    color: colors.error[100],
+    fontSize: 12,
+    marginTop: 2,
+    // marginBottom: 6, 
+  },
+  inputSpacing: { 
+    marginBottom: 12,
   },
 });

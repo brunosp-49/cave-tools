@@ -1,6 +1,5 @@
-import React, { useState, useEffect, FC, useRef, useMemo } from "react";
+import React, { useState, useEffect, FC, useMemo } from "react";
 import {
-  FlatList,
   Image,
   StyleSheet,
   TouchableOpacity,
@@ -17,7 +16,7 @@ import TextInter from "../../../components/textInter";
 import { colors } from "../../../assets/colors";
 import { LongButton } from "../../../components/longButton";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Entrada, ProjectModel, RouterProps } from "../../../types";
+import { Entrada, ProjectModel } from "../../../types"; // RouterProps removido daqui, virá de StepComponentProps
 import { RootState } from "../../../redux/store";
 import {
   addEntrada,
@@ -26,7 +25,7 @@ import {
   updateCavidadeData,
 } from "../../../redux/cavitySlice";
 import { fetchAllProjects } from "../../../db/controller";
-import Project from "../../../db/model/project";
+import { StepComponentProps } from "../../editCavity";
 
 interface SelectOption {
   id: string;
@@ -34,49 +33,77 @@ interface SelectOption {
 }
 
 const ufOptions: SelectOption[] = [
-  { id: 'AC', value: 'Acre' },
-  { id: 'AL', value: 'Alagoas' },
-  { id: 'AP', value: 'Amapá' },
-  { id: 'AM', value: 'Amazonas' },
-  { id: 'BA', value: 'Bahia' },
-  { id: 'CE', value: 'Ceará' },
-  { id: 'DF', value: 'Distrito Federal' },
-  { id: 'ES', value: 'Espírito Santo' },
-  { id: 'GO', value: 'Goiás' },
-  { id: 'MA', value: 'Maranhão' },
-  { id: 'MT', value: 'Mato Grosso' },
-  { id: 'MS', value: 'Mato Grosso do Sul' },
-  { id: 'MG', value: 'Minas Gerais' },
-  { id: 'PA', value: 'Pará' },
-  { id: 'PB', value: 'Paraíba' },
-  { id: 'PR', value: 'Paraná' },
-  { id: 'PE', value: 'Pernambuco' },
-  { id: 'PI', value: 'Piauí' },
-  { id: 'RJ', value: 'Rio de Janeiro' },
-  { id: 'RN', value: 'Rio Grande do Norte' },
-  { id: 'RS', value: 'Rio Grande do Sul' },
-  { id: 'RO', value: 'Rondônia' },
-  { id: 'RR', value: 'Roraima' },
-  { id: 'SC', value: 'Santa Catarina' },
-  { id: 'SP', value: 'São Paulo' },
-  { id: 'SE', value: 'Sergipe' },
-  { id: 'TO', value: 'Tocantins' }
+  { id: 'AC', value: 'Acre' }, { id: 'AL', value: 'Alagoas' }, { id: 'AP', value: 'Amapá' },
+  { id: 'AM', value: 'Amazonas' }, { id: 'BA', value: 'Bahia' }, { id: 'CE', value: 'Ceará' },
+  { id: 'DF', value: 'Distrito Federal' }, { id: 'ES', value: 'Espírito Santo' }, { id: 'GO', value: 'Goiás' },
+  { id: 'MA', value: 'Maranhão' }, { id: 'MT', value: 'Mato Grosso' }, { id: 'MS', value: 'Mato Grosso do Sul' },
+  { id: 'MG', value: 'Minas Gerais' }, { id: 'PA', value: 'Pará' }, { id: 'PB', value: 'Paraíba' },
+  { id: 'PR', value: 'Paraná' }, { id: 'PE', value: 'Pernambuco' }, { id: 'PI', value: 'Piauí' },
+  { id: 'RJ', value: 'Rio de Janeiro' }, { id: 'RN', value: 'Rio Grande do Norte' }, { id: 'RS', value: 'Rio Grande do Sul' },
+  { id: 'RO', value: 'Rondônia' }, { id: 'RR', value: 'Roraima' }, { id: 'SC', value: 'Santa Catarina' },
+  { id: 'SP', value: 'São Paulo' }, { id: 'SE', value: 'Sergipe' }, { id: 'TO', value: 'Tocantins' }
 ].sort((a, b) => a.value.localeCompare(b.value));
 
-export const StepOne: FC<RouterProps> = ({navigation}) => {
+// Função auxiliar para verificar se um campo está preenchido (similar à do EditCavity)
+const isFieldFilled = (value: any): boolean => {
+  if (value === null || typeof value === "undefined") return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  if (Array.isArray(value) && value.length === 0) return false;
+  if (typeof value === "number" && isNaN(value)) return false;
+  return true;
+};
+
+export const StepOne: FC<StepComponentProps> = ({ navigation, validationAttempted }) => {
   const [cavityModalIsOpen, setCavityModalIsOpen] = useState(false);
   const dispatch = useDispatch();
   const cavidade = useSelector((state: RootState) => state.cavity.cavidade);
   const entradas = cavidade.entradas || [];
   const [projectOptions, setProjectOptions] = useState<SelectOption[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
-  const [selectedProject, setSelectedProject] = useState<SelectOption | null>(
-    null
-  );
+  // selectedProject não é mais necessário aqui se o value do Select for direto do Redux
+  // const [selectedProject, setSelectedProject] = useState<SelectOption | null>(null);
 
   const selectedUfOption = useMemo(() => {
     return ufOptions.find(opt => opt.id === cavidade.uf);
   }, [cavidade.uf]);
+
+  const selectedProjectOption = useMemo(() => {
+    return projectOptions.find(opt => opt.id === cavidade.projeto_id);
+  }, [cavidade.projeto_id, projectOptions]);
+
+
+  // Lógica de Erros Específicos para StepOne
+  const stepOneErrors = useMemo(() => {
+    if (!validationAttempted) {
+      return {}; // Sem erros se a validação não foi tentada
+    }
+    const errors: { [key: string]: string } = {};
+    const errorMsgRequired = "Este campo é obrigatório.";
+
+    if (!isFieldFilled(cavidade.projeto_id)) {
+      errors.projeto_id = errorMsgRequired;
+    }
+    if (!isFieldFilled(cavidade.responsavel)) {
+      errors.responsavel = errorMsgRequired;
+    }
+    if (!isFieldFilled(cavidade.nome_cavidade)) {
+      errors.nome_cavidade = errorMsgRequired;
+    }
+    if (!Array.isArray(entradas) || entradas.length === 0) {
+      errors.entradas = "Pelo menos uma entrada deve ser adicionada.";
+    }
+    // Adicione outras validações específicas do StepOne aqui, se necessário
+    // Ex: UF e Município podem ser obrigatórios dependendo da regra de negócio.
+    // if (!isFieldFilled(cavidade.uf)) {
+    //   errors.uf = errorMsgRequired;
+    // }
+    // if (!isFieldFilled(cavidade.municipio)) {
+    //   errors.municipio = errorMsgRequired;
+    // }
+
+
+    return errors;
+  }, [validationAttempted, cavidade, entradas]);
 
   useEffect(() => {
     const requestCameraPermission = async () => {
@@ -94,39 +121,39 @@ export const StepOne: FC<RouterProps> = ({navigation}) => {
   }, [dispatch]);
 
   useEffect(() => {
-    let isMounted = true; // Prevent state update on unmounted component
+    let isMounted = true;
     const loadProjects = async () => {
       setIsLoadingProjects(true);
       try {
-        const projects: ProjectModel[] = await fetchAllProjects(); // Assuming Project type has _id and nome_projeto
+        const projects: ProjectModel[] = await fetchAllProjects();
         if (isMounted) {
           const options = projects.map((project) => ({
-            id: String(project._id), // Use .id if available, fallback to _id
+            id: String(project._id), // Garante que o ID é string
             value: project.nome_projeto,
           }));
           setProjectOptions(options);
-
-          // If cavidade.projeto_id is already filled, find and set the selectedProject
-          if (cavidade.projeto_id) {
-            const current = options.find((opt) => opt.id === cavidade.projeto_id);
-            if (current) setSelectedProject(current);
-          }
           setIsLoadingProjects(false);
         }
       } catch (error) {
         console.error("Failed to load projects", error);
         if (isMounted) setIsLoadingProjects(false);
+        dispatch(showError({title: "Erro ao Carregar Projetos", message: "Não foi possível buscar a lista de projetos."}))
       }
     };
 
-    const unsubscribe = navigation.addListener("focus", loadProjects);
+    // Usar navigation.addListener não é o ideal para carregar dados em focus.
+    // useFocusEffect do @react-navigation/native é melhor.
+    // Mas se esta é a sua abordagem atual, mantenha-a ou considere refatorar.
+    const unsubscribe = navigation.addListener("focus", () => {
+        if (isMounted) loadProjects(); // Recarregar projetos ao focar na tela
+    });
 
-    loadProjects();
+    loadProjects(); // Carga inicial
     return () => {
-      isMounted = false; // Cleanup function
-      unsubscribe(); // Remove focus listener
+      isMounted = false;
+      unsubscribe(); // Limpar o listener
     };
-  }, [cavidade.projeto_id, navigation]);
+  }, [dispatch, navigation]); // Removido cavidade.projeto_id para evitar recargas desnecessárias ao selecionar projeto
 
   const handleInputChange = (path: (string | number)[], value: any) => {
     dispatch(updateCavidadeData({ path, value }));
@@ -149,15 +176,18 @@ export const StepOne: FC<RouterProps> = ({navigation}) => {
     <View style={styles.container}>
       <Divider />
       <Select
-        placeholder="Selecione um projeto"
+        placeholder={isLoadingProjects ? "Carregando projetos..." : "Selecione um projeto"}
         label="Selecione o projeto"
         required
-        value={selectedProject?.value || ""} // Display selected project name
+        value={selectedProjectOption?.value || ""}
         onChangeText={(obj: SelectOption) => {
-          setSelectedProject(obj);
-          handleInputChange(["projeto_id"], obj.id); // Save project ID to Redux
+          // setSelectedProject(obj); // Não mais necessário se value vem do Redux
+          handleInputChange(["projeto_id"], obj.id);
         }}
         optionsList={projectOptions}
+        hasError={!!stepOneErrors.projeto_id}
+        errorMessage={stepOneErrors.projeto_id}
+        disabled={isLoadingProjects}
       />
       <Input
         placeholder="Digite o nome do responsável"
@@ -165,6 +195,8 @@ export const StepOne: FC<RouterProps> = ({navigation}) => {
         required
         value={cavidade.responsavel || ""}
         onChangeText={(text) => handleInputChange(["responsavel"], text)}
+        hasError={!!stepOneErrors.responsavel}
+        errorMessage={stepOneErrors.responsavel}
       />
       <Input
         label="Nome da cavidade"
@@ -172,34 +204,41 @@ export const StepOne: FC<RouterProps> = ({navigation}) => {
         required
         value={cavidade.nome_cavidade || ""}
         onChangeText={(text) => handleInputChange(["nome_cavidade"], text)}
+        hasError={!!stepOneErrors.nome_cavidade}
+        errorMessage={stepOneErrors.nome_cavidade}
       />
       <Input
         label="Nome do sistema"
         placeholder="Digite o nome do sistema"
         value={cavidade.nome_sistema || ""}
         onChangeText={(text) => handleInputChange(["nome_sistema"], text)}
+        // Não há validação específica para nome_sistema em validateStep, então sem erro
+      />
+      <Select
+        label="UF"
+        placeholder="Selecione a UF"
+        // required // Descomente se UF for obrigatório
+        optionsList={ufOptions}
+        value={selectedUfOption?.value || ""}
+        onChangeText={(selectedOption: SelectOption) => {
+          handleInputChange(["uf"], selectedOption.id);
+        }}
+        // hasError={!!stepOneErrors.uf} // Adicione se UF for obrigatório
+        // errorMessage={stepOneErrors.uf}
       />
       <Input
         label="Município"
         placeholder="Digite o nome do município"
         value={cavidade.municipio || ""}
         onChangeText={(text) => handleInputChange(["municipio"], text)}
+        // hasError={!!stepOneErrors.municipio} // Adicione se Município for obrigatório
+        // errorMessage={stepOneErrors.municipio}
       />
       <Input
         label="Localidade"
         placeholder="Digite a localidade"
         value={cavidade.localidade || ""}
         onChangeText={(text) => handleInputChange(["localidade"], text)}
-      />
-      <Select
-        label="UF"
-        placeholder="Selecione a UF"
-        required
-        optionsList={ufOptions}
-        value={selectedUfOption?.value || ""}
-        onChangeText={(selectedOption: SelectOption) => {
-          handleInputChange(["uf"], selectedOption.id);
-        }}
       />
       <Input
         placeholder="DD/MM/AAAA"
@@ -208,36 +247,29 @@ export const StepOne: FC<RouterProps> = ({navigation}) => {
         keyboardType="numeric"
         value={cavidade.data || ""}
         onChangeTextMask={(text) => handleInputChange(["data"], text)}
+        // Não há validação específica para data em validateStep, então sem erro
       />
       <TextInter color={colors.white[100]} weight="medium">
-        Cavidades *
+        Entradas da Cavidade *
       </TextInter>
+      {validationAttempted && !!stepOneErrors.entradas && (
+        <TextInter color={colors.error[100]} fontSize={12} style={styles.errorText}>
+          {stepOneErrors.entradas}
+        </TextInter>
+      )}
       <Divider />
       {entradas.map((item, index) => (
-        <View key={index} style={{ marginBottom: 15 }}>
-          <View
-            style={{
-              backgroundColor: colors.dark[80],
-              height: 70,
-              borderRadius: 10,
-              paddingLeft: 10,
-              justifyContent: "space-between",
-              flexDirection: "row",
-              alignItems: "center",
-            }}
-          >
+        <View key={index} style={styles.entryItemContainer}>
+          <View style={styles.entryContent}>
             <Image
-              source={{ uri: item.foto || undefined }}
-              style={{
-                width: 60,
-                height: 50,
-                borderRadius: 5,
-              }}
+              source={{ uri: item.foto || undefined }} // Fallback para undefined se foto for null
+              style={styles.entryImage}
+              defaultSource={require('../../../assets/images/logo.png')} // Adicione uma imagem placeholder
             />
             <TouchableOpacity
               onPress={() => !item.principal && handleSetPrincipal(index)}
               disabled={item.principal}
-              style={{ flexDirection: "row", alignItems: "center" }}
+              style={styles.principalButton}
             >
               <TextInter
                 color={item.principal ? colors.white[100] : colors.white[80]}
@@ -245,7 +277,7 @@ export const StepOne: FC<RouterProps> = ({navigation}) => {
                 fontSize={12}
                 style={{ marginRight: 10 }}
               >
-                Principal
+                {item.principal ? 'Principal' : 'Definir como principal'}
               </TextInter>
               <Ionicons
                 name="checkmark-circle"
@@ -254,21 +286,13 @@ export const StepOne: FC<RouterProps> = ({navigation}) => {
               />
             </TouchableOpacity>
             <TouchableOpacity
-              style={{
-                width: "20%",
-                height: "100%",
-                backgroundColor: colors.dark[70],
-                justifyContent: "center",
-                alignItems: "center",
-                borderTopEndRadius: 10,
-                borderBottomEndRadius: 10,
-              }}
+              style={styles.deleteButton}
+              onPress={() => handleDeleteEntry(index)}
             >
               <Ionicons
                 name="trash-sharp"
                 size={24}
                 color={"#F4364C"}
-                onPress={() => handleDeleteEntry(index)}
               />
             </TouchableOpacity>
           </View>
@@ -292,9 +316,50 @@ export const StepOne: FC<RouterProps> = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    height: "100%",
-    width: "100%",
+    // height: "100%", // Removido para permitir que ScrollView controle o tamanho
+    // width: "100%",  // Removido
     paddingBottom: 30,
   },
-  buttonInside: {},
+  entryItemContainer: {
+    marginBottom: 15,
+  },
+  entryContent: {
+    backgroundColor: colors.dark[80],
+    height: 70,
+    borderRadius: 10,
+    paddingLeft: 10,
+    justifyContent: "space-between",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  entryImage: {
+    width: 60,
+    height: 50,
+    borderRadius: 5,
+    backgroundColor: colors.dark[70], // Placeholder background
+  },
+  principalButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10, // Adicionado padding para melhor toque
+    flex: 1, // Para ocupar espaço e centralizar o texto
+    justifyContent: 'center'
+  },
+  deleteButton: {
+    width: 60, // Largura fixa para o botão de deletar
+    height: "100%",
+    backgroundColor: colors.dark[70],
+    justifyContent: "center",
+    alignItems: "center",
+    borderTopEndRadius: 10,
+    borderBottomEndRadius: 10,
+  },
+  errorText: {
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  inputSpacing: { // Pode ser usado para Inputs se necessário
+    marginBottom: 10,
+  }
 });
+

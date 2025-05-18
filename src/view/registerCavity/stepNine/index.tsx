@@ -1,8 +1,7 @@
-import React, { FC, useCallback } from "react";
-import { ScrollView, StyleSheet, View } from "react-native"; // Import ScrollView
+import React, { FC, useCallback, useMemo } from "react"; // Adicionado useMemo, FC
+import { ScrollView, StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
-// Types and components
-import { SelectOption as GeneralSelectOption } from "../../../types"; // Assuming SelectOption is exported from your types
+import { GeneralSelectOption, RouterProps } from "../../../types"; // RouterProps importado
 import { colors } from "../../../assets/colors";
 import { Divider } from "../../../components/divider";
 import TextInter from "../../../components/textInter";
@@ -12,9 +11,8 @@ import { Input } from "../../../components/input";
 import { DividerColorLine } from "../../../components/dividerColorLine";
 import { InputMultiline } from "../../../components/inputMultiline";
 
-// Import Redux hooks, state/dispatch types, and the specific actions
 import { useDispatch, useSelector } from "react-redux";
-import { AppDispatch, RootState } from "../../../redux/store"; // Adjust path
+import { AppDispatch, RootState } from "../../../redux/store";
 import {
   setBiotaPossui,
   toggleBiotaTypeInArray,
@@ -23,77 +21,128 @@ import {
   removeMorcegoTipo,
   setMorcegosObservacoes,
   toggleBiotaOutroEnabled,
-} from "../../../redux/cavitySlice"; // Adjust path for SPECIFIC actions
+} from "../../../redux/cavitySlice";
 
-// Import specific types used in this step
-import { Biota } from "../../../types"; // Adjust path
+import { Biota } from "../../../types";
 
-// --- Helper Types Derived from Biota Interface ---
+// Interface para as props do StepNine
+// Se StepComponentProps já está definido em um arquivo de tipos central, importe-o de lá.
+interface StepNineProps extends RouterProps {
+  validationAttempted: boolean;
+}
+
 type BiotaCategoryKey = keyof Pick<
   Biota,
   "invertebrados" | "invertebrados_aquaticos" | "anfibios" | "repteis" | "aves"
 >;
 type BatQuantidadeType = "individuo" | "grupo" | "colonia" | "colonia_grande";
-// Derive BatFeedingType from the updated Biota type
 type BatFeedingType = NonNullable<
   NonNullable<NonNullable<Biota["morcegos"]>["tipos"]>[number]["tipo"]
 >;
 
-// --- Constants ---
 const batQuantidadeOptions: GeneralSelectOption<BatQuantidadeType | "">[] = [
   { id: "placeholder", value: "", label: "Selecione Quantidade..." },
   { id: "individuo", value: "individuo", label: "Indivíduo" },
   { id: "grupo", value: "grupo", label: "Grupo Pequeno (<50)" },
   { id: "colonia", value: "colonia", label: "Colônia (50-1000)" },
-  {
-    id: "colonia_grande",
-    value: "colonia_grande",
-    label: "Colônia Grande (>1000)",
-  },
+  { id: "colonia_grande", value: "colonia_grande", label: "Colônia Grande (>1000)" },
 ];
 
-// --- Component Definition ---
-export const StepNine: FC = () => {
-  // --- Redux Setup ---
+const isFieldFilled = (value: any): boolean => {
+    if (value === null || typeof value === "undefined") return false;
+    if (typeof value === "string" && value.trim() === "") return false;
+    if (Array.isArray(value) && value.length === 0) return false;
+    return true;
+};
+
+export const StepNine: FC<StepNineProps> = ({ navigation, route, validationAttempted }) => {
   const dispatch = useDispatch<AppDispatch>();
-  const biota =
-    useSelector((state: RootState & { cavity: { cavidade: { biota: Biota } } }) => state.cavity.cavidade.biota) ?? {};
-  const morcegos = biota.morcegos ?? {};
+  const biota = useSelector((state: RootState) => state.cavity.cavidade.biota) ?? {};
+  const morcegos = biota.morcegos ?? { possui: false, tipos: [], observacoes_gerais: "" }; // Garante defaults
   const morcegosTiposArray = morcegos.tipos ?? [];
 
-  // --- Handlers ---
-  // These now dispatch specific actions
+  // Lógica de Erros Específicos para StepNine
+  const stepNineErrors = useMemo(() => {
+    if (!validationAttempted) {
+      return {};
+    }
+    const errors: { [key: string]: string } = {};
+    const errorMsgRequired = "Campo obrigatório.";
+    const errorMsgSelectOrOther = "Selecione um tipo ou preencha 'Outro'.";
+    const errorMsgSelectQuantity = "Selecione a quantidade.";
+
+    const checkCategory = (categoryKey: BiotaCategoryKey, categoryData?: typeof biota.invertebrados) => {
+      if (categoryData?.possui) {
+        const tiposValidos = Array.isArray(categoryData.tipos) && categoryData.tipos.length > 0;
+        const outroValido = categoryData.outroEnabled && isFieldFilled(categoryData.outro);
+        if (!tiposValidos && !outroValido) {
+          errors[`${categoryKey}_geral`] = errorMsgSelectOrOther;
+        }
+        if (categoryData.outroEnabled && !isFieldFilled(categoryData.outro)) {
+          errors[`${categoryKey}_outro_texto`] = errorMsgRequired;
+        }
+      }
+    };
+
+    checkCategory("invertebrados", biota.invertebrados);
+    checkCategory("invertebrados_aquaticos", biota.invertebrados_aquaticos);
+    checkCategory("anfibios", biota.anfibios);
+    checkCategory("repteis", biota.repteis);
+    checkCategory("aves", biota.aves);
+
+    // Validação Morcegos
+    if (morcegos.possui) {
+      if (!Array.isArray(morcegosTiposArray) || morcegosTiposArray.length === 0) {
+        errors.morcegos_lista = "Adicione pelo menos um tipo de morcego se 'Possui' estiver marcado.";
+      } else {
+        morcegosTiposArray.forEach(item => {
+          if (!isFieldFilled(item.quantidade)) {
+            // Chave de erro específica para cada tipo de alimentação para o Select de quantidade
+            errors[`morcegos_quantidade_${item.tipo}`] = errorMsgSelectQuantity;
+          }
+        });
+      }
+      // Observações gerais não são obrigatórias pela lógica de validateStep, mas pode adicionar se quiser
+      if (!isFieldFilled(morcegos.observacoes_gerais)) {
+        errors.morcegos_observacoes = errorMsgRequired;
+      }
+    }
+    
+    // Validação Peixes (se for um booleano simples e obrigatório)
+    // A validação atual em validateStep apenas checa `typeof biota.peixes === 'boolean'`
+    // Se for obrigatório escolher Sim ou Não:
+    // if (typeof biota.peixes === 'undefined') {
+    //   errors.peixes_selecao = "Indique se há presença de peixes.";
+    // }
+
+    return errors;
+  }, [validationAttempted, biota, morcegos, morcegosTiposArray]);
 
   const handleCategoryPossuiToggle = useCallback(
     (categoryName: BiotaCategoryKey | "peixes" | "morcegos") => {
-      const currentPossui =
-        categoryName === "peixes"
-          ? biota.peixes ?? false
-          : biota[categoryName]?.possui ?? false;
-      dispatch(
-        setBiotaPossui({ category: categoryName, possui: !currentPossui })
-      );
+      let currentPossui = false;
+      if (categoryName === "peixes") {
+        currentPossui = biota.peixes ?? false;
+      } else if (categoryName === "morcegos") {
+        currentPossui = biota.morcegos?.possui ?? false;
+      } else {
+        currentPossui = biota[categoryName]?.possui ?? false;
+      }
+      dispatch(setBiotaPossui({ category: categoryName, possui: !currentPossui }));
     },
     [dispatch, biota]
-  ); // Simplified dependency
+  );
 
   const handleCategoryTypeToggle = useCallback(
     (categoryName: BiotaCategoryKey, typeValue: string) => {
-      dispatch(
-        toggleBiotaTypeInArray({ category: categoryName, type: typeValue })
-      );
+      dispatch(toggleBiotaTypeInArray({ category: categoryName, type: typeValue }));
     },
     [dispatch]
   );
 
   const handleCategoryOutroChange = useCallback(
     (categoryName: BiotaCategoryKey, text: string) => {
-      dispatch(
-        setBiotaCategoryOutro({
-          category: categoryName,
-          text: text || undefined,
-        })
-      );
+      dispatch(setBiotaCategoryOutro({ category: categoryName, text: text || undefined }));
     },
     [dispatch]
   );
@@ -107,28 +156,19 @@ export const StepNine: FC = () => {
 
   const handleFeedingTypeToggle = useCallback(
     (feedingTypeName: BatFeedingType) => {
-      const exists = morcegosTiposArray.some(
-        (item) => item.tipo === feedingTypeName
-      );
+      const exists = morcegosTiposArray.some(item => item.tipo === feedingTypeName);
       if (exists) {
         dispatch(removeMorcegoTipo(feedingTypeName));
       } else {
-        dispatch(
-          addOrUpdateMorcegoTipo({
-            tipo: feedingTypeName,
-            quantidade: undefined,
-          })
-        );
+        dispatch(addOrUpdateMorcegoTipo({ tipo: feedingTypeName, quantidade: undefined }));
       }
     },
     [dispatch, morcegosTiposArray]
   );
 
   const handleQuantidadeChange = useCallback(
-    (feedingTypeName: BatFeedingType, value: BatQuantidadeType | undefined) => {
-      dispatch(
-        addOrUpdateMorcegoTipo({ tipo: feedingTypeName, quantidade: value })
-      );
+    (feedingTypeName: BatFeedingType, value: BatQuantidadeType | "") => { // Aceita "" do placeholder
+      dispatch(addOrUpdateMorcegoTipo({ tipo: feedingTypeName, quantidade: value === "" ? undefined : value }));
     },
     [dispatch]
   );
@@ -140,11 +180,10 @@ export const StepNine: FC = () => {
     [dispatch]
   );
 
-  // --- Helper Function to Render Category Section ---
   const renderCategorySection = (
     categoryKey: BiotaCategoryKey,
     title: string,
-    types: string[] // Checkbox labels/values for the 'tipos' array
+    types: string[]
   ) => {
     const categoryState = biota[categoryKey];
     const possui = categoryState?.possui ?? false;
@@ -154,16 +193,16 @@ export const StepNine: FC = () => {
 
     return (
       <View key={categoryKey}>
-        {/* Main category toggle */}
         <Checkbox
           label={title}
           checked={possui}
           onChange={() => handleCategoryPossuiToggle(categoryKey)}
         />
-        {/* Nested details, only shown if 'possui' is true */}
+        {!!stepNineErrors[`${categoryKey}_geral`] && possui && (
+            <TextInter style={styles.errorText}>{stepNineErrors[`${categoryKey}_geral`]}</TextInter>
+        )}
         {possui && (
           <View style={styles.secondLayer}>
-            {/* Map through specific types for this category */}
             {types.map((type) => (
               <React.Fragment key={type}>
                 <Divider height={12} />
@@ -174,7 +213,6 @@ export const StepNine: FC = () => {
                 />
               </React.Fragment>
             ))}
-            {/* 'Outro' Checkbox and Input for this category */}
             <Divider height={12} />
             <Checkbox
               label="Outro"
@@ -187,58 +225,51 @@ export const StepNine: FC = () => {
                 label="Qual outro?"
                 placeholder="Especifique"
                 value={currentOutro}
-                onChangeText={(text) =>
-                  handleCategoryOutroChange(categoryKey, text)
-                }
+                onChangeText={(text) => handleCategoryOutroChange(categoryKey, text)}
+                hasError={!!stepNineErrors[`${categoryKey}_outro_texto`]}
+                errorMessage={stepNineErrors[`${categoryKey}_outro_texto`]}
+                required
               />
             )}
           </View>
         )}
         <DividerColorLine />
-        <Divider />
+        <Divider height={14}/>
       </View>
     );
   };
 
-  // --- Helper Function to Render Bat Feeding Section ---
   const renderBatFeedingSection = (
     feedingKey: BatFeedingType,
     label: string
   ) => {
-    // Find if this feeding type exists in the Redux array
-    const feedingItem = morcegosTiposArray.find(
-      (item) => item.tipo === feedingKey
-    );
-    const isChecked = !!feedingItem; // Checkbox is checked if item exists
+    const feedingItem = morcegosTiposArray.find(item => item.tipo === feedingKey);
+    const isChecked = !!feedingItem;
     const currentQuantidade = feedingItem?.quantidade;
+    const selectError = stepNineErrors[`morcegos_quantidade_${feedingKey}`];
 
     return (
       <View key={feedingKey}>
-        {/* Checkbox adds/removes the feeding type from the Redux array */}
         <Checkbox
           label={label}
           checked={isChecked}
           onChange={() => handleFeedingTypeToggle(feedingKey)}
         />
-        {/* Conditionally render Select only if checkbox is checked */}
         {isChecked && (
           <>
             <Divider height={12} />
             <Select
               reduceSize
               onChangeText={(obj) => {
-                const value =
-                  obj.id === "" ? undefined : (obj.id as BatQuantidadeType);
-                // Update quantity for this specific feeding type in the array
-                handleQuantidadeChange(feedingKey, value);
+                const value = obj.id === "" ? "" : (obj.id as BatQuantidadeType);
+                handleQuantidadeChange(feedingKey, value as BatQuantidadeType | "");
               }}
-              value={
-                batQuantidadeOptions.find(
-                  (option) => option.value === currentQuantidade
-                )?.label ?? ""
-              } // Bind value from array item
+              value={batQuantidadeOptions.find(option => option.value === currentQuantidade)?.label ?? ""}
               placeholder="Selecione Quantidade"
-              optionsList={batQuantidadeOptions} // Use defined options
+              optionsList={batQuantidadeOptions}
+              hasError={!!selectError}
+              errorMessage={selectError}
+              required
             />
           </>
         )}
@@ -247,69 +278,51 @@ export const StepNine: FC = () => {
     );
   };
 
-  // --- JSX ---
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <Divider />
       <TextInter color={colors.white[100]} fontSize={19} weight="medium">
         Biota
       </TextInter>
       <Divider />
 
-      {/* Render Categories using the helper */}
       {renderCategorySection("invertebrados", "Invertebrados", [
-        "Aranha",
-        "Ácaro",
-        "Amblípigo",
-        "Opilião",
-        "Pseudo-escorpião",
-        "Escorpião",
-        "Formiga",
-        "Besouro",
-        "Mosca",
-        "Mosquito",
-        "Mariposa",
-        "Barata",
-        "Cupim",
-        "Grilo",
-        "Percevejo",
-        "Piolho de cobra",
-        "Centopeia",
-        "Lacraia",
-        "Caramujo",
+        "Aranha", "Ácaro", "Amblípigo", "Opilião", "Pseudo-escorpião", "Escorpião",
+        "Formiga", "Besouro", "Mosca", "Mosquito", "Mariposa", "Barata", "Cupim",
+        "Grilo", "Percevejo", "Piolho de cobra", "Centopeia", "Lacraia", "Caramujo",
         "Tatuzinho de jardim",
       ])}
-      {renderCategorySection(
-        "invertebrados_aquaticos",
-        "Invertebrado aquático",
+      {renderCategorySection("invertebrados_aquaticos", "Invertebrado aquático", 
         ["Caramujo", "Bivalve", "Camarão", "Caranguejo"]
       )}
       {renderCategorySection("anfibios", "Anfíbio", ["Sapo", "Rã", "Perereca"])}
       {renderCategorySection("repteis", "Réptil", ["Serpente", "Lagarto"])}
       {renderCategorySection("aves", "Ave", [
-        "Urubu",
-        "Gavião",
-        "Arara azul",
-        "Arara vermelha",
-        "Papagaio",
-        "Coruja",
+        "Urubu", "Gavião", "Arara azul", "Arara vermelha", "Papagaio", "Coruja",
       ])}
 
-      {/* Peixe */}
       <Checkbox
         label="Peixe"
         checked={biota.peixes || false}
-        onChange={() => handleCategoryPossuiToggle("peixes")} // Use generic handler
+        onChange={() => handleCategoryPossuiToggle("peixes")}
       />
-      <Divider height={12} />
+      {/* {!!stepNineErrors.peixes_selecao && (
+          <TextInter style={styles.errorText}>{stepNineErrors.peixes_selecao}</TextInter>
+      )} */}
+      <DividerColorLine />
+      <Divider height={14}/>
+
       <Checkbox
         label="Morcego"
         checked={morcegos.possui || false}
-        onChange={() => handleCategoryPossuiToggle("morcegos")} // Use generic handler
+        onChange={() => handleCategoryPossuiToggle("morcegos")}
       />
+      {!!stepNineErrors.morcegos_lista && morcegos.possui && (
+          <TextInter style={styles.errorText}>{stepNineErrors.morcegos_lista}</TextInter>
+      )}
+      <Divider height={12}/>
       {morcegos.possui && (
         <View style={styles.secondLayer}>
-          {/* Render Bat Feeding Sections using the helper */}
           {renderBatFeedingSection("frugivoro", "Frugívoro")}
           {renderBatFeedingSection("hematofago", "Hematófago")}
           {renderBatFeedingSection("carnivoro", "Carnívoro")}
@@ -318,22 +331,21 @@ export const StepNine: FC = () => {
           {renderBatFeedingSection("piscivoro", "Piscívoro")}
           {renderBatFeedingSection("indeterminado", "Indeterminado")}
 
-          {/* Observacoes Gerais */}
           <InputMultiline
             placeholder="Observações sobre morcegos..."
             label="Morcego - Observações Gerais"
             value={morcegos.observacoes_gerais || ""}
-            onChangeText={handleObservacoesGeraisChange} // Uses specific action via handler
+            onChangeText={handleObservacoesGeraisChange}
+            // hasError={!!stepNineErrors.morcegos_observacoes} 
+            // errorMessage={stepNineErrors.morcegos_observacoes}
           />
         </View>
       )}
-
       <StatusBar style="light" />
-    </View>
+    </ScrollView>
   );
 };
 
-// Styles defined here
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -341,33 +353,35 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingBottom: 30,
-    paddingHorizontal: 15,
   },
   subSectionTitle: {
-    // Added for consistency
     marginTop: 10,
     marginBottom: 5,
-    color: colors.white[100], // Added color
+    color: colors.white[100],
   },
   subSubSectionTitle: {
-    // Added for consistency
     marginTop: 5,
     marginBottom: 5,
-    color: colors.white[100], // Added color
+    color: colors.white[100],
   },
   secondLayer: {
     paddingLeft: 20,
     marginTop: 5,
     marginBottom: 5,
-    marginLeft: 10,
   },
   thirdLayer: {
-    // Kept style definition
     paddingLeft: 20,
     marginTop: 5,
     marginBottom: 5,
-    borderLeftWidth: 1,
-    borderLeftColor: colors.dark[60],
-    marginLeft: 10,
+  },
+  inputSpacing: { 
+    marginBottom: 12,
+  },
+  errorText: {
+    color: colors.error[100],
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: 8,
+    paddingLeft: 5,
   },
 });
