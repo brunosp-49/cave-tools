@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  BackHandler,
   Dimensions,
   Image,
   Platform,
@@ -37,7 +38,7 @@ import {
   Uso_cavidade,
   Vegetacao,
 } from "../../types";
-import { FC, useEffect, useState } from "react";
+import { FC, useCallback, useEffect, useState } from "react";
 import { LabelText } from "../../components/labelText";
 import CavityRegister from "../../db/model/cavityRegister";
 import { database } from "../../db";
@@ -46,10 +47,7 @@ import { LongButton } from "../../components/longButton";
 import Project from "../../db/model/project";
 import { useFocusEffect } from "@react-navigation/native";
 
-export const DetailScreenCavity: FC<RouterProps> = ({
-  navigation,
-  route
-}) => {
+export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
   const [cavity, setCavity] = useState<CavityRegister | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,9 +84,22 @@ export const DetailScreenCavity: FC<RouterProps> = ({
     fetchCavity();
   }, [route.params.cavityId]);
 
-  useFocusEffect(()=>{
-    console.log(JSON.stringify(navigation.getState(), null, 90));
-  })
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        navigation.navigate("CavityScreen");
+        return true;
+      };
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => {
+        subscription.remove();
+      };
+    }, [navigation])
+  );
 
   if (isLoading) {
     return (
@@ -124,10 +135,7 @@ export const DetailScreenCavity: FC<RouterProps> = ({
   if (!cavity) {
     return (
       <View style={styles.centered}>
-        <Header
-          title="Não Encontrado"
-          navigation={navigation}
-        />
+        <Header title="Não Encontrado" navigation={navigation} />
         <Divider />
         <TextInter style={{ marginTop: 20 }}>
           Cavidade não encontrada.
@@ -519,502 +527,516 @@ export const DetailScreenCavity: FC<RouterProps> = ({
 
   return (
     <SafeAreaView style={styles.main}>
-    <ScrollView showsVerticalScrollIndicator={false}>
-      <Header
-        title="Visualizar Caracterização"
-        navigation={navigation}
-        onCustomReturn={() => navigation.navigate("CavityScreen")}
-      />
-      <Divider />
-      <View style={styles.container}>
-        <TextInter color={colors.white[100]} fontSize={19}>
-          Registro
-        </TextInter>
-        <Divider />
-        <LabelText
-          label="Projeto"
-          text={project?.nome_projeto || "Não informado"}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <Header
+          title="Visualizar Caracterização"
+          navigation={navigation}
+          onCustomReturn={() => navigation.navigate("CavityScreen")}
         />
         <Divider />
-        <LabelText
-          label="Responsável pelo registro"
-          text={cavity.responsavel || "Não informado"}
-        />
-        <Divider />
-        <LabelText
-          label="Nome da cavidade"
-          text={cavity.nome_cavidade || "Não informado"}
-        />
-        <Divider />
-        <LabelText
-          label="Nome do sistema"
-          text={cavity.nome_sistema || "Não informado"}
-        />
-        <Divider />
-        <LabelText
-          label="Localidade"
-          text={cavity.localidade || "Não informado"}
-        />
-        <Divider />
-        <LabelText
-          label="Município"
-          text={cavity.municipio || "Não informado"}
-        />
-        <Divider />
-        <LabelText label="UF" text={cavity.uf || "Não informado"} />
-        <Divider />
-        <LabelText
-          label="Data"
-          text={formatDate(cavity.data) || "Não informado"}
-        />
-        <Divider />
-        <LabelText
-          label="Desenvolvimento Linear (m)"
-          text={cavity.desenvolvimento_linear?.toString() ?? "Não informado"}
-        />
-        <Divider />
-        <TextInter
-          weight="medium"
-          color={colors.dark[60]}
-          style={styles.subHeader}
-        >
-          Entradas ({entradasData.length})
-        </TextInter>
-        {Array.isArray(entradasData) && entradasData.length > 0 ? (
-          entradasData.map((entrada, index) => (
-            <View key={index} style={styles.entradaContainer}>
-              <View style={styles.entradaHeader}>
-                <TextInter weight="semi-bold" color={colors.white[90]}>
-                  Entrada {index + 1}
-                </TextInter>
-                {entrada.principal && (
-                  <TextInter
-                    fontSize={12}
-                    color={colors.accent[100]}
-                    weight="bold"
-                  >
-                    {" "}
-                    (Principal)
+        <View style={styles.container}>
+          <TextInter color={colors.white[100]} fontSize={19}>
+            Registro
+          </TextInter>
+          <Divider />
+          <LabelText
+            label="Projeto"
+            text={project?.nome_projeto || "Não informado"}
+          />
+          <Divider />
+          <LabelText
+            label="Responsável pelo registro"
+            text={cavity.responsavel || "Não informado"}
+          />
+          <Divider />
+          <LabelText
+            label="Nome da cavidade"
+            text={cavity.nome_cavidade || "Não informado"}
+          />
+          <Divider />
+          <LabelText
+            label="Nome do sistema"
+            text={cavity.nome_sistema || "Não informado"}
+          />
+          <Divider />
+          <LabelText
+            label="Localidade"
+            text={cavity.localidade || "Não informado"}
+          />
+          <Divider />
+          <LabelText
+            label="Município"
+            text={cavity.municipio || "Não informado"}
+          />
+          <Divider />
+          <LabelText label="UF" text={cavity.uf || "Não informado"} />
+          <Divider />
+          <LabelText
+            label="Data"
+            text={formatDate(cavity.data) || "Não informado"}
+          />
+          <Divider />
+          <LabelText
+            label="Desenvolvimento Linear (m)"
+            text={cavity.desenvolvimento_linear?.toString() ?? "Não informado"}
+          />
+          <Divider />
+          <TextInter
+            weight="medium"
+            color={colors.dark[60]}
+            style={styles.subHeader}
+          >
+            Entradas ({entradasData.length})
+          </TextInter>
+          {Array.isArray(entradasData) && entradasData.length > 0 ? (
+            entradasData.map((entrada, index) => (
+              <View key={index} style={styles.entradaContainer}>
+                <View style={styles.entradaHeader}>
+                  <TextInter weight="semi-bold" color={colors.white[90]}>
+                    {entrada.nome ? entrada.nome : `Entrada ${index + 1}`}
                   </TextInter>
+                  {entrada.principal && (
+                    <TextInter
+                      fontSize={12}
+                      color={colors.accent[100]}
+                      weight="bold"
+                    >
+                      {" "}
+                      (Principal)
+                    </TextInter>
+                  )}
+                </View>
+                <LabelText
+                  label="Datum"
+                  text={entrada.coordenadas?.datum || "N/A"}
+                />
+                <Divider height={12} />
+                <LabelText
+                  label="UTM E"
+                  text={entrada.coordenadas?.utm?.utm_e?.toString() ?? "N/A"}
+                />
+                <Divider height={12} />
+                <LabelText
+                  label="UTM N"
+                  text={entrada.coordenadas?.utm?.utm_n?.toString() ?? "N/A"}
+                />
+                <Divider height={12} />
+                <LabelText
+                  label="Zona UTM"
+                  text={entrada.coordenadas?.utm?.zona || "N/A"}
+                />
+                <Divider height={12} />
+                <LabelText
+                  label="Elevação (m)"
+                  text={entrada.coordenadas?.utm?.elevacao?.toString() ?? "N/A"}
+                />
+                <Divider height={12} />
+                <LabelText
+                  label="Quant. de Satélites"
+                  text={entrada.coordenadas?.satelites.toString() || "N/A"}
+                />
+                <Divider height={12} />
+                <LabelText
+                  label="Inserção"
+                  text={formatInsercao(entrada.caracteristicas?.insercao)}
+                />
+                <Divider height={12} />
+                <LabelText
+                  label="Posição Vertente"
+                  text={formatPosicaoVertente(
+                    entrada.caracteristicas?.posicao_vertente
+                  )}
+                />
+                <Divider height={12} />
+                <LabelText
+                  label="Vegetação"
+                  text={formatVegetacao(entrada.caracteristicas?.vegetacao)}
+                />
+                <Divider height={12} />
+                {entrada.foto ? (
+                  <>
+                    <LabelText label="Foto" text="" />
+                    <Image
+                      style={styles.entradaImage}
+                      source={{ uri: entrada.foto }}
+                      resizeMode="cover"
+                      onError={(e) =>
+                        console.log("Image load error:", e.nativeEvent.error)
+                      }
+                    />
+                  </>
+                ) : (
+                  <LabelText label="Foto" text="Nenhuma imagem" />
                 )}
+                {index < entradasData.length - 1 && <Divider height={15} />}
               </View>
-              <LabelText
-                label="Datum"
-                text={entrada.coordenadas?.datum || "N/A"}
-              />
-              <Divider height={12} />
-              <LabelText
-                label="UTM E"
-                text={entrada.coordenadas?.utm?.utm_e?.toString() ?? "N/A"}
-              />
-              <Divider height={12} />
-              <LabelText
-                label="UTM N"
-                text={entrada.coordenadas?.utm?.utm_n?.toString() ?? "N/A"}
-              />
-              <Divider height={12} />
-              <LabelText
-                label="Zona UTM"
-                text={entrada.coordenadas?.utm?.zona || "N/A"}
-              />
-              <Divider height={12} />
-              <LabelText
-                label="Elevação (m)"
-                text={entrada.coordenadas?.utm?.elevacao?.toString() ?? "N/A"}
-              />
-              <Divider height={12} />
-              <LabelText
-                label="Quant. de Satélites"
-                text={entrada.coordenadas?.satelites.toString() || "N/A"}
-              />
-              <Divider height={12} />
-              <LabelText
-                label="Inserção"
-                text={formatInsercao(entrada.caracteristicas?.insercao)}
-              />
-              <Divider height={12} />
-              <LabelText
-                label="Posição Vertente"
-                text={formatPosicaoVertente(
-                  entrada.caracteristicas?.posicao_vertente
-                )}
-              />
-              <Divider height={12} />
-              <LabelText
-                label="Vegetação"
-                text={formatVegetacao(entrada.caracteristicas?.vegetacao)}
-              />
-              <Divider height={12} />
-              {entrada.foto ? (
-                <>
-                  <LabelText label="Foto" text="" />
-                  <Image
-                    style={styles.entradaImage}
-                    source={{ uri: entrada.foto }}
-                    resizeMode="cover"
-                    onError={(e) =>
-                      console.log("Image load error:", e.nativeEvent.error)
-                    }
-                  />
-                </>
-              ) : (
-                <LabelText label="Foto" text="Nenhuma imagem" />
-              )}
-              {index < entradasData.length - 1 && <Divider height={15} />}
-            </View>
-          ))
-        ) : (
-          <TextInter fontSize={12} color={colors.dark[60]}>
-            Nenhuma entrada informada.
-          </TextInter>
-        )}
-        <Divider height={18} />
-        <View style={styles.sectionContainer}>
-          <TextInter color={colors.white[100]} fontSize={19}>
-            Caracterização Interna
-          </TextInter>
-          <Divider />
-          <TextInter
-            weight="medium"
-            color={colors.dark[60]}
-            style={styles.subHeader}
-          >
-            Morfologia
-          </TextInter>
-          {formatMorfologia(morfologiaData || undefined).map((line, index) => (
-            <TextInter key={`morf-${index}`} style={styles.detailText}>
-              {line}
-            </TextInter>
-          ))}
-          <Divider />
-          {/* Display Hidrologia */}
-          <TextInter
-            weight="medium"
-            color={colors.dark[60]}
-            style={styles.subHeader}
-          >
-            Hidrologia
-          </TextInter>
-          {formatHidrologia(hidrologiaData || undefined).map((line, index) => (
-            <TextInter key={`hidro-${index}`} style={styles.detailText}>
-              {line}
-            </TextInter>
-          ))}
-          <Divider />
-          <LabelText
-            label="Grupo Litológico"
-            text={formatGrupoLitologico(
-              caracterizacaoInternaData?.grupo_litologico
-            )}
-          />
-          <Divider />
-          <LabelText
-            label="Desenvolvimento Predominante"
-            text={
-              caracterizacaoInternaData?.desenvolvimento_predominante ||
-              "Não informado"
-            }
-          />
-          <Divider />
-          <LabelText
-            label="Estado de Conservação"
-            text={
-              caracterizacaoInternaData?.estado_conservacao || "Não informado"
-            }
-          />
-          <Divider />
-          <LabelText
-            label="Infraestrutura Interna"
-            text={formatInfraestruturaInterna(
-              caracterizacaoInternaData?.infraestrutura_interna
-            )}
-          />
-          <Divider />
-          <LabelText
-            label="Dificuldades de Progressão Interna"
-            text={formatDificuldadesInternas(
-              caracterizacaoInternaData?.dificuldades_progressao_interna
-            )}
-          />
-          {/* Display Espeleotemas */}
-          <Divider />
-          <TextInter
-            weight="medium"
-            color={colors.dark[60]}
-            style={styles.subHeader}
-          >
-            Espeleotemas
-          </TextInter>
-          {espeleotemasData?.possui ? (
-            espeleotemasData.lista && espeleotemasData.lista.length > 0 ? (
-              espeleotemasData.lista.map((item, index) => (
-                <LabelText
-                  key={item.id || index}
-                  label={`- ${item.tipo || "Tipo não informado"}`}
-                  text={`Porte: ${item.porte || "N/A"}, Frequência: ${
-                    item.frequencia || "N/A"
-                  }, Conservação: ${item.estado_conservacao || "N/A"}`}
-                />
-              ))
-            ) : (
-              <TextInter fontSize={12} color={colors.dark[60]}>
-                Lista de espeleotemas não disponível.
-              </TextInter>
-            )
+            ))
           ) : (
             <TextInter fontSize={12} color={colors.dark[60]}>
-              Não possui ou não informado.
+              Nenhuma entrada informada.
             </TextInter>
           )}
-          <Divider />
-          {/* Display Sedimentos */}
-          <TextInter
-            weight="medium"
-            color={colors.dark[60]}
-            style={styles.subHeader}
-          >
-            Sedimentos
-          </TextInter>
-          {formatSedimentos(sedimentosData || undefined).map((line, index) => (
-            <TextInter key={`sed-${index}`} style={styles.detailText}>
-              {line}
+          <Divider height={18} />
+          <View style={styles.sectionContainer}>
+            <TextInter color={colors.white[100]} fontSize={19}>
+              Caracterização Interna
             </TextInter>
-          ))}
-        </View>
-        <Divider height={18} />
-        <View style={styles.sectionContainer}>
-          <TextInter color={colors.white[100]} fontSize={19}>
-            Biota
-          </TextInter>
-          <Divider />
-          <LabelText
-            label="Invertebrados"
-            text={
-              formatFlags(
-                biotaData?.invertebrados,
-                { possui: "Possui" },
-                false
-              ) +
-                (biotaData?.invertebrados?.tipos
-                  ? `: ${biotaData.invertebrados.tipos.join(", ")}`
-                  : "") +
-                (biotaData?.invertebrados?.outroEnabled &&
-                biotaData?.invertebrados?.outro
-                  ? `, Outro: ${biotaData.invertebrados.outro}`
-                  : "") || "Não informado"
-            }
-          />
-          <Divider />
-          <LabelText
-            label="Invertebrados Aquáticos"
-            text={
-              formatFlags(
-                biotaData?.invertebrados_aquaticos,
-                { possui: "Possui" },
-                false
-              ) +
-                (biotaData?.invertebrados_aquaticos?.tipos
-                  ? `: ${biotaData.invertebrados_aquaticos.tipos.join(", ")}`
-                  : "") +
-                (biotaData?.invertebrados_aquaticos?.outroEnabled &&
-                biotaData?.invertebrados_aquaticos?.outro
-                  ? `, Outro: ${biotaData.invertebrados_aquaticos.outro}`
-                  : "") || "Não informado"
-            }
-          />
-          <Divider />
-          <LabelText
-            label="Anfíbios"
-            text={
-              formatFlags(biotaData?.anfibios, { possui: "Possui" }, false) +
-                (biotaData?.anfibios?.tipos
-                  ? `: ${biotaData.anfibios.tipos.join(", ")}`
-                  : "") +
-                (biotaData?.anfibios?.outroEnabled && biotaData?.anfibios?.outro
-                  ? `, Outro: ${biotaData.anfibios.outro}`
-                  : "") || "Não informado"
-            }
-          />
-          <Divider />
-          <LabelText
-            label="Répteis"
-            text={
-              formatFlags(biotaData?.repteis, { possui: "Possui" }, false) +
-                (biotaData?.repteis?.tipos
-                  ? `: ${biotaData.repteis.tipos.join(", ")}`
-                  : "") +
-                (biotaData?.repteis?.outroEnabled && biotaData?.repteis?.outro
-                  ? `, Outro: ${biotaData.repteis.outro}`
-                  : "") || "Não informado"
-            }
-          />
-          <Divider />
-          <LabelText
-            label="Aves"
-            text={
-              formatFlags(biotaData?.aves, { possui: "Possui" }, false) +
-                (biotaData?.aves?.tipos
-                  ? `: ${biotaData.aves.tipos.join(", ")}`
-                  : "") +
-                (biotaData?.aves?.outroEnabled && biotaData?.aves?.outro
-                  ? `, Outro: ${biotaData.aves.outro}`
-                  : "") || "Não informado"
-            }
-          />
-          <Divider />
-          <LabelText
-            label="Peixes"
-            text={biotaData?.peixes ? "Sim" : "Não ou não informado"}
-          />
-          <Divider />
-          <TextInter
-            weight="medium"
-            color={colors.dark[60]}
-            style={styles.subHeader}
-          >
-            Morcegos
-          </TextInter>
-          {biotaData?.morcegos?.possui ? (
-            biotaData.morcegos.tipos && biotaData.morcegos.tipos.length > 0 ? (
-              biotaData.morcegos.tipos.map((morcego, index) => (
-                <LabelText
-                  key={index}
-                  label={`- ${morcego.tipo || "Tipo não informado"}`}
-                  text={`Quantidade: ${morcego.quantidade || "N/A"}`}
-                />
-              ))
-            ) : (
-              <TextInter fontSize={12} color={colors.dark[60]}>
-                Tipos não especificados.
-              </TextInter>
-            )
-          ) : (
-            <TextInter fontSize={12} color={colors.dark[60]}>
-              Não possui ou não informado.
+            <Divider />
+            <TextInter
+              weight="medium"
+              color={colors.dark[60]}
+              style={styles.subHeader}
+            >
+              Morfologia
             </TextInter>
-          )}
-          {biotaData?.morcegos?.observacoes_gerais && (
+            {formatMorfologia(morfologiaData || undefined).map(
+              (line, index) => (
+                <TextInter key={`morf-${index}`} style={styles.detailText}>
+                  {line}
+                </TextInter>
+              )
+            )}
+            <Divider />
+            {/* Display Hidrologia */}
+            <TextInter
+              weight="medium"
+              color={colors.dark[60]}
+              style={styles.subHeader}
+            >
+              Hidrologia
+            </TextInter>
+            {formatHidrologia(hidrologiaData || undefined).map(
+              (line, index) => (
+                <TextInter key={`hidro-${index}`} style={styles.detailText}>
+                  {line}
+                </TextInter>
+              )
+            )}
+            <Divider />
             <LabelText
-              label="Obs. Morcegos"
-              text={biotaData.morcegos.observacoes_gerais}
+              label="Grupo Litológico"
+              text={formatGrupoLitologico(
+                caracterizacaoInternaData?.grupo_litologico
+              )}
+            />
+            <Divider />
+            <LabelText
+              label="Desenvolvimento Predominante"
+              text={
+                caracterizacaoInternaData?.desenvolvimento_predominante ||
+                "Não informado"
+              }
+            />
+            <Divider />
+            <LabelText
+              label="Estado de Conservação"
+              text={
+                caracterizacaoInternaData?.estado_conservacao || "Não informado"
+              }
+            />
+            <Divider />
+            <LabelText
+              label="Infraestrutura Interna"
+              text={formatInfraestruturaInterna(
+                caracterizacaoInternaData?.infraestrutura_interna
+              )}
+            />
+            <Divider />
+            <LabelText
+              label="Dificuldades de Progressão Interna"
+              text={formatDificuldadesInternas(
+                caracterizacaoInternaData?.dificuldades_progressao_interna
+              )}
+            />
+            {/* Display Espeleotemas */}
+            <Divider />
+            <TextInter
+              weight="medium"
+              color={colors.dark[60]}
+              style={styles.subHeader}
+            >
+              Espeleotemas
+            </TextInter>
+            {espeleotemasData?.possui ? (
+              espeleotemasData.lista && espeleotemasData.lista.length > 0 ? (
+                espeleotemasData.lista.map((item, index) => (
+                  <LabelText
+                    key={item.id || index}
+                    label={`- ${item.tipo || "Tipo não informado"}`}
+                    text={`Porte: ${item.porte || "N/A"}, Frequência: ${
+                      item.frequencia || "N/A"
+                    }, Conservação: ${item.estado_conservacao || "N/A"}`}
+                  />
+                ))
+              ) : (
+                <TextInter fontSize={12} color={colors.dark[60]}>
+                  Lista de espeleotemas não disponível.
+                </TextInter>
+              )
+            ) : (
+              <TextInter fontSize={12} color={colors.dark[60]}>
+                Não possui ou não informado.
+              </TextInter>
+            )}
+            <Divider />
+            {/* Display Sedimentos */}
+            <TextInter
+              weight="medium"
+              color={colors.dark[60]}
+              style={styles.subHeader}
+            >
+              Sedimentos
+            </TextInter>
+            {formatSedimentos(sedimentosData || undefined).map(
+              (line, index) => (
+                <TextInter key={`sed-${index}`} style={styles.detailText}>
+                  {line}
+                </TextInter>
+              )
+            )}
+          </View>
+          <Divider height={18} />
+          <View style={styles.sectionContainer}>
+            <TextInter color={colors.white[100]} fontSize={19}>
+              Biota
+            </TextInter>
+            <Divider />
+            <LabelText
+              label="Invertebrados"
+              text={
+                formatFlags(
+                  biotaData?.invertebrados,
+                  { possui: "Possui" },
+                  false
+                ) +
+                  (biotaData?.invertebrados?.tipos
+                    ? `: ${biotaData.invertebrados.tipos.join(", ")}`
+                    : "") +
+                  (biotaData?.invertebrados?.outroEnabled &&
+                  biotaData?.invertebrados?.outro
+                    ? `, Outro: ${biotaData.invertebrados.outro}`
+                    : "") || "Não informado"
+              }
+            />
+            <Divider />
+            <LabelText
+              label="Invertebrados Aquáticos"
+              text={
+                formatFlags(
+                  biotaData?.invertebrados_aquaticos,
+                  { possui: "Possui" },
+                  false
+                ) +
+                  (biotaData?.invertebrados_aquaticos?.tipos
+                    ? `: ${biotaData.invertebrados_aquaticos.tipos.join(", ")}`
+                    : "") +
+                  (biotaData?.invertebrados_aquaticos?.outroEnabled &&
+                  biotaData?.invertebrados_aquaticos?.outro
+                    ? `, Outro: ${biotaData.invertebrados_aquaticos.outro}`
+                    : "") || "Não informado"
+              }
+            />
+            <Divider />
+            <LabelText
+              label="Anfíbios"
+              text={
+                formatFlags(biotaData?.anfibios, { possui: "Possui" }, false) +
+                  (biotaData?.anfibios?.tipos
+                    ? `: ${biotaData.anfibios.tipos.join(", ")}`
+                    : "") +
+                  (biotaData?.anfibios?.outroEnabled &&
+                  biotaData?.anfibios?.outro
+                    ? `, Outro: ${biotaData.anfibios.outro}`
+                    : "") || "Não informado"
+              }
+            />
+            <Divider />
+            <LabelText
+              label="Répteis"
+              text={
+                formatFlags(biotaData?.repteis, { possui: "Possui" }, false) +
+                  (biotaData?.repteis?.tipos
+                    ? `: ${biotaData.repteis.tipos.join(", ")}`
+                    : "") +
+                  (biotaData?.repteis?.outroEnabled && biotaData?.repteis?.outro
+                    ? `, Outro: ${biotaData.repteis.outro}`
+                    : "") || "Não informado"
+              }
+            />
+            <Divider />
+            <LabelText
+              label="Aves"
+              text={
+                formatFlags(biotaData?.aves, { possui: "Possui" }, false) +
+                  (biotaData?.aves?.tipos
+                    ? `: ${biotaData.aves.tipos.join(", ")}`
+                    : "") +
+                  (biotaData?.aves?.outroEnabled && biotaData?.aves?.outro
+                    ? `, Outro: ${biotaData.aves.outro}`
+                    : "") || "Não informado"
+              }
+            />
+            <Divider />
+            <LabelText
+              label="Peixes"
+              text={biotaData?.peixes ? "Sim" : "Não ou não informado"}
+            />
+            <Divider />
+            <TextInter
+              weight="medium"
+              color={colors.dark[60]}
+              style={styles.subHeader}
+            >
+              Morcegos
+            </TextInter>
+            {biotaData?.morcegos?.possui ? (
+              biotaData.morcegos.tipos &&
+              biotaData.morcegos.tipos.length > 0 ? (
+                biotaData.morcegos.tipos.map((morcego, index) => (
+                  <LabelText
+                    key={index}
+                    label={`- ${morcego.tipo || "Tipo não informado"}`}
+                    text={`Quantidade: ${morcego.quantidade || "N/A"}`}
+                  />
+                ))
+              ) : (
+                <TextInter fontSize={12} color={colors.dark[60]}>
+                  Tipos não especificados.
+                </TextInter>
+              )
+            ) : (
+              <TextInter fontSize={12} color={colors.dark[60]}>
+                Não possui ou não informado.
+              </TextInter>
+            )}
+            {biotaData?.morcegos?.observacoes_gerais && (
+              <LabelText
+                label="Obs. Morcegos"
+                text={biotaData.morcegos.observacoes_gerais}
+              />
+            )}
+          </View>
+          <Divider height={18} />
+          <View style={styles.sectionContainer}>
+            <TextInter color={colors.white[100]} fontSize={19}>
+              Arqueologia
+            </TextInter>
+            <Divider />
+            <LabelText
+              label="Vestígios"
+              text={formatArqueologia(arqueologiaData || undefined)}
+            />
+          </View>
+          <Divider height={18} />
+
+          {/* Section: Paleontologia */}
+          <View style={styles.sectionContainer}>
+            <TextInter color={colors.white[100]} fontSize={19}>
+              Paleontologia
+            </TextInter>
+            <Divider />
+            <LabelText
+              label="Vestígios"
+              text={formatPaleontologia(paleontologiaData || undefined)}
+            />
+          </View>
+          <Divider height={18} />
+
+          {/* Section: Aspectos Externos */}
+          <View style={styles.sectionContainer}>
+            <TextInter color={colors.white[100]} fontSize={19}>
+              Aspectos Externos
+            </TextInter>
+            <Divider />
+            <LabelText
+              label="Dificuldades Externas"
+              text={formatDificuldadesExternas(
+                dificuldadesExternasData || undefined
+              )}
+            />
+            <Divider />
+            <TextInter
+              weight="medium"
+              color={colors.dark[60]}
+              style={styles.subHeader}
+            >
+              Aspectos Socioambientais
+            </TextInter>
+            <LabelText
+              label="Uso da Cavidade"
+              text={formatUsoCavidade(
+                aspectosSocioambientaisData?.uso_cavidade
+              )}
+            />
+            <Divider height={5} />
+            <LabelText
+              label="Comunidade Envolvida"
+              text={
+                aspectosSocioambientaisData?.comunidade_envolvida?.envolvida
+                  ? "Sim"
+                  : "Não ou não informado"
+              }
+            />
+            {aspectosSocioambientaisData?.comunidade_envolvida?.envolvida &&
+              aspectosSocioambientaisData?.comunidade_envolvida?.descricao && (
+                <LabelText
+                  label="Descrição (Comunidade)"
+                  text={
+                    aspectosSocioambientaisData.comunidade_envolvida.descricao
+                  }
+                />
+              )}
+            <Divider height={5} />
+            <LabelText
+              label="Área Protegida"
+              text={
+                aspectosSocioambientaisData?.area_protegida?.federal?.nome
+                  ? `Federal: ${
+                      aspectosSocioambientaisData.area_protegida.federal.nome
+                    } (${
+                      aspectosSocioambientaisData.area_protegida.federal.zona ||
+                      "Zona N/A"
+                    })`
+                  : aspectosSocioambientaisData?.area_protegida?.estadual?.nome
+                  ? `Estadual: ${
+                      aspectosSocioambientaisData.area_protegida.estadual.nome
+                    } (${
+                      aspectosSocioambientaisData.area_protegida.estadual
+                        .zona || "Zona N/A"
+                    })`
+                  : aspectosSocioambientaisData?.area_protegida?.municipal?.nome
+                  ? `Municipal: ${
+                      aspectosSocioambientaisData.area_protegida.municipal.nome
+                    } (${
+                      aspectosSocioambientaisData.area_protegida.municipal
+                        .zona || "Zona N/A"
+                    })`
+                  : aspectosSocioambientaisData?.area_protegida?.nao_determinado
+                  ? "Não foi possível determinar"
+                  : "Não informado"
+              }
+            />
+            <Divider height={5} />
+            <LabelText
+              label="Infraestrutura de Acesso"
+              text={formatInfraestruturaAcesso(
+                aspectosSocioambientaisData?.infraestrutura_acesso
+              )}
+            />
+          </View>
+          <Divider height={18} />
+          {!cavity.uploaded && (
+            <LongButton
+              title="Editar"
+              onPress={() =>
+                navigation.navigate("EditCavity", {
+                  cavityId: route.params.cavityId,
+                })
+              }
             />
           )}
         </View>
-        <Divider height={18} />
-        <View style={styles.sectionContainer}>
-          <TextInter color={colors.white[100]} fontSize={19}>
-            Arqueologia
-          </TextInter>
-          <Divider />
-          <LabelText
-            label="Vestígios"
-            text={formatArqueologia(arqueologiaData || undefined)}
-          />
-        </View>
-        <Divider height={18} />
-
-        {/* Section: Paleontologia */}
-        <View style={styles.sectionContainer}>
-          <TextInter color={colors.white[100]} fontSize={19}>
-            Paleontologia
-          </TextInter>
-          <Divider />
-          <LabelText
-            label="Vestígios"
-            text={formatPaleontologia(paleontologiaData || undefined)}
-          />
-        </View>
-        <Divider height={18} />
-
-        {/* Section: Aspectos Externos */}
-        <View style={styles.sectionContainer}>
-          <TextInter color={colors.white[100]} fontSize={19}>
-            Aspectos Externos
-          </TextInter>
-          <Divider />
-          <LabelText
-            label="Dificuldades Externas"
-            text={formatDificuldadesExternas(
-              dificuldadesExternasData || undefined
-            )}
-          />
-          <Divider />
-          <TextInter
-            weight="medium"
-            color={colors.dark[60]}
-            style={styles.subHeader}
-          >
-            Aspectos Socioambientais
-          </TextInter>
-          <LabelText
-            label="Uso da Cavidade"
-            text={formatUsoCavidade(aspectosSocioambientaisData?.uso_cavidade)}
-          />
-          <Divider height={5} />
-          <LabelText
-            label="Comunidade Envolvida"
-            text={
-              aspectosSocioambientaisData?.comunidade_envolvida?.envolvida
-                ? "Sim"
-                : "Não ou não informado"
-            }
-          />
-          {aspectosSocioambientaisData?.comunidade_envolvida?.envolvida &&
-            aspectosSocioambientaisData?.comunidade_envolvida?.descricao && (
-              <LabelText
-                label="Descrição (Comunidade)"
-                text={
-                  aspectosSocioambientaisData.comunidade_envolvida.descricao
-                }
-              />
-            )}
-          <Divider height={5} />
-          <LabelText
-            label="Área Protegida"
-            text={
-              aspectosSocioambientaisData?.area_protegida?.federal?.nome
-                ? `Federal: ${
-                    aspectosSocioambientaisData.area_protegida.federal.nome
-                  } (${
-                    aspectosSocioambientaisData.area_protegida.federal.zona ||
-                    "Zona N/A"
-                  })`
-                : aspectosSocioambientaisData?.area_protegida?.estadual?.nome
-                ? `Estadual: ${
-                    aspectosSocioambientaisData.area_protegida.estadual.nome
-                  } (${
-                    aspectosSocioambientaisData.area_protegida.estadual.zona ||
-                    "Zona N/A"
-                  })`
-                : aspectosSocioambientaisData?.area_protegida?.municipal?.nome
-                ? `Municipal: ${
-                    aspectosSocioambientaisData.area_protegida.municipal.nome
-                  } (${
-                    aspectosSocioambientaisData.area_protegida.municipal.zona ||
-                    "Zona N/A"
-                  })`
-                : aspectosSocioambientaisData?.area_protegida?.nao_determinado
-                ? "Não foi possível determinar"
-                : "Não informado"
-            }
-          />
-          <Divider height={5} />
-          <LabelText
-            label="Infraestrutura de Acesso"
-            text={formatInfraestruturaAcesso(
-              aspectosSocioambientaisData?.infraestrutura_acesso
-            )}
-          />
-        </View>
-        <Divider height={18} />
-        {!cavity.uploaded && (
-          <LongButton
-            title="Editar"
-            onPress={() => navigation.navigate("EditCavity", { cavityId: route.params.cavityId })}
-          />
-        )}
-      </View>
-    </ScrollView>
+      </ScrollView>
     </SafeAreaView>
   );
 };

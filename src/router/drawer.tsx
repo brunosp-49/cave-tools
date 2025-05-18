@@ -44,9 +44,6 @@ import Dashboard from "../view/dashboard";
 const Drawer = createDrawerNavigator();
 
 const DrawerNavigator = () => {
-  BackHandler.addEventListener("hardwareBackPress", () => {
-    return true;
-  });
   return (
     <Drawer.Navigator
       drawerContent={(props) => <CustomDrawerContent {...props} />}

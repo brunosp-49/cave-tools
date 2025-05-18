@@ -32,4 +32,7 @@ export const colors = {
   error: {
     100: "#b93636",
   },
+  warning: {
+    100: "#FFA500",
+  }
 };

@@ -10,6 +10,22 @@ import {
   EspeleotemaItem,
   Paleontologia,
 } from "../types";
+import { formatDateToInput } from "../util";
+
+const initialSedimentosState = {
+  sedimentacao_clastica: {
+    possui: false,
+    tipo: {},
+    outros: undefined as string | undefined,
+    outroEnabled: false,
+  },
+  sedimentacao_organica: {
+    possui: false,
+    tipo: {},
+    outros: undefined as string | undefined,
+    outroEnabled: false,
+  },
+};
 
 const initialCavidadeState: Cavidade = {
   registro_id: "",
@@ -17,35 +33,49 @@ const initialCavidadeState: Cavidade = {
   responsavel: "",
   nome_cavidade: "",
   nome_sistema: "",
-  data: "",
+  data: formatDateToInput(new Date().toISOString()),
   municipio: "",
   uf: "",
   localidade: undefined,
   entradas: [],
   desenvolvimento_linear: undefined,
-  dificuldades_externas: { nenhuma: true },
+  dificuldades_externas: {
+    nenhuma: true,
+    outroEnabled: false,
+    outro: undefined,
+  },
   aspectos_socioambientais: {
-    uso_cavidade: {},
+    uso_cavidade: { outroEnabled: false, outro: undefined },
     comunidade_envolvida: { envolvida: false },
     area_protegida: { nao_determinado: true },
     infraestrutura_acesso: { nenhuma: true },
   },
   caracterizacao_interna: {
     grupo_litologico: {},
-    infraestrutura_interna: { nenhuma: true },
-    dificuldades_progressao_interna: { nenhuma: true },
+    infraestrutura_interna: {
+      nenhuma: true,
+      outroEnabled: false,
+      outros: undefined,
+    },
+    dificuldades_progressao_interna: { nenhuma: true, outro: undefined },
   },
   topografia: undefined,
   morfologia: undefined,
   hidrologia: undefined,
-  sedimentos: undefined,
+  sedimentos: initialSedimentosState,
   espeleotemas: {
     possui: false,
     lista: [],
   },
   biota: undefined,
-  arqueologia: { possui: false },
-  paleontologia: { possui: false },
+  arqueologia: {
+    possui: false,
+    tipos: { outroEnabled: false, outro: undefined },
+  },
+  paleontologia: {
+    possui: false,
+    tipos: { outroEnabled: false, outro: undefined },
+  },
 };
 
 interface CavitySliceState {
@@ -74,7 +104,6 @@ const cavitySlice = createSlice({
     updateCurrentStep: (state, action: PayloadAction<number>) => {
       state.currentStep = action.payload;
     },
-
     updateCavidadeData: (state, action: PayloadAction<UpdateDataPayload>) => {
       const { path, value } = action.payload;
       state.error = null;
@@ -114,7 +143,6 @@ const cavitySlice = createSlice({
           error.message || `Failed to update field at path: ${path.join(".")}`;
       }
     },
-
     resetCavidadeState: () => {
       return initialState;
     },
@@ -324,7 +352,6 @@ const cavitySlice = createSlice({
         );
       }
     },
-
     removeMorcegoTipo: (state, action: PayloadAction<BatFeedingType>) => {
       const tipoToRemove = action.payload;
       if (state.cavidade.biota?.morcegos?.tipos) {
@@ -334,7 +361,6 @@ const cavitySlice = createSlice({
           );
       }
     },
-
     setMorcegosObservacoes: (
       state,
       action: PayloadAction<string | undefined>
@@ -401,19 +427,21 @@ const cavitySlice = createSlice({
     ) => {
       const { section, possui } = action.payload;
       if (!state.cavidade[section]) {
-         state.cavidade[section] = { possui: false };
-         state.cavidade[section] = { tipos: undefined};
+        state.cavidade[section] = { possui: false };
+        state.cavidade[section] = { tipos: undefined };
       }
       state.cavidade[section]!.possui = possui;
       if (possui) {
-         state.cavidade[section]!.tipos = state.cavidade[section]?.tipos ?? {};
-         state.cavidade[section]!.tipos!.outroEnabled = state.cavidade[section]?.tipos?.outroEnabled ?? false;
-         state.cavidade[section]!.tipos!.outro = state.cavidade[section]?.tipos?.outro ?? undefined;
+        state.cavidade[section]!.tipos = state.cavidade[section]?.tipos ?? {};
+        state.cavidade[section]!.tipos!.outroEnabled =
+          state.cavidade[section]?.tipos?.outroEnabled ?? false;
+        state.cavidade[section]!.tipos!.outro =
+          state.cavidade[section]?.tipos?.outro ?? undefined;
       } else {
-          if (state.cavidade[section]?.tipos) {
-              state.cavidade[section]!.tipos!.outroEnabled = false;
-              state.cavidade[section]!.tipos!.outro = undefined;
-          }
+        if (state.cavidade[section]?.tipos) {
+          state.cavidade[section]!.tipos!.outroEnabled = false;
+          state.cavidade[section]!.tipos!.outro = undefined;
+        }
       }
     },
     toggleArchPalTipo: (
@@ -425,12 +453,14 @@ const cavitySlice = createSlice({
     ) => {
       const { section, fieldName } = action.payload;
       const sectionState = state.cavidade[section];
-   
-      if (fieldName === 'outroEnabled' || fieldName === 'outro') {
-           console.warn(`toggleArchPalTipo should not be used for '${fieldName}'. Use specific handlers.`);
-           return;
+
+      if (fieldName === "outroEnabled" || fieldName === "outro") {
+        console.warn(
+          `toggleArchPalTipo should not be used for '${fieldName}'. Use specific handlers.`
+        );
+        return;
       }
-   
+
       if (sectionState?.possui && sectionState.tipos) {
         const tipos = sectionState.tipos as any;
         const currentVal = tipos[fieldName];
@@ -450,14 +480,18 @@ const cavitySlice = createSlice({
     ) => {
       const { section, text } = action.payload;
       const sectionState = state.cavidade[section];
-      if (sectionState?.possui && sectionState.tipos && (sectionState.tipos.outroEnabled || !text)) {
-           sectionState.tipos.outro = text;
+      if (
+        sectionState?.possui &&
+        sectionState.tipos &&
+        (sectionState.tipos.outroEnabled || !text)
+      ) {
+        sectionState.tipos.outro = text;
       } else if (text) {
-           console.warn(
-               `Cannot set 'outro' text for section '${section}' as 'outroEnabled' or 'possui' is false.`
-           );
+        console.warn(
+          `Cannot set 'outro' text for section '${section}' as 'outroEnabled' or 'possui' is false.`
+        );
       } else if (!text && sectionState?.tipos) {
-          sectionState.tipos.outro = undefined;
+        sectionState.tipos.outro = undefined;
       }
     },
     setSedimentoPossui: (
@@ -468,18 +502,85 @@ const cavitySlice = createSlice({
       }>
     ) => {
       const { section, possui } = action.payload;
+
+      // Garante que state.cavidade.sedimentos seja inicializado se for undefined/null
       if (!state.cavidade.sedimentos) {
-        state.cavidade.sedimentos = {};
+        state.cavidade.sedimentos = JSON.parse(JSON.stringify(initialSedimentosState));
       }
-      if (!state.cavidade.sedimentos[section]) {
-        state.cavidade.sedimentos[section] = {};
+      
+      // Usamos a asserção de não-nulidade (!) porque a lógica acima garante que
+      // state.cavidade.sedimentos não é nulo/undefined neste ponto.
+      const currentSedimentos = state.cavidade.sedimentos!; 
+
+      const subSection = currentSedimentos[section]; 
+      
+      if (!subSection) {
+          console.error(`Erro: subSection '${section}' não encontrada em sedimentos. Isso pode indicar uma incompatibilidade de tipo ou estado inicial.`);
+          return;
       }
-      state.cavidade.sedimentos[section]!.possui = possui;
-      if (!possui) {
-        state.cavidade.sedimentos[section]!.tipo = undefined;
+
+      subSection.possui = possui;
+
+      if (possui) {
+        subSection.tipo = subSection.tipo ?? {};
+        subSection.outros = subSection.outros ?? undefined;
+        subSection.outroEnabled = subSection.outroEnabled ?? false;
       } else {
-        state.cavidade.sedimentos[section]!.tipo =
-          state.cavidade.sedimentos[section]?.tipo ?? {};
+        subSection.tipo = undefined; 
+        subSection.outros = undefined;
+        subSection.outroEnabled = false;
+      }
+    },
+    // Novos reducers para sedimentacao_clastica
+    toggleSedimentacaoClasticaOutrosEnabled: (state) => {
+      if (state.cavidade.sedimentos?.sedimentacao_clastica?.possui) {
+        const clastica = state.cavidade.sedimentos.sedimentacao_clastica;
+        clastica.outroEnabled = !clastica.outroEnabled;
+        if (!clastica.outroEnabled) {
+          clastica.outros = undefined;
+        }
+      }
+    },
+    setSedimentacaoClasticaOutrosText: (
+      state,
+      action: PayloadAction<string | undefined>
+    ) => {
+      if (
+        state.cavidade.sedimentos?.sedimentacao_clastica?.possui &&
+        state.cavidade.sedimentos.sedimentacao_clastica.outroEnabled
+      ) {
+        state.cavidade.sedimentos.sedimentacao_clastica.outros = action.payload;
+      } else if (
+        !action.payload &&
+        state.cavidade.sedimentos?.sedimentacao_clastica
+      ) {
+        state.cavidade.sedimentos.sedimentacao_clastica.outros = undefined;
+      }
+    },
+    // Novos reducers para sedimentacao_organica
+    toggleSedimentacaoOrganicaOutrosEnabled: (state) => {
+      if (state.cavidade.sedimentos?.sedimentacao_organica?.possui) {
+        const organica = state.cavidade.sedimentos.sedimentacao_organica;
+        organica.outroEnabled = !organica.outroEnabled;
+        if (!organica.outroEnabled) {
+          organica.outros = undefined;
+        }
+      }
+    },
+    setSedimentacaoOrganicaOutrosText: (
+      state,
+      action: PayloadAction<string | undefined>
+    ) => {
+      if (
+        state.cavidade.sedimentos?.sedimentacao_organica?.possui &&
+        state.cavidade.sedimentos.sedimentacao_organica.outroEnabled
+      ) {
+        state.cavidade.sedimentos.sedimentacao_organica.outros = action.payload;
+      } else if (
+        !action.payload &&
+        state.cavidade.sedimentos?.sedimentacao_organica
+      ) {
+        state.cavidade.sedimentos.sedimentacao_organica.outros = undefined;
       }
     },
     setEspeleotemasPossui: (state, action: PayloadAction<boolean>) => {
@@ -561,7 +662,6 @@ const cavitySlice = createSlice({
         }
       }
     },
-
     setUsoCavidadeOutroText(state, action: PayloadAction<string | undefined>) {
       const text = action.payload;
       const usoCavidadeState =
@@ -580,25 +680,94 @@ const cavitySlice = createSlice({
       } else if (!usoCavidadeState && !text) {
       }
     },
-    toggleArchPalOutroEnabled(state, action: PayloadAction<{ section: 'arqueologia' | 'paleontologia' }>) {
+    toggleArchPalOutroEnabled(
+      state,
+      action: PayloadAction<{ section: "arqueologia" | "paleontologia" }>
+    ) {
       const { section } = action.payload;
       const sectionState = state.cavidade[section];
-    
+
       if (sectionState?.possui && sectionState.tipos) {
         const currentEnabled = sectionState.tipos.outroEnabled ?? false;
         const newEnabled = !currentEnabled;
         sectionState.tipos.outroEnabled = newEnabled;
-    
+
         if (!newEnabled) {
           sectionState.tipos.outro = undefined;
         }
       } else {
-        console.warn(`Cannot toggle 'outroEnabled' for section '${section}' as 'possui' is false or section/tipos doesn't exist.`);
+        console.warn(
+          `Cannot toggle 'outroEnabled' for section '${section}' as 'possui' is false or section/tipos doesn't exist.`
+        );
       }
     },
     setFullInfos(state, action: PayloadAction<Cavidade>) {
       state.cavidade = action.payload;
-    }
+    },
+    toggleDificuldadesExternasOutroEnabled: (state) => {
+      const de = state.cavidade.dificuldades_externas;
+      if (de) {
+        de.outroEnabled = !de.outroEnabled;
+        if (!de.outroEnabled) {
+          de.outro = undefined;
+        }
+      } else {
+        console.warn(
+          "toggleDificuldadesExternasOutroEnabled: state.cavidade.dificuldades_externas não encontrado."
+        );
+      }
+    },
+    setDificuldadesExternasOutroText: (
+      state,
+      action: PayloadAction<string | undefined>
+    ) => {
+      const de = state.cavidade.dificuldades_externas;
+      if (de) {
+        if (
+          de.outroEnabled ||
+          action.payload === undefined ||
+          action.payload === null
+        ) {
+          de.outro = action.payload;
+        }
+      } else {
+        console.warn(
+          "setDificuldadesExternasOutroText: state.cavidade.dificuldades_externas não encontrado."
+        );
+      }
+    },
+    toggleInfraestruturaInternaOutrosEnabled: (state) => {
+      const ii = state.cavidade.caracterizacao_interna?.infraestrutura_interna;
+      if (ii) {
+        ii.outroEnabled = !ii.outroEnabled;
+        if (!ii.outroEnabled) {
+          ii.outros = undefined;
+        }
+      } else {
+        console.warn(
+          "toggleInfraestruturaInternaOutrosEnabled: infraestrutura_interna não encontrada."
+        );
+      }
+    },
+    setInfraestruturaInternaOutrosText: (
+      state,
+      action: PayloadAction<string | undefined>
+    ) => {
+      const ii = state.cavidade.caracterizacao_interna?.infraestrutura_interna;
+      if (ii) {
+        if (
+          ii.outroEnabled ||
+          action.payload === undefined ||
+          action.payload === null
+        ) {
+          ii.outros = action.payload;
+        }
+      } else {
+        console.warn(
+          "setInfraestruturaInternaOutrosText: infraestrutura_interna não encontrada."
+        );
+      }
+    },
   },
 });
 
@@ -629,6 +798,14 @@ export const {
   setUsoCavidadeOutroText,
   toggleArchPalOutroEnabled,
   setFullInfos,
+  setDificuldadesExternasOutroText,
+  setInfraestruturaInternaOutrosText,
+  toggleDificuldadesExternasOutroEnabled,
+  toggleInfraestruturaInternaOutrosEnabled,
+  setSedimentacaoClasticaOutrosText,
+  setSedimentacaoOrganicaOutrosText,
+  toggleSedimentacaoClasticaOutrosEnabled,
+  toggleSedimentacaoOrganicaOutrosEnabled,
 } = cavitySlice.actions;
 
 export default cavitySlice.reducer;

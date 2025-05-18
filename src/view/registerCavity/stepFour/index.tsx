@@ -1,4 +1,4 @@
-import React, { FC, useCallback } from "react";
+import React, { FC, useCallback, useMemo } from "react"; // Adicionado useMemo e FC
 import { StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { colors } from "../../../assets/colors";
@@ -11,31 +11,167 @@ import {
   Dificuldades_progressao_interna,
   Grupo_litologico,
   Infraestrutura_interna,
+  RouterProps, // Importar RouterProps
 } from "../../../types";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "../../../redux/store";
-import { updateCavidadeData } from "../../../redux/cavitySlice";
+import {
+  updateCavidadeData,
+  toggleInfraestruturaInternaOutrosEnabled,
+  setInfraestruturaInternaOutrosText,
+} from "../../../redux/cavitySlice";
+
+// Interface para as props do StepFour
+// Se StepComponentProps já está definido em um arquivo de tipos central, importe-o de lá.
+interface StepFourProps extends RouterProps {
+  validationAttempted: boolean;
+}
 
 type GrupoLitologicoKeys = keyof Grupo_litologico;
-type InfraInternaKeys = keyof Infraestrutura_interna;
+type InfraInternaSpecificKeys = Exclude<
+  keyof Infraestrutura_interna,
+  "outroEnabled" | "outros" | "corrimao" // corrimao é tratado separadamente
+>;
 type CorrimaoKeys = keyof NonNullable<Infraestrutura_interna["corrimao"]>;
 type DificuldadeProgKeys = keyof Dificuldades_progressao_interna;
 
-// Define possible values for Estado de Conservacao
 type EstadoConservacaoValue =
   | "Conservada"
   | "Depredação localizada"
   | "Depredação intensa";
 
-export const StepFour = () => {
+// Função auxiliar para verificar se um campo está preenchido
+const isFieldFilled = (value: any): boolean => {
+  if (value === null || typeof value === "undefined") return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  return true;
+};
+
+export const StepFour: FC<StepFourProps> = ({
+  navigation,
+  route,
+  validationAttempted,
+}) => {
   const dispatch = useDispatch<AppDispatch>();
   const cavidade = useSelector((state: RootState) => state.cavity.cavidade);
-  const caracterizacao: Partial<typeof cavidade.caracterizacao_interna> =
-    cavidade.caracterizacao_interna ?? {};
+  const caracterizacao: Partial<
+    typeof cavidade.caracterizacao_interna & {
+      estado_conservacao_detalhes?: string; // Adicionado para tipagem correta
+    }
+  > = cavidade.caracterizacao_interna ?? {};
   const grupoLitologico = caracterizacao.grupo_litologico ?? {};
   const infraInterna = caracterizacao.infraestrutura_interna ?? {};
   const dificuldadeProg = caracterizacao.dificuldades_progressao_interna ?? {};
   const corrimao = infraInterna.corrimao ?? {};
+
+  const infraOutroEnabled = infraInterna.outroEnabled || false;
+  const infraOutrosText = infraInterna.outros || "";
+
+  // Lógica de Erros Específicos para StepFour
+  const stepFourErrors = useMemo(() => {
+    if (!validationAttempted) {
+      return {};
+    }
+    const errors: { [key: string]: string } = {};
+    const errorMsgRequired = "Este campo é obrigatório.";
+
+    // Validação Grupo Litológico
+    if (
+      grupoLitologico.outro !== undefined &&
+      !isFieldFilled(grupoLitologico.outro)
+    ) {
+      errors.grupo_litologico_outro = errorMsgRequired;
+    }
+
+    // Validação Estado de Conservação
+    if (
+      (caracterizacao.estado_conservacao === "Depredação localizada" ||
+        caracterizacao.estado_conservacao === "Depredação intensa") &&
+      !isFieldFilled(caracterizacao.estado_conservacao_detalhes)
+    ) {
+      errors.estado_conservacao_detalhes = errorMsgRequired;
+    }
+
+    // Validação Corrimão
+    if (infraInterna.corrimao) {
+      // Se o checkbox "Corrimão" principal está marcado
+      const corrimaoData = infraInterna.corrimao;
+      const algumaOpcaoCorrimaoSelecionada =
+        corrimaoData.ferro ||
+        corrimaoData.madeira ||
+        corrimaoData.corda ||
+        corrimaoData.outro !== undefined; // "Outro" é ativo se o texto não for undefined
+
+      if (!algumaOpcaoCorrimaoSelecionada) {
+        errors.corrimao_tipo = "Selecione pelo menos um tipo de corrimão.";
+      } else if (
+        corrimaoData.outro !== undefined &&
+        !isFieldFilled(corrimaoData.outro)
+      ) {
+        errors.corrimao_outro_texto = errorMsgRequired;
+      }
+    }
+
+    // Validação Infraestrutura Interna "Outro"
+    if (infraInterna.outroEnabled && !isFieldFilled(infraInterna.outros)) {
+      errors.infraestrutura_outro_texto = errorMsgRequired;
+    }
+
+    // Validação Dificuldade de Progressão Interna "Outro"
+    if (
+      dificuldadeProg.outro !== undefined &&
+      !isFieldFilled(dificuldadeProg.outro)
+    ) {
+      errors.dificuldade_prog_outro_texto = errorMsgRequired;
+    }
+
+    // Validação geral para Infraestrutura Interna (se nenhuma opção marcada)
+    const infraKeys = Object.keys(infraInterna) as Array<
+      keyof Infraestrutura_interna
+    >;
+    const algumaInfraSelecionada = infraKeys.some((key) => {
+      if (key === "corrimao") return !!infraInterna.corrimao;
+      if (key === "outroEnabled")
+        return infraInterna.outroEnabled && isFieldFilled(infraInterna.outros);
+      if (key === "outros") return false; // Já tratado por outroEnabled
+      return !!infraInterna[key];
+    });
+    if (
+      infraKeys.length > 0 &&
+      !algumaInfraSelecionada &&
+      !infraInterna.nenhuma
+    ) {
+      // errors.infraestrutura_geral = "Selecione uma opção de infraestrutura ou 'Nenhuma'.";
+    }
+
+    // Validação geral para Dificuldade de Progressão Interna
+    const difKeys = Object.keys(dificuldadeProg) as Array<
+      keyof Dificuldades_progressao_interna
+    >;
+    const algumaDificuldadeSelecionada = difKeys.some((key) => {
+      if (key === "outro")
+        return (
+          dificuldadeProg.outro !== undefined &&
+          isFieldFilled(dificuldadeProg.outro)
+        );
+      return !!dificuldadeProg[key];
+    });
+    if (
+      difKeys.length > 0 &&
+      !algumaDificuldadeSelecionada &&
+      !dificuldadeProg.nenhuma
+    ) {
+      // errors.dificuldade_geral = "Selecione uma dificuldade ou 'Nenhuma'.";
+    }
+
+    return errors;
+  }, [
+    validationAttempted,
+    caracterizacao,
+    grupoLitologico,
+    infraInterna,
+    dificuldadeProg,
+  ]);
 
   const handleUpdate = useCallback(
     (path: (string | number)[], value: any) => {
@@ -46,18 +182,19 @@ export const StepFour = () => {
 
   const handleGrupoLitologicoChange = useCallback(
     (fieldName: GrupoLitologicoKeys) => {
-      const path = ["caracterizacao_interna", "grupo_litologico", fieldName];
-      const currentValue = grupoLitologico[fieldName] || false;
-      const newValue = !currentValue;
-      handleUpdate(path, newValue);
-      if (fieldName === "outro" && !newValue) {
-        handleUpdate(
-          ["caracterizacao_interna", "grupo_litologico", "outro"],
-          ""
-        );
+      const basePath = ["caracterizacao_interna", "grupo_litologico"];
+      const path = [...basePath, fieldName];
+      const currentValue = grupoLitologico[fieldName];
+
+      if (fieldName === "outro") {
+        const isCurrentlyActiveForInput = grupoLitologico.outro !== undefined;
+        const newValue = isCurrentlyActiveForInput ? undefined : "";
+        handleUpdate(path, newValue);
+      } else {
+        handleUpdate(path, !currentValue);
       }
     },
-    [dispatch, grupoLitologico]
+    [grupoLitologico, handleUpdate]
   );
 
   const handleDesenvolvimentoPredominanteChange = useCallback(
@@ -67,47 +204,59 @@ export const StepFour = () => {
         value
       );
     },
-    [dispatch]
+    [handleUpdate]
   );
 
   const handleEstadoConservacaoChange = useCallback(
     (value: EstadoConservacaoValue | string) => {
       handleUpdate(["caracterizacao_interna", "estado_conservacao"], value);
+      if (value === "Conservada") {
+        // Limpa detalhes se "Conservada"
+        handleUpdate(
+          ["caracterizacao_interna", "estado_conservacao_detalhes"],
+          ""
+        );
+      } else if (caracterizacao.estado_conservacao_detalhes === undefined) {
+        // Se mudar para depredação e detalhes for undefined
+        handleUpdate(
+          ["caracterizacao_interna", "estado_conservacao_detalhes"],
+          "" // Inicializa para permitir digitação
+        );
+      }
     },
-    [dispatch]
+    [handleUpdate, caracterizacao.estado_conservacao_detalhes]
   );
 
   const handleInfraInternaChange = useCallback(
-    (fieldName: InfraInternaKeys) => {
-      const currentState = infraInterna || {}; // Pega o estado atual
-      const currentValue = currentState[fieldName];
-      const isTurningOn = !currentValue; // Verifica se a ação é para LIGAR o campo
+    (fieldName: InfraInternaSpecificKeys | "corrimao" | "nenhuma") => {
+      // Adicionado "corrimao" e "nenhuma"
+      const currentState = infraInterna;
+      const currentValueForField =
+        currentState[fieldName as keyof Infraestrutura_interna]; // Cast para evitar erro de tipo
+      const isTurningOnThisField =
+        fieldName === "corrimao"
+          ? !currentState.corrimao // Verifica se o objeto corrimao existe
+          : !currentValueForField;
 
-      // --- 1. Realiza a atualização PRINCIPAL para o campo clicado ---
-      // (Esta parte é a sua lógica original)
       const basePath = ["caracterizacao_interna", "infraestrutura_interna"];
       const path = [...basePath, fieldName];
       let primaryValue: any;
 
       if (fieldName === "corrimao") {
-        primaryValue = isTurningOn ? {} : undefined; // Valor para corrimao (objeto ou undefined)
+        primaryValue = isTurningOnThisField
+          ? { ferro: false, madeira: false, corda: false, outro: undefined }
+          : undefined;
       } else {
-        primaryValue = isTurningOn; // Valor para outros (true ou false)
+        primaryValue = isTurningOnThisField;
       }
-      // Chama o handleUpdate original para o campo clicado
       handleUpdate(path, primaryValue);
 
-      // --- 2. Realiza atualizações SECUNDÁRIAS para exclusividade mútua ---
-
-      if (fieldName === "nenhuma" && isTurningOn) {
-        // Se o campo clicado foi 'nenhuma' E ele foi LIGADO:
-        // Precisamos desligar todos os outros campos específicos.
-
-        // **IMPORTANTE:** Liste TODAS as chaves dos itens específicos aqui!
-        const specificItemKeys: InfraInternaKeys[] = [
+      if (fieldName === "nenhuma" && isTurningOnThisField) {
+        const specificItemKeys: Array<
+          Exclude<InfraInternaSpecificKeys, "nenhuma"> | "corrimao"
+        > = [
           "passarela",
           "corrimao",
-          "escada",
           "portao",
           "escada",
           "corda",
@@ -117,42 +266,68 @@ export const StepFour = () => {
 
         specificItemKeys.forEach((key) => {
           const keyPath = [...basePath, key];
-          const offValue = key === "corrimao" ? undefined : false;
-          if (currentState[key] !== offValue) {
-            handleUpdate(keyPath, offValue);
+          const isCorrimao = key === "corrimao";
+          if (
+            isCorrimao
+              ? !!currentState.corrimao
+              : !!currentState[key as InfraInternaSpecificKeys]
+          ) {
+            handleUpdate(keyPath, isCorrimao ? undefined : false);
           }
         });
-      } else if (fieldName !== "nenhuma" && isTurningOn) {
-        const nenhumaPath = [...basePath, "nenhuma"];
-        if (currentState["nenhuma"] !== false) {
-          handleUpdate(nenhumaPath, false);
+        if (currentState.outroEnabled) {
+          dispatch(toggleInfraestruturaInternaOutrosEnabled());
+        }
+      } else if (fieldName !== "nenhuma" && isTurningOnThisField) {
+        if (currentState.nenhuma) {
+          handleUpdate([...basePath, "nenhuma"], false);
         }
       }
     },
-    [infraInterna, handleUpdate]
+    [infraInterna, handleUpdate, dispatch]
   );
+
+  const handleToggleInfraOutrosCheckbox = useCallback(() => {
+    const willBeTurnedOn = !infraInterna.outroEnabled;
+    dispatch(toggleInfraestruturaInternaOutrosEnabled());
+
+    if (willBeTurnedOn && infraInterna.nenhuma) {
+      handleUpdate(
+        ["caracterizacao_interna", "infraestrutura_interna", "nenhuma"],
+        false
+      );
+    }
+  }, [dispatch, infraInterna, handleUpdate]);
+
+  const handleInfraOutrosTextUpdate = (text: string) => {
+    dispatch(setInfraestruturaInternaOutrosText(text));
+  };
 
   const handleDificuldadeProgChange = useCallback(
     (fieldName: DificuldadeProgKeys) => {
-      const currentState = dificuldadeProg || {};
-      const currentValue = currentState[fieldName] || false;
-      const isTurningOn = !currentValue;
-
+      const currentDificuldadeProgState = dificuldadeProg;
       const basePath = [
         "caracterizacao_interna",
         "dificuldades_progressao_interna",
       ];
-      const path = [...basePath, fieldName];
-      const primaryValue = isTurningOn;
 
-      handleUpdate(path, primaryValue);
-      if (fieldName === "outro" && !isTurningOn) {
-        handleUpdate(path, "");
+      let isTurningOnField: boolean;
+      let updatedValueForField: any;
+
+      if (fieldName === "outro") {
+        const isCurrentlyActive =
+          currentDificuldadeProgState.outro !== undefined;
+        updatedValueForField = isCurrentlyActive ? undefined : "";
+        isTurningOnField = !isCurrentlyActive;
+      } else {
+        updatedValueForField = !currentDificuldadeProgState[fieldName];
+        isTurningOnField = updatedValueForField;
       }
 
-      const nenhumaKey: DificuldadeProgKeys = "nenhuma";
+      handleUpdate([...basePath, fieldName], updatedValueForField);
 
-      const specificDifficultyKeys: DificuldadeProgKeys[] = [
+      const nenhumaKey: DificuldadeProgKeys = "nenhuma";
+      const allSpecificKeys: Exclude<DificuldadeProgKeys, "nenhuma">[] = [
         "teto_baixo",
         "blocos_instaveis",
         "trechos_escorregadios",
@@ -166,23 +341,22 @@ export const StepFour = () => {
         "outro",
       ];
 
-      if (fieldName === nenhumaKey && isTurningOn) {
-        specificDifficultyKeys.forEach((key) => {
-          const keyPath = [...basePath, key];
-          let offValue: any = false;
-
+      if (fieldName === nenhumaKey && isTurningOnField) {
+        allSpecificKeys.forEach((key) => {
+          const valueInState = currentDificuldadeProgState[key];
           if (key === "outro") {
-            offValue = "";
-          }
-
-          if (currentState[key] !== offValue) {
-            handleUpdate(keyPath, offValue);
+            if (valueInState !== undefined) {
+              handleUpdate([...basePath, key], undefined);
+            }
+          } else {
+            if (valueInState === true) {
+              handleUpdate([...basePath, key], false);
+            }
           }
         });
-      } else if (specificDifficultyKeys.includes(fieldName) && isTurningOn) {
-        const nenhumaPath = [...basePath, nenhumaKey];
-        if (currentState[nenhumaKey] !== false) {
-          handleUpdate(nenhumaPath, false);
+      } else if (isTurningOnField && fieldName !== nenhumaKey) {
+        if (currentDificuldadeProgState.nenhuma === true) {
+          handleUpdate([...basePath, nenhumaKey], false);
         }
       }
     },
@@ -191,30 +365,31 @@ export const StepFour = () => {
 
   const handleCorrimaoChange = useCallback(
     (fieldName: CorrimaoKeys) => {
-      if (infraInterna.corrimao) {
-        const path = [
-          "caracterizacao_interna",
-          "infraestrutura_interna",
-          "corrimao",
-          fieldName,
-        ];
-        const currentValue = corrimao[fieldName] || false;
-        const newValue = !currentValue;
-        handleUpdate(path, newValue);
-        if (fieldName === "outro" && !newValue) {
+      const currentCorrimaoState = infraInterna.corrimao || {};
+      const basePath = [
+        "caracterizacao_interna",
+        "infraestrutura_interna",
+        "corrimao",
+      ];
+      const path = [...basePath, fieldName];
+      const currentValue = currentCorrimaoState[fieldName];
+
+      if (fieldName === "outro") {
+        const isCurrentlyActive = currentValue !== undefined;
+        const newValue = isCurrentlyActive ? undefined : "";
+        if (!infraInterna.corrimao && !isCurrentlyActive) {
           handleUpdate(
-            [
-              "caracterizacao_interna",
-              "infraestrutura_interna",
-              "corrimao",
-              "outro",
-            ],
-            ""
+            ["caracterizacao_interna", "infraestrutura_interna", "corrimao"],
+            { ...currentCorrimaoState, [fieldName]: newValue } // Garante que o objeto corrimao é criado
           );
+        } else {
+          handleUpdate(path, newValue);
         }
+      } else {
+        handleUpdate(path, !currentValue);
       }
     },
-    [dispatch, infraInterna.corrimao, corrimao]
+    [infraInterna.corrimao, handleUpdate]
   );
 
   return (
@@ -263,15 +438,16 @@ export const StepFour = () => {
       />
       <Divider height={12} />
       <Checkbox
-        label="Outro"
-        checked={!!grupoLitologico.outro}
+        label="Outro (Grupo Litológico)"
+        checked={grupoLitologico.outro !== undefined}
         onChange={() => handleGrupoLitologicoChange("outro")}
       />
       <Divider height={12} />
-      {!!grupoLitologico.outro && (
+      {grupoLitologico.outro !== undefined && (
         <Input
           placeholder="Especifique o outro grupo"
           label="Qual outro grupo?"
+          required
           value={grupoLitologico.outro || ""}
           onChangeText={(text) =>
             handleUpdate(
@@ -279,8 +455,11 @@ export const StepFour = () => {
               text
             )
           }
+          hasError={!!stepFourErrors.grupo_litologico_outro}
+          errorMessage={stepFourErrors.grupo_litologico_outro}
         />
       )}
+
       <TextInter color={colors.white[100]} weight="medium">
         Desenvolvimento predominante
       </TextInter>
@@ -291,9 +470,11 @@ export const StepFour = () => {
         options={[
           { id: "1", value: "Horizontal", label: "Horizontal" },
           { id: "2", value: "Vertical", label: "Vertical" },
+          { id: "3", value: "Misto", label: "Misto" },
         ]}
       />
       <Divider height={12} />
+
       <TextInter color={colors.white[100]} weight="medium">
         Estado de conservação
       </TextInter>
@@ -312,28 +493,32 @@ export const StepFour = () => {
         ]}
       />
       <Divider height={5} />
-      {caracterizacao.estado_conservacao &&
-        caracterizacao.estado_conservacao !== "Conservada" && (
-          <>
-            <Divider height={12} />
-            <Input
-              label="Detalhes da Depredação"
-              placeholder="Reportar Condição / Detalhes"
-              // Assuming a 'estado_conservacao_detalhes' field exists or needs adding
-              value={caracterizacao.estado_conservacao || ""}
-              onChangeText={(text) =>
-                handleUpdate(
-                  ["caracterizacao_interna", "estado_conservacao"],
-                  text
-                )
-              }
-            />
-          </>
-        )}
+      {(caracterizacao.estado_conservacao === "Depredação localizada" ||
+        caracterizacao.estado_conservacao === "Depredação intensa") && (
+        <>
+          <Divider height={12} />
+          <Input
+            label="Detalhes da Depredação"
+            required
+            placeholder="Reportar Condição / Detalhes"
+            value={caracterizacao.estado_conservacao_detalhes || ""}
+            onChangeText={(text) =>
+              handleUpdate(
+                ["caracterizacao_interna", "estado_conservacao_detalhes"],
+                text
+              )
+            }
+            hasError={!!stepFourErrors.estado_conservacao_detalhes}
+            errorMessage={stepFourErrors.estado_conservacao_detalhes}
+          />
+        </>
+      )}
       <Divider height={18} />
+
       <TextInter color={colors.white[100]} weight="medium">
         Infraestrutura interna
       </TextInter>
+      {/* {!!stepFourErrors.infraestrutura_geral && <TextInter style={styles.errorText}>{stepFourErrors.infraestrutura_geral}</TextInter>} */}
       <Divider height={12} />
       <Checkbox
         label="Passarela"
@@ -351,6 +536,14 @@ export const StepFour = () => {
           <TextInter color={colors.white[100]} weight="medium">
             Tipo de Corrimão
           </TextInter>
+          {!!stepFourErrors.corrimao_tipo && (
+            <>
+            <Divider height={8} />
+            <TextInter style={styles.errorText}>
+              {stepFourErrors.corrimao_tipo}
+            </TextInter>
+            </>
+          )}
           <Divider height={12} />
           <Checkbox
             label="Ferro"
@@ -365,22 +558,23 @@ export const StepFour = () => {
           />
           <Divider height={12} />
           <Checkbox
-            label="Corda"
+            label="Corda (tipo corrimão)"
             checked={corrimao.corda || false}
             onChange={() => handleCorrimaoChange("corda")}
           />
           <Divider height={12} />
           <Checkbox
-            label="Outro"
-            checked={!!corrimao.outro}
+            label="Outro (Tipo Corrimão)"
+            checked={corrimao.outro !== undefined}
             onChange={() => handleCorrimaoChange("outro")}
           />
-          {!!corrimao.outro && (
+          {corrimao.outro !== undefined && (
             <>
               <Divider height={12} />
               <Input
-                label="Qual outro corrimão?"
+                label="Qual outro tipo de corrimão?"
                 placeholder="Especifique"
+                required
                 value={corrimao.outro || ""}
                 onChangeText={(text) =>
                   handleUpdate(
@@ -393,6 +587,8 @@ export const StepFour = () => {
                     text
                   )
                 }
+                hasError={!!stepFourErrors.corrimao_outro_texto}
+                errorMessage={stepFourErrors.corrimao_outro_texto}
               />
             </>
           )}
@@ -430,14 +626,35 @@ export const StepFour = () => {
       />
       <Divider height={12} />
       <Checkbox
-        label="Nenhuma"
+        label="Outro (Infraestrutura)"
+        checked={infraOutroEnabled}
+        onChange={handleToggleInfraOutrosCheckbox}
+      />
+      <Divider height={12} />
+      {infraOutroEnabled && (
+        <>
+          <Input
+            placeholder="Especifique qual outra infraestrutura"
+            required
+            label="Qual outra infraestrutura?"
+            value={infraOutrosText}
+            onChangeText={handleInfraOutrosTextUpdate}
+            hasError={!!stepFourErrors.infraestrutura_outro_texto}
+            errorMessage={stepFourErrors.infraestrutura_outro_texto}
+          />
+        </>
+      )}
+      <Checkbox
+        label="Nenhuma (Infraestrutura)"
         checked={infraInterna.nenhuma || false}
         onChange={() => handleInfraInternaChange("nenhuma")}
       />
       <Divider height={18} />
+
       <TextInter color={colors.white[100]} weight="medium">
         Dificuldade de progressão interna
       </TextInter>
+      {/* {!!stepFourErrors.dificuldade_geral && <TextInter style={styles.errorText}>{stepFourErrors.dificuldade_geral}</TextInter>} */}
       <Divider height={12} />
       <Checkbox
         label="Teto baixo"
@@ -500,15 +717,16 @@ export const StepFour = () => {
       />
       <Divider height={12} />
       <Checkbox
-        label="Outro"
-        checked={!!dificuldadeProg.outro}
+        label="Outro (Dificuldade Progressão)"
+        checked={dificuldadeProg.outro !== undefined}
         onChange={() => handleDificuldadeProgChange("outro")}
       />
       <Divider height={12} />
-      {!!dificuldadeProg.outro && (
+      {dificuldadeProg.outro !== undefined && (
         <>
           <Input
-            label="Qual outra dificuldade?"
+            label="Qual outra dificuldade de progressão?"
+            required
             placeholder="Especifique"
             value={dificuldadeProg.outro || ""}
             onChangeText={(text) =>
@@ -521,11 +739,13 @@ export const StepFour = () => {
                 text
               )
             }
+            hasError={!!stepFourErrors.dificuldade_prog_outro_texto}
+            errorMessage={stepFourErrors.dificuldade_prog_outro_texto}
           />
         </>
       )}
       <Checkbox
-        label="Nenhuma"
+        label="Nenhuma (Dificuldade Progressão)"
         checked={dificuldadeProg.nenhuma || false}
         onChange={() => handleDificuldadeProgChange("nenhuma")}
       />
@@ -537,12 +757,22 @@ export const StepFour = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    height: "100%",
-    width: "100%",
-    paddingBottom: 30,
+    paddingBottom: 30, // Adicionado padding para evitar que o último item cole na borda
   },
   secondLayer: {
-    paddingLeft: 30,
-    marginTop: 10,
+    paddingLeft: 20, // Indentação para sub-itens
+    marginTop: 5, // Pequeno espaço acima da seção aninhada
+  },
+  inputSpacing: {
+    // Para espaçamento abaixo dos inputs "Outro"
+    marginBottom: 12,
+  },
+  errorText: {
+    // Estilo para mensagens de erro
+    color: colors.error[100],
+    fontSize: 12,
+    marginTop: -8, // Ajuste para posicionar perto do campo
+    marginBottom: 8,
+    paddingLeft: 5, // Pequeno padding para alinhar com inputs/checkboxes
   },
 });

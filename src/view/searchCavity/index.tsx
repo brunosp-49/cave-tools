@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
   SafeAreaView,
   StyleSheet,
@@ -23,6 +24,7 @@ import { Q } from "@nozbe/watermelondb";
 import { Subscription } from "rxjs";
 import TextInter from "../../components/textInter";
 import { DetailScreenCavity } from "../detailScreenCavity";
+import { useFocusEffect } from "@react-navigation/native";
 
 const SearchCavity: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -104,6 +106,24 @@ const SearchCavity: FC<RouterProps> = ({ navigation }) => {
   const handleOpenDetail = useCallback((cavityId: string) => {
     navigation.navigate("DetailScreenCavity", { cavityId });
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        dispatch(onChangeSearchCharacterization(""));
+        navigation.navigate("CavityScreen");
+        return true;
+      };
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => {
+        subscription.remove();
+      };
+    }, [navigation])
+  );
 
   const handleReturn = useCallback(() => {
     dispatch(onChangeSearchCharacterization(""));

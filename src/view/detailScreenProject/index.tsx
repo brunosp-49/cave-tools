@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
   Platform,
   SafeAreaView,
@@ -92,6 +93,23 @@ export const DetailScreenProject: FC<RouterProps> = ({ navigation, route }) => {
       console.log("Screen focused, fetching data...");
       fetchLatestCavities(true);
     }, [fetchLatestCavities])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        navigation.navigate("ProjectScreen");
+        return true;
+      };
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => {
+        subscription.remove();
+      };
+    }, [navigation])
   );
 
   if (isLoading) {
