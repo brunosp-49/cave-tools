@@ -52,10 +52,6 @@ export const FakeBottomTab: React.FC<Props> = ({ onPress }) => {
 
 const styles = StyleSheet.create({
   container: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: "row",
   },
   bottomTabStyle: {
