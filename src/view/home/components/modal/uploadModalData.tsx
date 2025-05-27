@@ -1,24 +1,29 @@
-import React, { FC, useState, useEffect, useCallback } from "react";
+import React, { FC, useState, useEffect, useCallback, useRef } from "react";
 import { Modal, View, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
-  fetchPendingCavityCount,
-  fetchPendingProjectCount,
-  syncPendingCavities,
-  syncPendingProjects,
-} from "../../../../db/controller";
+  // Placeholder para as novas funções do controller
+  getProjectsWithPendingCavitiesCount, // Nova função para contar projetos com cavidades pendentes
+  fetchProjectsWithPendingCavities,    // Nova função para buscar os dados consolidados
+  syncConsolidatedUpload,              // Nova função para sincronizar os dados consolidados
+} from "../../../../db/controller"; // Ajuste o caminho se necessário
 import { colors } from "../../../../assets/colors";
 import { Divider } from "../../../../components/divider";
 import TextInter from "../../../../components/textInter";
 import { LongButton } from "../../../../components/longButton";
 import UploadProgressBar from "../../../../components/progressBar/uploadProgressBar";
+import { Cavidade, ProjectModel } from "../../../../types"; // Importar Cavidade e ProjectModel
+
+// Nova interface para a estrutura de dados consolidada
+export interface ProjectWithPendingCavities extends ProjectModel { // Estende seu ProjectModel
+  cavities_payload: Cavidade[]; // Array de cavidades pendentes para este projeto
+}
 
 type UploadStatus =
   | "idle"
   | "fetchingCounts"
   | "confirming"
   | "uploading"
-  | "partial_success"
   | "success"
   | "error";
 
@@ -30,142 +35,119 @@ interface UploadDataModalProps {
 
 export const UploadDataModal: FC<UploadDataModalProps> = ({
   visible,
-  onClose, // Renamed for clarity: this closes the modal visually
-  onUploadSuccess, // This signals the parent screen about the success
+  onClose,
+  onUploadSuccess,
 }) => {
   const [status, setStatus] = useState<UploadStatus>("idle");
-  const [pendingCavityCount, setPendingCavityCount] = useState<number>(0);
-  const [pendingProjectCount, setPendingProjectCount] = useState<number>(0);
+  const [pendingItemCount, setPendingItemCount] = useState<number>(0);
   const [progress, setProgress] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  // Keep track if the upload was successful to trigger callback on close
-  const [uploadSessionSuccess, setUploadSessionSuccess] =
-    useState<boolean>(false);
+  const [uploadSessionSuccess, setUploadSessionSuccess] = useState<boolean>(false);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const resetState = useCallback(() => {
-    setStatus("idle");
-    setPendingCavityCount(0);
-    setPendingProjectCount(0);
-    setProgress(0);
-    setErrorMessage(null);
-    setUploadSessionSuccess(false);
+    if (isMounted.current) {
+      setStatus("idle");
+      setPendingItemCount(0);
+      setProgress(0);
+      setErrorMessage(null);
+      setUploadSessionSuccess(false);
+    }
   }, []);
 
   useEffect(() => {
     if (visible) {
       const getCounts = async () => {
+        if (!isMounted.current) return;
         setStatus("fetchingCounts");
-        setUploadSessionSuccess(false); // Reset on open
+        setUploadSessionSuccess(false);
         try {
-          const cavCount = await fetchPendingCavityCount();
-          const projCount = await fetchPendingProjectCount(); // <-- Fetch project count
-          setPendingCavityCount(cavCount);
-          setPendingProjectCount(projCount);
+          const itemCount = await getProjectsWithPendingCavitiesCount(); 
+          if (!isMounted.current) return;
+          setPendingItemCount(itemCount);
 
-          if (cavCount === 0 && projCount === 0) {
-            setStatus("success"); // Nothing to upload
+          if (itemCount === 0) {
+            setStatus("success"); 
             setUploadSessionSuccess(true);
           } else {
             setStatus("confirming");
           }
         } catch (err) {
-          console.error("Failed to fetch pending counts:", err);
-          setErrorMessage("Erro ao buscar registros pendentes.");
-          setStatus("error");
+          console.error("Failed to fetch pending item counts:", err);
+          if (isMounted.current) {
+            setErrorMessage("Erro ao buscar registros pendentes para envio.");
+            setStatus("error");
+          }
         }
       };
       getCounts();
     } else {
-      resetState(); // Reset state when modal becomes invisible
+      resetState(); 
     }
   }, [visible, resetState]);
 
   const handleUploadConfirm = async () => {
-    if (pendingCavityCount === 0 && pendingProjectCount === 0) return;
+    if (pendingItemCount === 0) return;
 
     setStatus("uploading");
-    setProgress(1); // Show minimal progress
+    setProgress(1); 
     setErrorMessage(null);
     setUploadSessionSuccess(false);
 
-    let cavitiesSynced = false;
-    let projectsSynced = false;
-    let overallSuccess = true;
-    let errors: string[] = [];
+    try {
+      const projectsToSync = await fetchProjectsWithPendingCavities();
+      if (!isMounted.current) return;
 
-    // 1. Sync Cavities
-    if (pendingCavityCount > 0) {
-      console.log("Attempting to sync cavities...");
-      const cavityResult = await syncPendingCavities();
-      if (cavityResult.success) {
-        cavitiesSynced = true;
-        setProgress((prev) => prev + (pendingProjectCount > 0 ? 49 : 99)); // Distribute progress
-      } else {
-        overallSuccess = false;
-        errors.push(cavityResult.error || "Falha ao enviar cavidades.");
-        console.error("Cavity sync failed:", cavityResult.error);
+      if (projectsToSync.length === 0) {
+        setStatus("success");
+        setUploadSessionSuccess(true);
+        setProgress(100);
+        return;
       }
-    } else {
-      cavitiesSynced = true; // No cavities to sync, so considered "synced" for this step
-    }
 
-    // 2. Sync Projects (if cavities synced successfully or no cavities to sync)
-    if (overallSuccess && pendingProjectCount > 0) {
-      console.log("Attempting to sync projects...");
-      const projectResult = await syncPendingProjects();
-      if (projectResult.success) {
-        projectsSynced = true;
-        setProgress((prev) => prev + (pendingCavityCount > 0 ? 50 : 99)); // Distribute progress
-      } else {
-        overallSuccess = false;
-        errors.push(projectResult.error || "Falha ao enviar projetos.");
-        console.error("Project sync failed:", projectResult.error);
-      }
-    } else if (pendingProjectCount === 0) {
-      projectsSynced = true; // No projects to sync
-    }
-    setProgress(100); // Ensure progress hits 100 if all stages passed or attempted
+      const result = await syncConsolidatedUpload(projectsToSync, (p) => {
+          if(isMounted.current) setProgress(p);
+      });
+      
+      if (!isMounted.current) return;
 
-    if (overallSuccess) {
-      setStatus("success");
-      setUploadSessionSuccess(true);
-    } else {
-      setErrorMessage(errors.join(" \n"));
-      // Determine if it's a total error or partial success
-      if (
-        (cavitiesSynced && !projectsSynced) ||
-        (!cavitiesSynced && projectsSynced)
-      ) {
-        setStatus("partial_success"); // Or keep as "error" and let message explain
+      if (result.success) {
+        setStatus("success");
+        setUploadSessionSuccess(true);
       } else {
+        setErrorMessage(result.error || "Falha ao enviar alguns dados.");
         setStatus("error");
       }
-      setProgress(0); // Reset progress on error
+    } catch (err: any) {
+      console.error("Upload process failed:", err);
+      if (isMounted.current) {
+        setErrorMessage(err.message || "Ocorreu um erro durante o envio.");
+        setStatus("error");
+      }
+    } finally {
+        if(isMounted.current && status !== 'success') setProgress(0);
+        else if (isMounted.current && status === 'success') setProgress(100);
     }
   };
 
   const handleDismissModal = useCallback(() => {
-    if (status === "uploading") return; // Prevent closing while uploading
+    if (status === "uploading") return; 
 
-    if (
-      uploadSessionSuccess &&
-      (pendingCavityCount > 0 || pendingProjectCount > 0)
-    ) {
-      // Call success callback only if there were items and they were successfully uploaded
+    if (uploadSessionSuccess && pendingItemCount > 0) {
       onUploadSuccess();
     }
     onClose();
-  }, [
-    status,
-    uploadSessionSuccess,
-    onClose,
-    onUploadSuccess,
-    pendingCavityCount,
-    pendingProjectCount,
-  ]);
+  }, [status, uploadSessionSuccess, onClose, onUploadSuccess, pendingItemCount]);
 
   const renderContent = () => {
-    if (status === "fetchingCounts" || status === "idle") {
+    if (status === "fetchingCounts" || status === "idle" && visible) {
       return (
         <>
           <ActivityIndicator size={70} color={colors.accent[100]} />
@@ -179,66 +161,30 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
 
     switch (status) {
       case "confirming":
-        const totalItems = pendingCavityCount + pendingProjectCount;
-        let confirmMessage = `Você possui um total de ${totalItems} ${
-          totalItems === 1 ? "item pendente" : "itens pendentes"
-        }:`;
-        if (pendingCavityCount > 0) {
-          confirmMessage += `\n- ${pendingCavityCount} ${
-            pendingCavityCount === 1 ? "cavidade" : "cavidades"
-          }`;
-        }
-        if (pendingProjectCount > 0) {
-          confirmMessage += `\n- ${pendingProjectCount} ${
-            pendingProjectCount === 1 ? "projeto" : "projetos"
-          }`;
-        }
-        confirmMessage += "\nDeseja iniciar o envio agora?";
-
         return (
           <>
-            <Ionicons
-              name="cloud-upload-outline"
-              size={70}
-              color={colors.accent[100]}
-            />
+            <Ionicons name="cloud-upload-outline" size={70} color={colors.accent[100]} />
             <Divider height={16} />
-            <TextInter
-              color={colors.white[90]}
-              fontSize={20}
-              style={styles.title}
-            >
+            <TextInter color={colors.white[90]} fontSize={20} style={styles.title}>
               Enviar Dados Pendentes
             </TextInter>
             <Divider height={10} />
             <TextInter color={colors.dark[20]} style={styles.message}>
-              {confirmMessage}
+              {`Você possui ${pendingItemCount} ${pendingItemCount === 1 ? "projeto com cavidades pendentes" : "projetos com cavidades pendentes"} para envio. Deseja iniciar agora?`}
             </TextInter>
             <Divider />
             <LongButton title="Enviar Agora" onPress={handleUploadConfirm} />
             <Divider height={16} />
-            <LongButton
-              title="Cancelar"
-              onPress={handleDismissModal}
-              mode="cancel"
-            />
+            <LongButton title="Cancelar" onPress={handleDismissModal} mode="cancel" />
           </>
         );
 
       case "uploading":
         return (
           <>
-            <Ionicons
-              name="cloud-upload-outline"
-              size={70}
-              color={colors.accent[100]}
-            />
+            <Ionicons name="cloud-upload-outline" size={70} color={colors.accent[100]} />
             <Divider height={16} />
-            <TextInter
-              color={colors.white[90]}
-              fontSize={20}
-              style={styles.title}
-            >
+            <TextInter color={colors.white[90]} fontSize={20} style={styles.title}>
               Enviando Dados...
             </TextInter>
             <Divider height={10} />
@@ -250,27 +196,18 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
         );
 
       case "success":
-        const initialTotalItems = pendingCavityCount + pendingProjectCount; // Use counts when modal opened
         return (
           <>
-            <Ionicons
-              name="checkmark-circle-outline"
-              size={70}
-              color={colors.accent[100]}
-            />
+            <Ionicons name="checkmark-circle-outline" size={70} color={colors.accent[100]} />
             <Divider height={16} />
-            <TextInter
-              color={colors.white[90]}
-              fontSize={20}
-              style={styles.title}
-            >
-              {initialTotalItems === 0
+            <TextInter color={colors.white[90]} fontSize={20} style={styles.title}>
+              {pendingItemCount === 0 && !uploadSessionSuccess
                 ? "Nenhum Dado Pendente"
                 : "Envio Concluído"}
             </TextInter>
             <Divider height={10} />
             <TextInter color={colors.dark[20]} style={styles.message}>
-              {initialTotalItems === 0
+              {pendingItemCount === 0 && !uploadSessionSuccess
                 ? "Todos os seus dados já estão sincronizados."
                 : "Todos os dados pendentes foram enviados com sucesso."}
             </TextInter>
@@ -280,51 +217,23 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
         );
 
       case "error":
-      case "partial_success": // Handle partial success similar to error, but message might differ
-        let errorTitle = "Erro no Envio";
-        if (status === "partial_success") {
-          errorTitle = "Envio Parcialmente Concluído";
-        }
         return (
           <>
-            <Ionicons
-              name="alert-circle-outline"
-              size={70}
-              color={colors.error[100]}
-            />
+            <Ionicons name="alert-circle-outline" size={70} color={colors.error[100]} />
             <Divider height={16} />
-            <TextInter
-              color={colors.white[90]}
-              fontSize={20}
-              style={styles.title}
-            >
-              {errorTitle}
+            <TextInter color={colors.white[90]} fontSize={20} style={styles.title}>
+              Erro no Envio
             </TextInter>
             <Divider height={10} />
             <TextInter color={colors.dark[20]} style={styles.message}>
               {errorMessage || "Ocorreu um erro inesperado."}
             </TextInter>
             <Divider />
-            {(pendingCavityCount > 0 || pendingProjectCount > 0) &&
-              status !== "partial_success" && ( // Allow retry only if there were items and it wasn't a partial success shown as info
-                <LongButton
-                  title="Tentar Novamente"
-                  onPress={handleUploadConfirm}
-                />
-              )}
-            {(pendingCavityCount > 0 || pendingProjectCount > 0) &&
-              status === "partial_success" && ( // If partial, maybe just an OK button or a more specific retry
-                <TextInter color={colors.dark[20]} style={styles.message}>
-                  Verifique os detalhes e tente os itens restantes mais tarde,
-                  se necessário.
-                </TextInter>
-              )}
+            {pendingItemCount > 0 && (
+                 <LongButton title="Tentar Novamente" onPress={handleUploadConfirm} />
+            )}
             <Divider height={8} />
-            <LongButton
-              title="Fechar"
-              onPress={handleDismissModal}
-              mode="cancel"
-            />
+            <LongButton title="Fechar" onPress={handleDismissModal} mode="cancel" />
           </>
         );
       default:
@@ -354,7 +263,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   modalContainer: {
-    backgroundColor: colors.dark[30], // Match your CheckProjectsModal style
+    backgroundColor: colors.dark[30], 
     width: "90%",
     maxWidth: 400,
     minHeight: 280,

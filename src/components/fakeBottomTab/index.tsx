@@ -23,7 +23,7 @@ export const FakeBottomTab: React.FC<Props> = ({ onPress }) => {
           <View style={styles.iconContainer}>
             <TouchableOpacity
               style={styles.buttonContainer}
-              onPress={() => navigation.navigate("Tabs", { screen: "Home" })}
+              onPress={() => navigation.navigate("HomeScreen")}
             >
               <HomeIcon />
             </TouchableOpacity>
@@ -39,7 +39,7 @@ export const FakeBottomTab: React.FC<Props> = ({ onPress }) => {
           <View style={styles.iconContainer}>
             <TouchableOpacity
               style={styles.buttonContainer}
-              onPress={() => navigation.navigate("Tabs", { screen: "Dashboard" })}
+              onPress={() => navigation.navigate("Dashboard")}
             >
               <DashboardIcon />
             </TouchableOpacity>
@@ -52,10 +52,6 @@ export const FakeBottomTab: React.FC<Props> = ({ onPress }) => {
 
 const styles = StyleSheet.create({
   container: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: "row",
   },
   bottomTabStyle: {

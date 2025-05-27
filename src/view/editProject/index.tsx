@@ -1,15 +1,17 @@
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   View,
+  BackHandler,
 } from "react-native";
 import { colors } from "../../assets/colors";
 import { Header } from "../../components/header";
-import { FC, useCallback, useEffect, useState } from "react";
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RouterProps } from "../../types";
 import { SuccessModal } from "../../components/modal/successModal";
 import { Input } from "../../components/input";
@@ -17,11 +19,9 @@ import { Divider } from "../../components/divider";
 import { NextButton } from "../../components/button/nextButton";
 import { ReturnButton } from "../../components/button/returnButton";
 import {
-  createProject,
   fetchAllUsers,
   updateProject,
 } from "../../db/controller";
-import uuid from "react-native-uuid";
 import { useDispatch } from "react-redux";
 import { showError } from "../../redux/loadingSlice";
 import { database } from "../../db";
@@ -30,42 +30,105 @@ import TextInter from "../../components/textInter";
 import { formatDateToInput } from "../../util";
 import { useFocusEffect } from "@react-navigation/native";
 
+const isFilled = (value: any): boolean => {
+  if (value === null || typeof value === "undefined") {
+    return false;
+  }
+  if (typeof value === "string" && value.trim() === "") {
+    return false;
+  }
+  return true;
+};
+
+interface ProjectFormErrors {
+  name?: string;
+  responsible?: string;
+  description?: string;
+  date?: string;
+}
+
 const EditProject: FC<RouterProps> = ({ navigation, route }) => {
   const [successSuccessModal, setSuccessModal] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
   const [responsible, setResponsible] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [errorLoading, setErrorLoading] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [project, setProject] = useState<Project | null>(null);
+
   const dispatch = useDispatch();
 
+  const [validationAttempted, setValidationAttempted] = useState(false);
+  const [formErrors, setFormErrors] = useState<ProjectFormErrors>({});
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const validateForm = useCallback((): boolean => {
+    const errors: ProjectFormErrors = {};
+    const msgRequired = "Este campo é obrigatório.";
+
+    if (!isFilled(name)) {
+      errors.name = msgRequired;
+    }
+    if (!isFilled(responsible)) {
+      errors.responsible = msgRequired;
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  }, [name, responsible]);
+
   const saveProject = async () => {
+    setValidationAttempted(true);
+
+    if (!validateForm()) {
+      Alert.alert(
+        "Campos Obrigatórios",
+        "Por favor, preencha todos os campos obrigatórios."
+      );
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ y: 0, animated: true });
+      }
+      return;
+    }
+
+    if (!route?.params?.projectId) {
+        dispatch(showError({ title: "Erro", message: "ID do projeto não encontrado." }));
+        return;
+    }
+
     try {
-      const user = await fetchAllUsers();
+      const user = await fetchAllUsers(); 
       if (user.length === 0) {
-        throw new Error("Erro ao cadastrar, tente novamente");
+        dispatch(showError({ title: "Erro de Usuário", message: "Nenhum usuário encontrado." }));
+        return; 
       }
       await updateProject(route.params.projectId, {
-        id: route.params.projectId,
         descricao_projeto: description,
         nome_projeto: name,
-        fk_cliente: user[0].user_id,
+        fk_cliente: String(user[0].user_id),
         inicio: date
           ? (() => {
-              const [d, m, y] = date.split("/").map(Number);
-              return new Date(y, m - 1, d, 12).toISOString();
+              try {
+                const [d, m, y] = date.split("/").map(Number);
+                 if (isNaN(d) || isNaN(m) || isNaN(y) || m < 1 || m > 12 || d < 1 || d > 31) {
+                    throw new Error("Invalid date components");
+                }
+                return new Date(y, m - 1, d, 12).toISOString();
+              } catch (e) {
+                console.error("Error parsing date for project update:", date, e);
+                return new Date().toISOString();
+              }
             })()
           : new Date().toISOString(),
         responsavel: responsible,
       });
       setSuccessModal(true);
-    } catch (error) {
-      console.log(error);
+      setValidationAttempted(false); 
+      setFormErrors({}); 
+    } catch (error: any) {
+      console.log("Error updating project:", error);
       dispatch(
         showError({
-          message: "Erro ao editar o projeto",
+          message: error.message || "Erro ao editar o projeto",
           title: "Por favor, tente novamente.",
         })
       );
@@ -73,87 +136,102 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
   };
 
   const fetchProject = useCallback(async () => {
-    // Use useCallback
-    if (!route.params.projectId) {
-      setError("ID do projeto não fornecido.");
+    if (!route?.params?.projectId) {
+      setErrorLoading("ID do projeto não fornecido.");
       setIsLoading(false);
       return;
     }
     setIsLoading(true);
-    setError(null);
+    setErrorLoading(null);
     try {
       const projectCollection = database.collections.get<Project>("project");
       const foundProject = await projectCollection.find(route.params.projectId);
-      setProject(foundProject);
       setName(foundProject.nome_projeto || "");
       setDescription(foundProject.descricao_projeto || "");
-      setDate(formatDateToInput(foundProject.inicio) || "");
+      setDate(formatDateToInput(foundProject.inicio) || ""); 
       setResponsible(foundProject.responsavel || "");
     } catch (err) {
       console.error("Error fetching project details:", err);
-      setError("Erro ao carregar detalhes do projeto.");
-      setProject(null);
+      setErrorLoading("Erro ao carregar detalhes do projeto.");
     } finally {
       setIsLoading(false);
     }
-  }, [route.params.projectId]);
+  }, [route?.params?.projectId]); 
 
   useEffect(() => {
-    fetchProject();
-  }, [fetchProject]);
+    if (route?.params?.projectId) {
+        fetchProject();
+    }
+  }, [fetchProject, route?.params?.projectId]);
+
+  const handleReturn = () => {
+    setName("");
+    setDescription("");
+    setDate("");
+    setResponsible("");
+    setValidationAttempted(false);
+    setFormErrors({});
+    navigation.navigate("ProjectScreen");
+  };
 
   useFocusEffect(
-    // Use useFocusEffect
     useCallback(() => {
-      fetchProject(); // Call fetchProject when the screen is focused
-    }, [fetchProject])
+      const onBackPress = () => {
+        setName("");
+        setDescription("");
+        setDate("");
+        setResponsible("");
+        setValidationAttempted(false);
+        setFormErrors({});
+        navigation.navigate("ProjectScreen");
+        return true;
+      };
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => {
+        subscription.remove();
+      };
+    }, [navigation])
   );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (route?.params?.projectId) {
+        fetchProject();
+      }
+      setValidationAttempted(false);
+      setFormErrors({});
+    }, [fetchProject, route?.params?.projectId, navigation]) 
+  );
+
 
   if (isLoading) {
     return (
-      <View
-        style={{
-          height: "100%",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+      <SafeAreaView style={styles.centered}>
         <ActivityIndicator size="large" color={colors.accent[100]} />
         <Divider />
         <TextInter color={colors.white[100]} weight="medium">
           Carregando detalhes...
         </TextInter>
-      </View>
+      </SafeAreaView>
     );
   }
 
-  if (error) {
+  if (errorLoading) { 
     return (
-      <View style={styles.centered}>
+      <SafeAreaView style={styles.centered}>
         <Header
           title="Erro"
-          navigation={navigation}
           onCustomReturn={() => navigation.navigate("ProjectScreen")}
         />
         <Divider />
-        <TextInter color={colors.error[100]} style={{ marginTop: 20 }}>
-          {error}
+        <TextInter color={colors.error[100]} style={{ marginTop: 20, textAlign: 'center' }}>
+          {errorLoading}
         </TextInter>
-      </View>
-    );
-  }
-
-  if (!project) {
-    return (
-      <View style={styles.centered}>
-        <Header
-          title="Não Encontrado"
-          navigation={navigation}
-          onCustomReturn={() => navigation.navigate("ProjectScreen")}
-        />
-        <Divider />
-        <TextInter style={{ marginTop: 20 }}>Projeto não encontrada.</TextInter>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -163,12 +241,16 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
         style={styles.main}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <ScrollView>
-          <View style={styles.container}>
+        <ScrollView 
+            ref={scrollViewRef}
+            contentContainerStyle={styles.scrollContent} // Usar scrollContent aqui
+            keyboardShouldPersistTaps="handled"
+        >
+            {/* O View style={styles.container} foi removido como wrapper direto do ScrollView */}
+            {/* O conteúdo agora é filho direto do ScrollView, e scrollContent cuida do layout */}
             <Header
               title="Editar Projeto"
-              navigation={navigation}
-              onCustomReturn={() => navigation.navigate("ProjectScreen")}
+              onCustomReturn={handleReturn}
             />
             <Divider />
             <View style={styles.bodyContainer}>
@@ -177,15 +259,21 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
                 label="Nome"
                 value={name}
                 onChangeText={setName}
+                required
+                hasError={!!formErrors.name}
+                errorMessage={formErrors.name}
               />
               <Input
                 placeholder="Nome do usuário"
                 value={responsible}
                 onChangeText={setResponsible}
                 label="Usuário responsável"
+                required
+                hasError={!!formErrors.responsible}
+                errorMessage={formErrors.responsible}
               />
               <Input
-                placeholder="Descreva"
+                placeholder="Descreva o projeto"
                 label="Descrição"
                 value={description}
                 onChangeText={setDescription}
@@ -201,27 +289,21 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
             </View>
             <View style={styles.buttonContainer}>
               <ReturnButton
-                onPress={() => {
-                  setName("");
-                  setDescription("");
-                  setDate("");
-                  navigation.navigate("ProjectScreen");
-                }}
+                onPress={handleReturn}
               />
               <NextButton
                 onPress={saveProject}
-                buttonTitle="Editar"
-                disabled={!name || !description}
+                buttonTitle="Salvar Edições"
+                disabled={false} 
               />
             </View>
-          </View>
           <SuccessModal
             visible={successSuccessModal}
             title="Projeto editado com sucesso!"
             message="Seu projeto foi editado com sucesso."
             onPress={() => {
-              navigation.navigate("ProjectScreen");
               setSuccessModal(false);
+              navigation.navigate("ProjectScreen");
             }}
           />
         </ScrollView>
@@ -237,14 +319,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dark[90],
     flex: 1,
   },
-  container: {
-    flex: 1,
-    minHeight: "100%",
-    backgroundColor: colors.dark[90],
+  // styles.container foi removido pois seu conteúdo foi movido para serem filhos diretos do ScrollView
+  // e scrollContent já lida com padding e flexGrow.
+  scrollContent: { 
+    flexGrow: 1, 
+    justifyContent: "space-between", // Para distribuir Header, bodyContainer, buttonContainer
     paddingHorizontal: 20,
-    paddingBottom: 25,
-    alignItems: "center",
-    justifyContent: "space-between",
+    paddingTop: 10, // Adicionado paddingTop para o Header
+    paddingBottom: 25, 
   },
   buttonContainer: {
     flexDirection: "row",
@@ -252,15 +334,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     height: 58,
+    // marginTop: 'auto', // Removido, pois justifyContent: 'space-between' em scrollContent deve cuidar disso
+                         // Se o bodyContainer não preencher, pode ser necessário adicionar de volta ou ajustar flex do bodyContainer
+    marginTop: 20, // Adicionado um marginTop fixo para garantir espaço
   },
   bodyContainer: {
-    flex: 1,
+    flex: 1, // Permite que o bodyContainer cresça
     width: "100%",
   },
-  centered: {
+  centered: { 
     flex: 1,
-    justifyContent: "flex-start",
-    alignItems: "center",
+    justifyContent: "center", 
+    alignItems: "center",    
     backgroundColor: colors.dark[90],
+    paddingHorizontal: 20, 
   },
 });

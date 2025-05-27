@@ -39,7 +39,7 @@ export const CustomSelect: FC<CustomSelectProps> = ({
       </View>
       <TouchableOpacity
         onPress={() => setModalVisible(true)}
-        style={[styles.inputContainer, hasError && styles.inputError]}
+        style={styles.inputContainer}
       >
         {children}
       </TouchableOpacity>

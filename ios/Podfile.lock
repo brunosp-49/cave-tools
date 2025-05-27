@@ -16,7 +16,7 @@ PODS:
     - ExpoModulesCore
     - ZXingObjC/OneD
     - ZXingObjC/PDF417
-  - ExpoFileSystem (18.0.6):
+  - ExpoFileSystem (18.0.12):
     - ExpoModulesCore
   - ExpoFont (13.0.2):
     - ExpoModulesCore
@@ -1988,7 +1988,7 @@ SPEC CHECKSUMS:
   Expo: cac199e7cbd1f9b5ae7047c4294a372d6ff28a88
   ExpoAsset: 6f7a8887cbb9fb39fdb0808e7f6f74ba0e1ae9b6
   ExpoCamera: b156ba1a2027cf7c102982af44e25be1cac5f791
-  ExpoFileSystem: a38e1bb58d77f41717293a7b73ebd4014d8cb8dd
+  ExpoFileSystem: 42d363d3b96f9afab980dcef60d5657a4443c655
   ExpoFont: b089994dac1fe603deda1cec151e32c81f46c2f1
   ExpoImagePicker: 4eff722eec3f969b3978a8a3b64efbe52f800905
   ExpoKeepAwake: 22173f45d767c7d37403fdf48292726901d69ce7
@@ -2058,7 +2058,7 @@ SPEC CHECKSUMS:
   ReactCodegen: 3a68408bf68d0957abcd13d610f76420005c1d91
   ReactCommon: 5809a8ee421b7219221a475b78180f8f34b5c5ec
   RNGestureHandler: 27a63f2218affdf1a426d56682f9b174904838b3
-  RNPermissions: 72413577ad75305a056e9b58ddda931383690018
+  RNPermissions: 50b1d03e463bda3a5e80ca5d0901698b3d1b44f2
   RNReanimated: 2f762cd9e6b74c1f6ec88c0545d773a68b8e1085
   RNSVG: 3421710ac15f4f2dc47e5c122f2c2e4282116830
   simdjson: e6bfae9ce4bcdc80452d388d593816f1ca2106f3
@@ -2068,6 +2068,6 @@ SPEC CHECKSUMS:
   Yoga: fcc198acd4a55599b3468cfb6ebc526baff5f06e
   ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5
 
-PODFILE CHECKSUM: f30131969002be51cd584d359e548c61d74774db
+PODFILE CHECKSUM: 9eaab98cec117b1bc8b72d6813523989d338a9e7
 
 COCOAPODS: 1.16.2

@@ -1,4 +1,4 @@
-import React, { FC, useCallback } from "react";
+import React, { FC, useCallback, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { colors } from "../../../assets/colors";
@@ -15,9 +15,13 @@ import {
   toggleArchPalOutroEnabled,
 } from "../../../redux/cavitySlice";
 
-import { Arqueologia, Paleontologia } from "../../../types";
+import { Arqueologia, Paleontologia, RouterProps } from "../../../types";
 import TextInter from "../../../components/textInter";
 import RadioButtonGroup from "../../../components/radio";
+
+interface StepTenProps extends RouterProps {
+  validationAttempted: boolean;
+}
 
 type ArchPalSection = "arqueologia" | "paleontologia";
 type ArqKeys = keyof Omit<
@@ -29,13 +33,64 @@ type PalKeys = keyof Omit<
   "outro" | "outroEnabled"
 >;
 
-export const StepTen: FC = () => {
+const isFieldFilled = (value: any): boolean => {
+    if (value === null || typeof value === "undefined") return false;
+    if (typeof value === "string" && value.trim() === "") return false;
+    return true;
+};
+
+export const StepTen: FC<StepTenProps> = ({ navigation, route, validationAttempted }) => {
   const dispatch = useDispatch<AppDispatch>();
   const cavidade = useSelector((state: RootState) => state.cavity.cavidade);
-  const arqueologia = cavidade.arqueologia ?? { possui: false };
-  const paleontologia = cavidade.paleontologia ?? { possui: false };
-  const arqTipos = arqueologia.tipos ?? {};
-  const palTipos = paleontologia.tipos ?? {};
+  
+  const arqueologia = cavidade.arqueologia ?? { possui: false, tipos: { outroEnabled: false, outro: "" } };
+  const paleontologia = cavidade.paleontologia ?? { possui: false, tipos: { outroEnabled: false, outro: "" } };
+  
+  const arqTipos = arqueologia.tipos ?? { outroEnabled: false, outro: "" };
+  const palTipos = paleontologia.tipos ?? { outroEnabled: false, outro: "" };
+
+  const stepTenErrors = useMemo(() => {
+    if (!validationAttempted) {
+      return {};
+    }
+    const errors: { [key: string]: string } = {};
+    const errorMsgRequired = "Este campo é obrigatório.";
+    const errorMsgSelectOrOther = "Selecione um tipo ou preencha 'Outro'.";
+
+    if (arqueologia.possui) {
+      let algumaOpcaoArqSelecionada = false;
+      const tiposArqKeys = Object.keys(arqTipos).filter(k => k !== 'outroEnabled' && k !== 'outro') as ArqKeys[];
+      if (tiposArqKeys.some(key => arqTipos[key] === true)) {
+        algumaOpcaoArqSelecionada = true;
+      }
+      if (arqTipos.outroEnabled && isFieldFilled(arqTipos.outro)) {
+        algumaOpcaoArqSelecionada = true;
+      } else if (arqTipos.outroEnabled && !isFieldFilled(arqTipos.outro)) {
+        errors.arqueologia_outro_texto = errorMsgRequired;
+      }
+      if (!algumaOpcaoArqSelecionada && !errors.arqueologia_outro_texto) {
+        errors.arqueologia_geral = errorMsgSelectOrOther;
+      }
+    }
+
+    if (paleontologia.possui) {
+      let algumaOpcaoPalSelecionada = false;
+      const tiposPalKeys = Object.keys(palTipos).filter(k => k !== 'outroEnabled' && k !== 'outro') as PalKeys[];
+      if (tiposPalKeys.some(key => palTipos[key] === true)) {
+        algumaOpcaoPalSelecionada = true;
+      }
+      if (palTipos.outroEnabled && isFieldFilled(palTipos.outro)) {
+        algumaOpcaoPalSelecionada = true;
+      } else if (palTipos.outroEnabled && !isFieldFilled(palTipos.outro)) {
+        errors.paleontologia_outro_texto = errorMsgRequired;
+      }
+      if (!algumaOpcaoPalSelecionada && !errors.paleontologia_outro_texto) {
+        errors.paleontologia_geral = errorMsgSelectOrOther;
+      }
+    }
+    return errors;
+  }, [validationAttempted, arqueologia, paleontologia, arqTipos, palTipos]);
+
 
   const handlePossuiToggle = useCallback(
     (section: ArchPalSection, selectedValue: "sim" | "não") => {
@@ -68,21 +123,22 @@ export const StepTen: FC = () => {
 
   const renderArchPalSection = (
     sectionKey: ArchPalSection,
-    title: string,
+    _titleUnused: string,
     data: Arqueologia | Paleontologia,
-    tiposEspecificos: { key: string; label: string }[]
+    tiposEspecificos: { key: string; label: string }[],
+    generalErrorKey: "arqueologia_geral" | "paleontologia_geral",
+    outroTextErrorKey: "arqueologia_outro_texto" | "paleontologia_outro_texto"
   ) => {
     const possui = data?.possui ?? false;
-    const tipos = data?.tipos ?? {};
+    const tipos = data?.tipos ?? { outroEnabled: false, outro: "" };
     const outroEnabled = tipos.outroEnabled ?? false;
     const outroText = tipos.outro ?? "";
 
     const conditionalContent = possui ? (
       <View style={styles.sectionContent}>
-        {tiposEspecificos.map((tipo, index) => (
-          <React.Fragment key={index}>
+        {tiposEspecificos.map((tipo) => (
+          <React.Fragment key={tipo.key}>
             <Checkbox
-              key={tipo.key}
               label={tipo.label}
               checked={!!(tipos as any)[tipo.key]}
               onChange={() => handleTipoToggle(sectionKey, tipo.key)}
@@ -102,6 +158,9 @@ export const StepTen: FC = () => {
             placeholder="Especifique"
             value={outroText}
             onChangeText={(text) => handleOutroTextChange(sectionKey, text)}
+            hasError={!!stepTenErrors[outroTextErrorKey]}
+            errorMessage={stepTenErrors[outroTextErrorKey]}
+            required
           />
         )}
       </View>
@@ -112,7 +171,7 @@ export const StepTen: FC = () => {
           label: "Presença",
           value: "sim",
           id: `${sectionKey}-sim`,
-          children: conditionalContent
+          children: conditionalContent 
       },
       {
           label: "Ausência",
@@ -120,8 +179,7 @@ export const StepTen: FC = () => {
           id: `${sectionKey}-nao`,
           children: null
       }
-  ];
-
+    ];
 
     return (
       <View>
@@ -133,6 +191,9 @@ export const StepTen: FC = () => {
             handlePossuiToggle(sectionKey, newValue as "sim" | "não")
           }
         />
+        {!!stepTenErrors[generalErrorKey] && possui && (
+             <TextInter style={styles.errorText}>{stepTenErrors[generalErrorKey]}</TextInter>
+        )}
         <DividerColorLine />
       </View>
     );
@@ -144,8 +205,7 @@ export const StepTen: FC = () => {
       <TextInter color={colors.white[100]} fontSize={19} weight="medium">
         Arqueologia em superfície
       </TextInter>
-      {renderArchPalSection("arqueologia", "Presença", arqueologia, [
-        // Mapeie suas chaves e labels aqui
+      {renderArchPalSection("arqueologia", "Arqueologia", arqueologia, [
         { key: "material_litico", label: "Material Lítico" },
         { key: "material_ceramico", label: "Material Cerâmico" },
         { key: "pintura_rupestre", label: "Pintura Rupestre" },
@@ -153,17 +213,19 @@ export const StepTen: FC = () => {
         { key: "ossada_humana", label: "Ossada Humana" },
         { key: "enterramento", label: "Enterramento" },
         { key: "nao_identificado", label: "Não Identificado (Arq.)" },
-      ])}
-      <Divider height={12} />
+      ], "arqueologia_geral", "arqueologia_outro_texto")}
+      
+      <Divider height={18} /> 
+      
       <TextInter color={colors.white[100]} fontSize={19} weight="medium">
         Paleontologia
       </TextInter>
-      {renderArchPalSection("paleontologia", "Presença", paleontologia, [
+      {renderArchPalSection("paleontologia", "Paleontologia", paleontologia, [
         { key: "ossada", label: "Ossada" },
         { key: "iconofossil", label: "Icnofóssil" },
         { key: "jazigo", label: "Jazigo Fossilífero" },
         { key: "nao_identificado", label: "Não Identificado (Pal.)" },
-      ])}
+      ], "paleontologia_geral", "paleontologia_outro_texto")}
 
       <StatusBar style="light" />
     </View>
@@ -174,22 +236,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: "100%",
-  },
-  contentContainer: {
     paddingBottom: 30,
-    paddingHorizontal: 15,
   },
-  secondLayer: {
+  sectionContent: { 
     paddingLeft: 20,
-    marginTop: 10,
-    borderLeftWidth: 1,
-    borderLeftColor: colors.dark[80],
-    marginLeft: 10,
-    paddingBottom: 5,
+    marginTop: 10, 
+    marginBottom: 10 
   },
-  subSectionTitle: {
-    marginTop: 10,
-    marginBottom: 5,
+  inputSpacing: {
+    marginBottom: 12,
   },
-  sectionContent: { paddingLeft: 20, marginTop: 10, marginBottom: 10 },
+  errorText: {
+    color: colors.error[100],
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: 8,
+    paddingLeft: 20,
+  }
 });

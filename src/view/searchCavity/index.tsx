@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
   SafeAreaView,
   StyleSheet,
@@ -11,7 +12,7 @@ import { Header } from "../../components/header";
 import { FC, useCallback, useEffect, useState } from "react";
 import { RouterProps } from "../../types";
 import { Divider } from "../../components/divider";
-import { CavityCard } from "../characterization/components/cavityCard";
+import { CavityCard } from "../cavity/components/cavityCard";
 import { Search } from "../../components/search";
 import { useAppSelector } from "../../hook";
 import { onChangeSearchCharacterization } from "../../redux/userSlice";
@@ -22,7 +23,8 @@ import { database } from "../../db";
 import { Q } from "@nozbe/watermelondb";
 import { Subscription } from "rxjs";
 import TextInter from "../../components/textInter";
-import { DetailScreenCavity } from "../characterization/components/detailScreenCavity";
+import { DetailScreenCavity } from "../detailScreenCavity";
+import { useFocusEffect } from "@react-navigation/native";
 
 const SearchCavity: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -33,8 +35,6 @@ const SearchCavity: FC<RouterProps> = ({ navigation }) => {
   // --- State ---
   const [searchResults, setSearchResults] = useState<CavityRegister[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [detailIsVisible, setDetailIsVisible] = useState(false);
-  const [selectedCavityId, setSelectedCavityId] = useState<string | null>(null);
   const [debouncedSearchTerm] = useDebounce(searchCharacterization, 300);
   const [allCavities, setAllCavities] = useState<CavityRegister[]>([]);
 
@@ -104,18 +104,30 @@ const SearchCavity: FC<RouterProps> = ({ navigation }) => {
   }, [debouncedSearchTerm, allCavities]);
 
   const handleOpenDetail = useCallback((cavityId: string) => {
-    setSelectedCavityId(cavityId);
-    setDetailIsVisible(true);
+    navigation.navigate("DetailScreenCavity", { cavityId });
   }, []);
 
-  const handleCloseDetail = useCallback(() => {
-    setDetailIsVisible(false);
-    setSelectedCavityId(null);
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        dispatch(onChangeSearchCharacterization(""));
+        navigation.navigate("CavityScreen");
+        return true;
+      };
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => {
+        subscription.remove();
+      };
+    }, [navigation])
+  );
 
   const handleReturn = useCallback(() => {
     dispatch(onChangeSearchCharacterization(""));
-    navigation.navigate("CharacterizationScreen");
+    navigation.navigate("CavityScreen");
   }, [dispatch, navigation]);
 
   const renderEmptyList = () => {
@@ -161,14 +173,6 @@ const SearchCavity: FC<RouterProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.main}>
       <View style={styles.container}>
-        {detailIsVisible && selectedCavityId ? (
-          <DetailScreenCavity
-            navigation={navigation}
-            onClose={handleCloseDetail}
-            cavityId={selectedCavityId}
-          />
-        ) : (
-          <>
             <Header
               title="Pesquisar Cavidades"
               navigation={navigation}
@@ -200,8 +204,6 @@ const SearchCavity: FC<RouterProps> = ({ navigation }) => {
               }
               keyboardShouldPersistTaps="handled"
             />
-          </>
-        )}
       </View>
     </SafeAreaView>
   );
@@ -209,7 +211,6 @@ const SearchCavity: FC<RouterProps> = ({ navigation }) => {
 
 export default SearchCavity;
 
-// --- Styles ---
 const styles = StyleSheet.create({
   main: {
     backgroundColor: colors.dark[90],
@@ -224,11 +225,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-start",
     alignItems: "center",
-    marginTop: 50, // Or adjust as needed
-    paddingHorizontal: 20, // Add padding for text centering
+    marginTop: 50,
+    paddingHorizontal: 20,
   },
   emptyListContent: {
-    flexGrow: 1, // Ensure container grows if list is empty
-    justifyContent: "center", // Center the empty component vertically
+    flexGrow: 1,
+    justifyContent: "center",
   },
 });

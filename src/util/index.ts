@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { getDefaultStore } from 'jotai';
 import { PERMISSIONS, check, RESULTS, request } from "react-native-permissions";
 import { api } from "../api";
 
@@ -33,7 +34,8 @@ export const checkIfIsBlank = (value: string) => {
 
 export const formatDate = (date: string): string => {
   try {
-    const [year, month, day] = date.split("T")[0].split("-");
+    const confirmIsADate = new Date(date).toISOString();
+    const [year, month, day] = confirmIsADate.split("T")[0].split("-");
     const parsedDate = new Date(Number(year), Number(month) - 1, Number(day));
 
     if (isNaN(parsedDate.getTime())) {
@@ -169,3 +171,13 @@ export function formatDateToInput(dateString: string) {
 
   return `${day}/${month}/${year}`;
 }
+
+export const requestLocationPermissions = async () => {
+  if (Platform.OS === 'ios') {
+    const result = await request(PERMISSIONS.IOS.LOCATION_WHEN_IN_USE);
+  }
+
+  if (Platform.OS === 'android') {
+    const result = await request(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
+  }
+};

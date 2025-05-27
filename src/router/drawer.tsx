@@ -1,5 +1,5 @@
 // navigation/DrawerNavigator.tsx
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import BottomTabNavigator from "./bottomTab";
 import { Login } from "../view/login";
 import { Register } from "../view/register";
@@ -10,7 +10,7 @@ import {
   createDrawerNavigator,
 } from "@react-navigation/drawer";
 import { colors } from "../assets/colors";
-import { View } from "react-native";
+import { BackHandler, View } from "react-native";
 import TextInter from "../components/textInter";
 import { Divider } from "../components/divider";
 import { LongButton } from "../components/longButton";
@@ -18,7 +18,7 @@ import RegisterProject from "../view/registerProject";
 import SearchCavity from "../view/searchCavity";
 import { Ionicons } from "@expo/vector-icons";
 import AntDesign from "@expo/vector-icons/AntDesign";
-import { CharacterizationScreen } from "../view/characterization";
+import { CavityScreen } from "../view/cavity";
 import {
   deleteAllCavities,
   deleteAllProjects,
@@ -37,6 +37,10 @@ import EditProject from "../view/editProject";
 import EditCavity from "../view/editCavity";
 import RegisterCavity from "../view/registerCavity";
 import { TopographyScreen } from "../view/topography";
+import { DetailScreenCavity } from "../view/detailScreenCavity";
+import { DetailScreenProject } from "../view/detailScreenProject";
+import { HomeScreen } from "../view/home";
+import Dashboard from "../view/dashboard";
 
 const Drawer = createDrawerNavigator();
 
@@ -47,11 +51,11 @@ const DrawerNavigator = () => {
       screenOptions={{ headerShown: false, drawerPosition: "right" }}
       initialRouteName="Login"
     >
-      <Drawer.Screen
+      {/* <Drawer.Screen
         name="Tabs"
         component={BottomTabNavigator}
         options={{ title: "Home" }}
-      />
+      /> */}
       <Drawer.Screen
         name="Login"
         component={Login}
@@ -83,8 +87,8 @@ const DrawerNavigator = () => {
         options={{ headerShown: false }}
       />
       <Drawer.Screen
-        name="CharacterizationScreen"
-        component={CharacterizationScreen}
+        name="CavityScreen"
+        component={CavityScreen}
         options={{ headerShown: false }}
       />
       <Drawer.Screen
@@ -105,6 +109,23 @@ const DrawerNavigator = () => {
       <Drawer.Screen
         name="TopographyScreen"
         component={TopographyScreen}
+        name="DetailScreenCavity"
+        component={DetailScreenCavity}
+        options={{ headerShown: false }}
+      />
+      <Drawer.Screen
+        name="DetailScreenProject"
+        component={DetailScreenProject}
+        options={{ headerShown: false }}
+      />
+      <Drawer.Screen
+        name="HomeScreen"
+        component={HomeScreen}
+        options={{ headerShown: false }}
+      />
+      <Drawer.Screen
+        name="Dashboard"
+        component={Dashboard}
         options={{ headerShown: false }}
       />
     </Drawer.Navigator>
@@ -167,11 +188,11 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
             <AntDesign name="home" size={20} color={colors.white[100]} />
           )}
           label="Início"
-          onPress={() => navigation.navigate("Tabs", { screen: "Home" })}
+          onPress={() => navigation.navigate("HomeScreen")}
           style={{
             borderRadius: 10,
             backgroundColor:
-              activeRouteName === "Tabs" ? colors.accent[100] : undefined,
+              activeRouteName === "HomeScreen" ? colors.accent[100] : undefined,
           }}
           labelStyle={{
             color: colors.white[90],
@@ -205,7 +226,7 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
             />
           )}
           label="Dashboard"
-          onPress={() => navigation.navigate("Tabs", { screen: "Dashboard" })}
+          onPress={() => navigation.navigate("Dashboard")}
           style={{
             borderRadius: 10,
             backgroundColor:

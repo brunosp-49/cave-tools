@@ -5,7 +5,6 @@ import LinesMenu from "../icons/linesMenu";
 import TextInter from "../textInter";
 import { colors } from "../../assets/colors";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
-import { useInternetConnection } from "../../hook/useInternetConnection";
 
 interface HeaderProps {
   title?: string;
@@ -26,7 +25,6 @@ export const Header: FC<HeaderProps> = ({
   navigation,
   helloLeftComponent,
 }) => {
-  const isConnected = useInternetConnection();
 
   return (
     <View style={styles.container}>
@@ -36,6 +34,7 @@ export const Header: FC<HeaderProps> = ({
             if (onCustomReturn) {
               onCustomReturn();
             } else if (navigation) {
+              console.log('here')
               navigation.goBack();
             }
           }}

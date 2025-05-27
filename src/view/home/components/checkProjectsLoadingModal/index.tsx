@@ -1,32 +1,32 @@
 import { Modal, View, StyleSheet, ActivityIndicator } from "react-native";
-import React, { FC, useEffect, useCallback, useState, useRef } from "react"; // Added useRef
+import React, { FC, useEffect, useCallback, useState, useRef } from "react"; 
 import TextInter from "../../../../components/textInter";
 import { colors } from "../../../../assets/colors";
 import { Divider } from "../../../../components/divider";
 import { LongButton } from "../../../../components/longButton";
 import NetInfo from "@react-native-community/netinfo";
 import {
-  createProjects,
   deleteAllCavities,
   deleteAllProjects,
   deleteUser,
   fetchAllProjects,
   fetchAllUsers,
   updateUser,
-  fetchPendingCavityCount,
-  fetchPendingProjectCount,
-  syncPendingCavities,
-  syncPendingProjects,
+  getProjectsWithPendingCavitiesCount, 
+  fetchProjectsWithPendingCavities,    
+  syncConsolidatedUpload,
+  createProjects,              
 } from "../../../../db/controller";
 import { Ionicons } from "@expo/vector-icons";
-import { api } from "../../../../api"; // Assuming it's configured
+import { api } from "../../../../api"; 
 import JumpingIcon from "./jumpingIcon";
-import ProgressBar from "../../../../components/progressBar";
+import ProgressBar from "../../../../components/progressBar"; 
 import {
   getDaysUntilExpiration,
   isTokenAlmostExpired,
   isTokenExpired,
   refreshUserToken,
+  requestLocationPermissions,
 } from "../../../../util";
 import { DefaultModal } from "../../../../components/modal/defaultModal";
 import { useDispatch, useSelector } from "react-redux";
@@ -42,6 +42,8 @@ import {
 } from "../../../../redux/userSlice";
 import { ThunkDispatch } from "@reduxjs/toolkit";
 import { resetLoadingState } from "../../../../redux/loadingSlice";
+import { ProjectWithPendingCavities } from "../../../../db/controller"; 
+import UploadProgressBar from "../../../../components/progressBar/uploadProgressBar";
 
 type InitialCheckOutcome =
   | "CLOSED_SILENTLY"
@@ -54,7 +56,7 @@ type AutoUploadStatus = "idle" | "uploading" | "success" | "error";
 interface CheckProjectsModalProps {
   visible: boolean;
   onClose: () => void;
-  navigation: any;
+  navigation: any; 
 }
 
 export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
@@ -68,16 +70,17 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
   const [autoUploadStatus, setAutoUploadStatus] =
     useState<AutoUploadStatus>("idle");
   const [autoUploadError, setAutoUploadError] = useState<string | null>(null);
-  const autoUploadStatusRef = useRef(autoUploadStatus);
+  const [autoUploadProgress, setAutoUploadProgress] = useState(0); 
+  const autoUploadStatusRef = useRef(autoUploadStatus); 
 
   useEffect(() => {
     autoUploadStatusRef.current = autoUploadStatus;
   }, [autoUploadStatus]);
 
-  const dispatch: ThunkDispatch<RootState, unknown, any> =
+  const dispatch: ThunkDispatch<RootState, unknown, any> = 
     useDispatch<AppDispatch>();
   const {
-    isLoading, // From userSlice, for the initial check phase
+    isLoading, 
     hasProjects,
     checked,
     networkOff,
@@ -86,13 +89,12 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
     daysToExpire,
   } = useSelector((state: RootState) => state.user);
 
-  // For manual download progress bar if that UI is still shown
   const downloadCompleted = Boolean(
     !networkOff &&
       checked &&
       (hasProjects || userHasNotProjects) &&
       !isLoading &&
-      autoUploadStatus === "idle"
+      autoUploadStatus === "idle" 
   );
 
   const testConnection = useCallback(async () => {
@@ -113,260 +115,236 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
       setIsLoginOff(true);
       await deleteAllProjects();
       await deleteAllCavities();
+      const users = await fetchAllUsers();
+      if (users.length > 0 && users[0].user_id) { 
+        await deleteUser(String(users[0].user_id));
+      }
       dispatch(resetModalState());
       dispatch(resetLoadingState());
-      await deleteUser("2"); // FIXME: Hardcoded user ID
       navigation.navigate("Login");
-      onClose();
+      onClose(); 
     } catch (error) {
       console.error("Error during logoff:", error);
-      dispatch(resetModalState());
+      dispatch(resetModalState()); 
     } finally {
       setIsLoginOff(false);
     }
   }, [dispatch, navigation, onClose]);
 
-  // Manual project download, triggered by user action
   const downloadProjects = useCallback(async () => {
     const isConnected = await testConnection();
     if (!isConnected) return;
 
-    dispatch(setModalLoading(true)); // Uses userSlice.isLoading for this manual operation
+    dispatch(setModalLoading(true)); 
     try {
       const users = await fetchAllUsers();
       if (!users || users.length === 0 || !users[0]?.token) {
-        dispatch(setModalNetworkOff(true));
-        throw new Error("User or token not available");
+        dispatch(setModalNetworkOff(true)); 
+        throw new Error("User or token not available for project download.");
       }
       const user = users[0];
-      const { data } = await api.get("/projetos/usuario/", {
+      const response = await api.get("/projetos/usuario/", { 
         headers: { Authorization: `Bearer ${user.token}` },
       });
-      if (!data.results || !Array.isArray(data.results))
-        throw new Error("Invalid project data format");
+      const projectsFromServer = response.data.results; 
 
-      if (data.results.length === 0) dispatch(setModalUserHasNotProjects(true));
-      else {
-        const projectsWithResponsavel = data.results.map((project: any) => ({
-          ...project,
-          responsavel: project.cliente.nome,
-          fk_cliente: project.cliente.id,
+      if (!projectsFromServer || !Array.isArray(projectsFromServer)) {
+        throw new Error("Invalid project data format from server.");
+      }
+
+      if (projectsFromServer.length === 0) {
+        dispatch(setModalUserHasNotProjects(true));
+      } else {
+        const projectsToCreate = projectsFromServer.map((project: any) => ({
+          id: String(project.id), 
+          fk_cliente: String(project.cliente.id), 
+          nome_projeto: project.nome_projeto,
+          inicio: project.inicio, 
+          descricao_projeto: project.descricao_projeto,
+          responsavel: project.cliente.nome, 
         }));
-        await createProjects(projectsWithResponsavel);
+        await createProjects(projectsToCreate); 
         dispatch(setModalHasProjects(true));
       }
-      dispatch(setModalChecked(true)); // Mark as checked after download attempt
+      dispatch(setModalChecked(true)); 
     } catch (error: any) {
-      if (error.response && error.response.status === 401) await logoff();
-      else dispatch(setModalNetworkOff(true));
-      dispatch(setModalChecked(true));
+      console.error("Error downloading projects:", error);
+      if (error.response && error.response.status === 401) {
+        await logoff(); 
+      } else {
+        dispatch(setModalNetworkOff(true)); 
+      }
+      dispatch(setModalChecked(true)); 
     } finally {
       dispatch(setModalLoading(false));
     }
   }, [dispatch, testConnection, logoff]);
 
   const performAutoUpload = useCallback(
-    async (cavCount: number, projCount: number): Promise<boolean> => {
+    async (): Promise<boolean> => {
       setAutoUploadStatus("uploading");
       setAutoUploadError(null);
+      setAutoUploadProgress(1); 
       let overallSuccess = true;
-      let errors: string[] = [];
-
-      if (cavCount > 0) {
-        const result = await syncPendingCavities();
-        if (!result.success) {
-          overallSuccess = false;
-          errors.push(result.error || "Falha ao enviar cavidades.");
+      
+      try {
+        const projectsToSync = await fetchProjectsWithPendingCavities();
+        if (projectsToSync.length > 0) {
+          const result = await syncConsolidatedUpload(projectsToSync, (progress) => {
+            setAutoUploadProgress(progress);
+          });
+          if (!result.success) {
+            overallSuccess = false;
+            setAutoUploadError(result.error || "Falha no envio automático.");
+          }
+        } else {
+           setAutoUploadProgress(100); // Se não há nada para enviar, considera 100%
         }
-      }
-      if (overallSuccess && projCount > 0) {
-        const result = await syncPendingProjects();
-        if (!result.success) {
-          overallSuccess = false;
-          errors.push(result.error || "Falha ao enviar projetos.");
-        }
+      } catch (error: any) {
+        overallSuccess = false;
+        setAutoUploadError(error.message || "Erro ao preparar dados para envio automático.");
+        console.error("Error in performAutoUpload preparation:", error);
       }
 
       if (overallSuccess) {
         setAutoUploadStatus("success");
         setTimeout(() => {
-          if (visible && autoUploadStatusRef.current === "success") onClose();
-        }, 1500); // Brief success message display
+          if (visible && autoUploadStatusRef.current === "success") {
+            onClose();
+          }
+        }, 1500); 
         return true;
       } else {
         setAutoUploadStatus("error");
-        setAutoUploadError(errors.join(" \n"));
         return false;
       }
     },
-    [onClose, visible]
-  ); // `visible` prop from parent
+    [onClose, visible] 
+  );
 
   const initialCheck = useCallback(async (): Promise<InitialCheckOutcome> => {
-    dispatch(setModalLoading(true)); // userSlice.isLoading for the check itself
-    let outcome: InitialCheckOutcome = "STAY_OPEN" as InitialCheckOutcome;
-    let localProjectsNowExist = false;
-    let serverConfirmsNoProjectsInitially =
-      store.getState().user.userHasNotProjects; // Snapshot before check
-    let isCurrentlyOnline = false;
-    let expirationWarningActive = false;
-
+    let currentOutcomeStatus: InitialCheckOutcome = "STAY_OPEN"; 
+    dispatch(setModalLoading(true)); 
+    
     try {
       const users = await fetchAllUsers();
       let currentUser = users.length > 0 ? users[0] : null;
-      if (!currentUser) {
+      
+      if (!currentUser || !currentUser.user_id) {
         await logoff();
-        return "LOGGED_OFF";
+        currentOutcomeStatus = "LOGGED_OFF"; 
       }
 
-      isCurrentlyOnline = await NetInfo.fetch().then(
-        (state) => state.isConnected ?? false
-      );
-      dispatch(setModalNetworkOff(!isCurrentlyOnline));
+      if (currentOutcomeStatus !== "LOGGED_OFF") {
+        const isCurrentlyOnline = await NetInfo.fetch().then(state => state.isConnected ?? false);
+        dispatch(setModalNetworkOff(!isCurrentlyOnline));
 
-      if (isCurrentlyOnline && currentUser.last_login_date) {
-        if (isTokenExpired(currentUser.last_login_date)) {
-          try {
-            const refreshed = await refreshUserToken(currentUser.refresh_token);
-            await updateUser(String(currentUser.user_id), {
-              token: refreshed.access,
-              refresh_token: refreshed.refresh,
-              last_login_date: String(new Date()),
-            });
-          } catch (refreshError) {
-            await logoff();
-            return "LOGGED_OFF";
+        if (isCurrentlyOnline && currentUser && currentUser.last_login_date && currentUser.refresh_token && currentUser.token) {
+          if (isTokenExpired(currentUser.last_login_date)) {
+            try {
+              const refreshed = await refreshUserToken(currentUser.refresh_token);
+              await updateUser(String(currentUser.user_id)!, { 
+                token: refreshed.access,
+                refresh_token: refreshed.refresh,
+                last_login_date: new Date().toISOString(),
+              });
+            } catch (refreshError) {
+              console.error("Token refresh failed, logging off:", refreshError);
+              await logoff();
+              currentOutcomeStatus = "LOGGED_OFF"; 
+            }
+          } else if (isTokenAlmostExpired(currentUser.last_login_date)) {
+            const daysLeft = getDaysUntilExpiration(currentUser.last_login_date);
+            dispatch(setModalExpirationWarning({ show: true, days: daysLeft }));
           }
-        } else if (isTokenAlmostExpired(currentUser.last_login_date)) {
-          const daysLeft = getDaysUntilExpiration(currentUser.last_login_date);
-          dispatch(setModalExpirationWarning({ show: true, days: daysLeft }));
-          expirationWarningActive = true; // Mark that a warning is now active
         }
       }
+      
+      if (currentOutcomeStatus !== "LOGGED_OFF") {
+        const localProjectsResult = await fetchAllProjects();
+        const localProjectsExist = localProjectsResult.length > 0;
+        dispatch(setModalHasProjects(localProjectsExist));
+        
+        const isCurrentlyOnlineAfterTokenCheck = store.getState().user.networkOff === false; 
+        if (!localProjectsExist && isCurrentlyOnlineAfterTokenCheck) { // Verifica online novamente
+            await downloadProjects();
+        }
+        dispatch(setModalChecked(true));
+      }
 
-      const localProjectsResult = await fetchAllProjects();
-      localProjectsNowExist = localProjectsResult.length > 0;
-      dispatch(setModalHasProjects(localProjectsNowExist));
-      // Note: userHasNotProjects is typically set by downloadProjects if server confirms no projects.
-      // For initialCheck, we mainly care about localProjectsExist and network state.
-      serverConfirmsNoProjectsInitially =
-        store.getState().user.userHasNotProjects; // Re-check after potential updates
-
-      dispatch(setModalChecked(true)); // Mark the core checks as done
-      outcome = "STAY_OPEN";
     } catch (error) {
       console.error("Error during initial check:", error);
-      dispatch(setModalNetworkOff(true));
+      dispatch(setModalNetworkOff(true)); 
       dispatch(setModalChecked(true));
-      outcome = "ERROR_IN_CHECK";
+      currentOutcomeStatus = "ERROR_IN_CHECK";
     } finally {
-      dispatch(setModalLoading(false)); // Initial *check* phase (userSlice.isLoading) is done.
+      dispatch(setModalLoading(false)); 
+    }
 
-      if (outcome === "LOGGED_OFF") {
-        // Logoff already called onClose, nothing more to do.
-      } else {
-        // --- Orchestration: Auto-upload or Silent Close ---
-        let autoUploadInitiated = false;
-        if (isCurrentlyOnline && autoUploadStatusRef.current === "idle") {
-          const cavCount = await fetchPendingCavityCount();
-          const projCount = await fetchPendingProjectCount();
-          if (cavCount > 0 || projCount > 0) {
-            // performAutoUpload will handle its own UI and call onClose on its success
-            await performAutoUpload(cavCount, projCount);
-            autoUploadInitiated = true;
-            outcome = "AUTO_UPLOAD_INITIATED";
-          }
-        }
+    // Lógica de decisão movida para fora do finally
+    if (currentOutcomeStatus === "LOGGED_OFF") {
+      return "LOGGED_OFF"; 
+    }
 
-        // If an auto-upload was started and will handle closing, or if it errored and is showing UI, don't try to silently close here.
-        // Only consider silent close if no auto-upload was initiated OR if auto-upload logic decided not to run (e.g. already errored).
-        // The `autoUploadStatusRef.current` check ensures we don't conflict if auto-upload changed state.
-        if (!autoUploadInitiated && autoUploadStatusRef.current === "idle") {
-          // Fetch latest Redux state for decision, as `initialCheck` might have updated it.
-          const currentReduxUser = store.getState().user; // Use with caution
-          const projectsKnown =
-            currentReduxUser.hasProjects || currentReduxUser.userHasNotProjects;
-
-          // Conditions for silent close: everything is settled, no action/critical info for user.
-          const canContinueOfflineWithProjects =
-            !isCurrentlyOnline && currentReduxUser.hasProjects;
-          const onlineAndProjectsKnownAndFine =
-            isCurrentlyOnline && projectsKnown;
-
-          if (
-            (canContinueOfflineWithProjects || onlineAndProjectsKnownAndFine) &&
-            outcome !== "ERROR_IN_CHECK" && // No error from the initial check itself
-            !currentReduxUser.showExpirationWarning && // No active token warning
-            !isLoading // Ensure userSlice.isLoading (for initial check) is false
-          ) {
-            console.log(
-              "[CheckProjectsModal] Conditions met for silent close."
-            );
-            onClose();
-            outcome = "CLOSED_SILENTLY";
-          }
-        }
+    const isCurrentlyOnlineForPostCheck = store.getState().user.networkOff === false;
+    if (isCurrentlyOnlineForPostCheck && autoUploadStatusRef.current === "idle" && currentOutcomeStatus !== "ERROR_IN_CHECK") {
+      const itemCount = await getProjectsWithPendingCavitiesCount();
+      if (itemCount > 0) {
+        await performAutoUpload(); 
+        // Não retorna aqui, deixa o performAutoUpload controlar o estado e o fechamento.
+        // Apenas marca o outcome para a lógica de fechamento silencioso abaixo.
+        currentOutcomeStatus = "AUTO_UPLOAD_INITIATED"; 
       }
     }
-    return outcome;
-  }, [dispatch, logoff, onClose, performAutoUpload]);
+    
+    // Só tenta fechar silenciosamente se o auto-upload não foi iniciado OU se o auto-upload já terminou (não está 'uploading')
+    if (currentOutcomeStatus !== "AUTO_UPLOAD_INITIATED" || autoUploadStatusRef.current !== 'uploading') {
+        if (currentOutcomeStatus !== "ERROR_IN_CHECK") { // E não houve erro no check inicial
+            const currentReduxUserState = store.getState().user;
+            const canCloseSilently = 
+                (isCurrentlyOnlineForPostCheck && (currentReduxUserState.hasProjects || currentReduxUserState.userHasNotProjects)) ||
+                (!isCurrentlyOnlineForPostCheck && currentReduxUserState.hasProjects);
+
+            if (canCloseSilently && !currentReduxUserState.showExpirationWarning) {
+                onClose();
+                return "CLOSED_SILENTLY";
+            }
+        }
+    }
+    
+    return currentOutcomeStatus; // Retorna "STAY_OPEN", "ERROR_IN_CHECK", ou "AUTO_UPLOAD_INITIATED" (se o upload não fechar o modal)
+  }, [dispatch, logoff, downloadProjects, performAutoUpload, onClose]);
 
   useEffect(() => {
     if (visible) {
+      requestLocationPermissions(); 
       if (!initialCheckInvoked) {
         setInitialCheckInvoked(true);
-        initialCheck().then((outcome) => {
-          if (!visible || autoUploadStatusRef.current !== "idle") return;
-          if (
-            outcome === "LOGGED_OFF" ||
-            outcome === "CLOSED_SILENTLY" ||
-            outcome === "AUTO_UPLOAD_INITIATED"
-          )
-            return;
-
-          // If initialCheck decided to stay open, and no auto-upload took over,
-          // the modal will render its UI based on Redux state.
-          console.log(
-            "[CheckProjectsModal] initialCheck completed, outcome:",
-            outcome,
-            "Modal remains for UI display."
-          );
+        initialCheck().then((outcomeFromCheck) => {
+          // console.log("[CheckProjectsModal] Initial check final outcome:", outcomeFromCheck);
         });
       }
     } else {
       setInitialCheckInvoked(false);
       setAutoUploadStatus("idle");
-      // setAutoUploadProgress(0); // Progress is for the autoUpload component itself
+      setAutoUploadProgress(0);
       setAutoUploadError(null);
     }
-  }, [visible, initialCheck, initialCheckInvoked, performAutoUpload, dispatch]);
+  }, [visible, initialCheck, dispatch]);
 
   // --- RENDER LOGIC ---
   if (autoUploadStatus === "uploading") {
     return (
-      <Modal
-        visible={true}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {}}
-      >
+      <Modal visible={true} transparent animationType="fade" onRequestClose={() => { /* Noop */ }}>
         <View style={styles.overlay}>
           <View style={styles.modalContainer}>
-            <TextInter
-              color={colors.white[90]}
-              fontSize={23}
-              style={styles.title}
-            >
+            <TextInter color={colors.white[90]} fontSize={23} style={styles.title}>
               Sincronizando Dados
             </TextInter>
             <Divider height={16} />
-            <ActivityIndicator size={70} color={colors.accent[100]} />
+            <UploadProgressBar currentProgress={autoUploadProgress} />
             <Divider height={16} />
-            <TextInter
-              color={colors.dark[20]}
-              weight="regular"
-              style={styles.message}
-            >
+            <TextInter color={colors.dark[20]} weight="regular" style={styles.message}>
               Enviando dados pendentes... Por favor, aguarde.
             </TextInter>
           </View>
@@ -376,25 +354,12 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
   }
   if (autoUploadStatus === "success") {
     return (
-      <Modal
-        visible={true}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {}}
-      >
+      <Modal visible={true} transparent animationType="fade" onRequestClose={() => { /* Noop, closes via timeout */ }}>
         <View style={styles.overlay}>
           <View style={styles.modalContainer}>
-            <Ionicons
-              name="checkmark-circle-outline"
-              size={70}
-              color={colors.accent[100]}
-            />
+            <Ionicons name="checkmark-circle-outline" size={70} color={colors.accent[100]} />
             <Divider height={16} />
-            <TextInter
-              color={colors.white[90]}
-              fontSize={20}
-              style={styles.title}
-            >
+            <TextInter color={colors.white[90]} fontSize={20} style={styles.title}>
               Sincronização Concluída
             </TextInter>
             <Divider height={10} />
@@ -408,30 +373,17 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
   }
   if (autoUploadStatus === "error") {
     return (
-      <Modal
-        visible={true}
-        transparent
-        animationType="fade"
-        onRequestClose={onClose}
-      >
+      <Modal visible={true} transparent animationType="fade" onRequestClose={onClose}>
         <View style={styles.overlay}>
           <View style={styles.modalContainer}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={70}
-              color={colors.error[100]}
-            />
+            <Ionicons name="alert-circle-outline" size={70} color={colors.error[100]} />
             <Divider height={16} />
-            <TextInter
-              color={colors.white[90]}
-              fontSize={20}
-              style={styles.title}
-            >
-              Erro na Sincronização
+            <TextInter color={colors.white[90]} fontSize={20} style={styles.title}>
+              Erro na Sincronização Automática
             </TextInter>
             <Divider height={10} />
             <TextInter color={colors.dark[20]} style={styles.message}>
-              {autoUploadError || "Falha no envio."}
+              {autoUploadError || "Falha no envio automático."}
             </TextInter>
             <Divider />
             <LongButton title="Fechar" onPress={onClose} mode="cancel" />
@@ -441,10 +393,9 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
     );
   }
 
-  // Main modal content when autoUploadStatus is 'idle'
   return (
     <Modal
-      visible={visible} // Controlled by parent, shown only if autoUploadStatus is 'idle'
+      visible={visible} 
       transparent
       animationType="fade"
       onRequestClose={() => {
@@ -453,168 +404,84 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
     >
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
-          {isLoading ? ( // isLoading from userSlice, for the initialCheck phase
+          {isLoading ? ( 
             <>
-              <TextInter
-                color={colors.white[90]}
-                fontSize={23}
-                style={styles.title}
-              >
+              <TextInter color={colors.white[90]} fontSize={23} style={styles.title}>
                 {checked ? "Verificação Concluída" : "Verificando dados..."}
               </TextInter>
               <Divider height={16} />
-              {checked ? (
-                <JumpingIcon />
-              ) : (
-                <ActivityIndicator size={70} color={colors.accent[100]} />
-              )}
+              {checked ? <JumpingIcon /> : <ActivityIndicator size={70} color={colors.accent[100]} />}
               <Divider height={16} />
-              {checked && (
-                <ProgressBar finished={downloadCompleted && !isLoading} />
-              )}
-              <TextInter
-                color={colors.dark[20]}
-                weight="regular"
-                style={styles.message}
-              >
+              {checked && <ProgressBar finished={downloadCompleted && !isLoading} />}
+              <TextInter color={colors.dark[20]} weight="regular" style={styles.message}>
                 {checked ? "Aguarde..." : "Aguarde alguns segundos"}
               </TextInter>
             </>
           ) : userHasNotProjects ? (
             <>
-              <TextInter
-                color={colors.white[90]}
-                fontSize={23}
-                style={styles.title}
-              >
+              <TextInter color={colors.white[90]} fontSize={23} style={styles.title}>
                 Nenhum projeto encontrado
               </TextInter>
               <Divider height={16} />
-              <Ionicons
-                name="sad-outline"
-                color={colors.accent[100]}
-                size={70}
-              />
+              <Ionicons name="sad-outline" color={colors.accent[100]} size={70} />
               <Divider height={16} />
-              <TextInter
-                color={colors.dark[20]}
-                weight="regular"
-                style={styles.message}
-              >
+              <TextInter color={colors.dark[20]} weight="regular" style={styles.message}>
                 Não há projetos vinculados ao seu usuário.
               </TextInter>
               <Divider />
-              <LongButton
-                title="Sair"
-                onPress={logoff}
-                isLoading={isLoginOff}
-              />
+              <LongButton title="Sair" onPress={logoff} isLoading={isLoginOff} />
             </>
-          ) : // This "Projetos Carregados" state will only show if silent close conditions were NOT met (e.g., token warning active)
-          hasProjects && checked ? (
+          ) : hasProjects && checked && !networkOff && !showExpirationWarning ? ( 
+            showExpirationWarning ? ( 
+                <>
+                    <TextInter color={colors.white[90]} fontSize={23} style={styles.title}>Atenção!</TextInter>
+                    <Divider height={16} /><Ionicons name="warning-outline" color={colors.warning[100]} size={70} /><Divider height={16} />
+                    <TextInter color={colors.dark[20]} weight="regular" style={styles.message}>
+                        Sua sessão expira em {daysToExpire} {daysToExpire === 1 ? "dia" : "dias"}. Sincronize seus dados.
+                    </TextInter>
+                    <Divider />
+                    <LongButton title="Ok, Entendi" onPress={onClose} />
+                </>
+            ) : ( 
+                <>
+                    <TextInter color={colors.white[90]} fontSize={23} style={styles.title}>Projetos Disponíveis</TextInter>
+                    <Divider height={16} /><Ionicons name="checkmark-circle-outline" color={colors.accent[100]} size={70} /><Divider height={16} />
+                    <TextInter color={colors.dark[20]} weight="regular" style={styles.message}>Seus projetos estão carregados.</TextInter>
+                    <Divider /><LongButton title="Ok" onPress={onClose} />
+                </>
+            )
+
+          ) : checked && !hasProjects && !networkOff && !userHasNotProjects ? ( 
             <>
-              <TextInter
-                color={colors.white[90]}
-                fontSize={23}
-                style={styles.title}
-              >
-                Projetos Disponíveis
-              </TextInter>
-              <Divider height={16} />
-              <Ionicons
-                name="checkmark-circle-outline"
-                color={colors.accent[100]}
-                size={70}
-              />
-              <Divider height={16} />
-              <TextInter
-                color={colors.dark[20]}
-                weight="regular"
-                style={styles.message}
-              >
-                Seus projetos estão carregados localmente.
-              </TextInter>
-              <Divider />
-              <LongButton title="Ok, entendi" onPress={onClose} />
-            </>
-          ) : checked && !hasProjects && !networkOff ? ( // Prompt for manual download
-            <>
-              <TextInter
-                color={colors.white[90]}
-                fontSize={23}
-                style={styles.title}
-              >
+              <TextInter color={colors.white[90]} fontSize={23} style={styles.title}>
                 Projetos não encontrados localmente
               </TextInter>
-              <Divider height={16} />
-              <Ionicons
-                name="cloud-download-outline"
-                color={colors.dark[60]}
-                size={70}
-              />
-              <Divider height={16} />
-              <TextInter
-                color={colors.dark[20]}
-                weight="regular"
-                style={styles.message}
-              >
+              <Divider height={16} /><Ionicons name="cloud-download-outline" color={colors.dark[60]} size={70} /><Divider height={16} />
+              <TextInter color={colors.dark[20]} weight="regular" style={styles.message}>
                 Deseja baixar os projetos vinculados ao seu usuário?
               </TextInter>
               <Divider />
-              <LongButton
-                disabled={isLoginOff || isLoading}
-                isLoading={isLoading}
-                title="Baixar Projetos"
-                onPress={downloadProjects}
-              />
+              <LongButton disabled={isLoginOff || isLoading} isLoading={isLoading} title="Baixar Projetos" onPress={downloadProjects} />
               <Divider height={8} />
-              <LongButton
-                disabled={isLoginOff || isLoading}
-                isLoading={isLoginOff}
-                title="Sair"
-                onPress={logoff}
-              />
+              <LongButton disabled={isLoginOff || isLoading} isLoading={isLoginOff} title="Sair" onPress={logoff} />
             </>
-          ) : checked && networkOff ? ( // Offline message
+          ) : checked && networkOff ? ( 
             <>
-              <TextInter
-                color={colors.white[90]}
-                fontSize={23}
-                style={styles.title}
-              >
+              <TextInter color={colors.white[90]} fontSize={23} style={styles.title}>
                 Você está sem internet
               </TextInter>
-              <Divider height={16} />
-              <Ionicons
-                name="cloud-offline-outline"
-                color={colors.dark[60]}
-                size={70}
-              />
-              <Divider height={16} />
-              <TextInter
-                color={colors.dark[20]}
-                weight="regular"
-                style={styles.message}
-              >
+              <Divider height={16} /><Ionicons name="cloud-offline-outline" color={colors.dark[60]} size={70} /><Divider height={16} />
+              <TextInter color={colors.dark[20]} weight="regular" style={styles.message}>
                 {hasProjects
                   ? "Trabalhando offline. Dados pendentes não puderam ser enviados."
                   : "Conecte-se para baixar projetos e enviar dados."}
               </TextInter>
               <Divider />
-              <LongButton
-                title={hasProjects ? "Continuar Offline" : "Sair"}
-                onPress={hasProjects ? onClose : logoff}
-                isLoading={isLoginOff}
-              />
+              <LongButton title={hasProjects ? "Continuar Offline" : "Sair"} onPress={hasProjects ? onClose : logoff} isLoading={isLoginOff} />
             </>
           ) : (
-            // Fallback / Initial un-checked state (should be brief)
             <>
-              <TextInter
-                color={colors.white[90]}
-                fontSize={18}
-                style={styles.title}
-              >
+              <TextInter color={colors.white[90]} fontSize={18} style={styles.title}>
                 Carregando Informações...
               </TextInter>
               <ActivityIndicator size="large" color={colors.accent[100]} />
@@ -624,18 +491,12 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
       </View>
 
       <DefaultModal
-        isOpen={showExpirationWarning}
-        onClose={() =>
-          dispatch(setModalExpirationWarning({ show: false, days: 0 }))
-        }
-        title={`Atenção! Sua sessão expira em ${daysToExpire} ${
-          daysToExpire === 1 ? "dia" : "dias"
-        }`}
+        isOpen={showExpirationWarning && visible} 
+        onClose={() => dispatch(setModalExpirationWarning({ show: false, days: 0 }))}
+        title={`Atenção! Sua sessão expira em ${daysToExpire} ${daysToExpire === 1 ? "dia" : "dias"}`}
         message="Recomendamos sincronizar seus dados. Se a sessão expirar, precisará fazer login novamente."
         titleButtonConfirm="Entendi"
-        onConfirm={() =>
-          dispatch(setModalExpirationWarning({ show: false, days: 0 }))
-        }
+        onConfirm={() => dispatch(setModalExpirationWarning({ show: false, days: 0 }))}
       />
     </Modal>
   );

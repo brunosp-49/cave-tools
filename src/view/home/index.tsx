@@ -1,5 +1,7 @@
 import {
+  Alert,
   Animated,
+  BackHandler,
   FlatList,
   SafeAreaView,
   StyleSheet,
@@ -24,6 +26,9 @@ import { useInternetConnection } from "../../hook/useInternetConnection";
 import { UploadDataModal } from "./components/modal/uploadModalData";
 import { useAppSelector } from "../../hook";
 import PapersIcon from "../../components/icons/papersIcon";
+import { FakeBottomTab } from "../../components/fakeBottomTab";
+import { StatusBar } from "expo-status-bar";
+import { useFocusEffect } from "@react-navigation/native";
 
 export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -87,7 +92,7 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
               title: "Caracterização Espeleológica",
               icon: <HatManIcon />,
               id: 1,
-              onPress: () => navigation.navigate("CharacterizationScreen"),
+              onPress: () => navigation.navigate("CavityScreen"),
               disabled: false,
             },
             {
@@ -162,6 +167,8 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
           </TextInter>
         </Animated.View>
       )}
+      <FakeBottomTab onPress={() => navigation.navigate("RegisterCavity")} />
+      <StatusBar style="inverted" backgroundColor={colors.dark[90]} />
     </SafeAreaView>
   );
 };
