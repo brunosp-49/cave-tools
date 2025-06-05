@@ -36,10 +36,13 @@ import SearchProject from "../view/searchProject";
 import EditProject from "../view/editProject";
 import EditCavity from "../view/editCavity";
 import RegisterCavity from "../view/registerCavity";
+import { TopographyScreen } from "../view/topography";
 import { DetailScreenCavity } from "../view/detailScreenCavity";
 import { DetailScreenProject } from "../view/detailScreenProject";
 import { HomeScreen } from "../view/home";
 import Dashboard from "../view/dashboard";
+import TopographyCreateScreen from "../view/TopographyCreate";
+import { TopographyDetailScreen } from "../view/topographyDetails";
 
 const Drawer = createDrawerNavigator();
 
@@ -106,8 +109,18 @@ const DrawerNavigator = () => {
         options={{ headerShown: false }}
       />
       <Drawer.Screen
-        name="DetailScreenCavity"
-        component={DetailScreenCavity}
+        name="TopographyScreen"
+        component={TopographyScreen}
+        options={{ headerShown: false }}
+      />
+      <Drawer.Screen
+        name="TopographyDetailScreen"
+        component={TopographyDetailScreen}
+        options={{ headerShown: false }}
+      />
+      <Drawer.Screen
+        name="TopographyCreateScreen"
+        component={TopographyCreateScreen}
         options={{ headerShown: false }}
       />
       <Drawer.Screen
@@ -228,6 +241,28 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
             borderRadius: 10,
             backgroundColor:
               activeRouteName === "Dashboard" ? colors.accent[100] : undefined,
+          }}
+          labelStyle={{
+            color: colors.white[90],
+            fontSize: 14,
+          }}
+        />
+        <DrawerItem
+          icon={() => (
+            <Ionicons
+              name="pie-chart-outline"
+              size={20}
+              color={colors.white[100]}
+            />
+          )}
+          label="Topography"
+          onPress={() => navigation.navigate("TopographyScreen")}
+          style={{
+            borderRadius: 10,
+            backgroundColor:
+              activeRouteName === "TopographyScreen"
+                ? colors.accent[100]
+                : undefined,
           }}
           labelStyle={{
             color: colors.white[90],

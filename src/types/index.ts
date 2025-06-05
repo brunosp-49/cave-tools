@@ -11,6 +11,38 @@ export interface RouterProps {
   route?: any;
 }
 
+export type TopographyPoint = {
+  cavity_id: string;
+  from: number;
+  to: number;
+  distance: number;
+  azimuth: number;
+  incline: number;
+  turnUp: number;
+  turnDown: number;
+  turnRight: number;
+  turnLeft: number;
+};
+
+export interface TableTopographyProps {
+  topography: TopographyPoint[];
+}
+
+export interface TopographyData {
+  registro_id: string; // Required, will be used as the primary ID
+  cavity_id: string;
+  data: string;
+  from: string;
+  to: string;
+  distance: string;
+  azimuth: string;
+  incline: string;
+  turnUp: string;
+  turnDown: string;
+  turnRight: string;
+  turnLeft: string;
+}
+
 export interface UserModel {
   token: string;
   refresh_token: string;

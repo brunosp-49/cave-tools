@@ -6,6 +6,7 @@ import {
   ProjectModel,
   ProjectPayload,
   UserModel,
+  TopographyData,
   UploadProjectPayload, // Type for backend sync payload
 } from "../../types";
 import { database } from "../index";
@@ -16,6 +17,7 @@ import { api } from "../../api";
 import store from "../../redux/store";
 import { showError } from "../../redux/loadingSlice";
 import { setUserName } from "../../redux/userSlice";
+import type Topography from "../model/topography";
 
 // POST
 export const createCavityRegister = async (
@@ -126,6 +128,35 @@ export const createProject = async (
     console.error("Error creating project:", error);
   }
 };
+
+export const createTopography = async (toposData: TopographyData[]): Promise<void> => {
+  try {
+    const topographyCollection = database.collections.get<Topography>("topography");
+
+    const operations = toposData.map(topoMap => topographyCollection.prepareCreate(topo => {
+      topo._raw.id = topoMap.registro_id;
+      topo.registro_id = topoMap.registro_id;
+      topo.cavity_id = topoMap.cavity_id;
+      topo.data = topoMap.data;
+      topo.azimuth = topoMap.azimuth;
+      topo.distance = topoMap.distance;
+      topo.from = topoMap.from;
+      topo.incline = topoMap.incline;
+      topo.to = topoMap.to;
+      topo.turnDown = topoMap.turnDown;
+      topo.turnLeft = topoMap.turnLeft;
+      topo.turnRight = topoMap.turnRight;
+      topo.turnUp = topoMap.turnUp;
+    }))
+
+    await database.write(async () => {
+      await database.batch(...operations);
+    });
+    console.log(`Topography created ${toposData.length} successfully!`);
+  } catch (error) {
+    console.error("Error creating topography:", error);
+  }
+}
 
 // GET
 // This function returns fully parsed Cavidade objects for the frontend
@@ -253,6 +284,18 @@ export const fetchAllProjects = async (): Promise<ProjectModel[]> => {
     }));
   } catch (error) {
     console.error("Error fetching projects:", error);
+    return [];
+  }
+};
+
+export const fetchAllTopographies = async (): Promise<TopographyData[]> => {
+  try {
+    const topographyCollection = database.collections.get<Topography>("topography");
+    const topographies = await topographyCollection.query().fetch();
+
+    return topographies.map((topography: any) => topography._raw);
+  } catch (error) {
+    console.error("Error fetching topographies:", error);
     return [];
   }
 };
@@ -630,6 +673,29 @@ export const syncConsolidatedUpload = async (
   }
 };
 
+export const updateTopography = async (registro_id: string, updatedData: Partial<TopographyData>): Promise<void> => {
+  try {
+    const topographyCollection = database.collections.get<Topography>("topography");
+    const topography = await topographyCollection.find(registro_id);
+
+    await database.write(async () => {
+      await topography.update((topo) => {
+        topo.from = updatedData.from || topo.from;
+        topo.incline = updatedData.incline || topo.incline;
+        topo.to = updatedData.to || topo.to;
+        topo.turnDown = updatedData.turnDown || topo.turnDown;
+        topo.turnLeft = updatedData.turnLeft || topo.turnLeft;
+        topo.turnRight = updatedData.turnRight || topo.turnRight;
+        topo.turnUp = updatedData.turnUp || topo.turnUp;
+      });
+    });
+
+    console.log("Topography updated successfully!");
+  } catch (error) {
+    console.error("Error updating Topography:", error);
+  }
+};
+
 // DELETE
 export const deleteCavity = async (registro_id: string): Promise<void> => {
   try {
@@ -734,3 +800,19 @@ export const deleteAllProjects = async (): Promise<void> => {
     console.error("Error deleting all projects and cavities:", error);
   }
 };
+
+export const deleteTopography = async (registro_id: string): Promise<void> => {
+  try {
+    const topographyCollection = database.collections.get<Topography>("topography");
+    const topography = await topographyCollection.find(registro_id);
+
+    await database.write(async () => {
+      await topography.markAsDeleted();
+      await topography.destroyPermanently();
+    });
+
+    console.log("Topography deleted successfully!");
+  } catch (error) {
+    console.error("Error deleting topography:", error);
+  }
+}

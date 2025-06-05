@@ -28,7 +28,6 @@ import { useAppSelector } from "../../hook";
 import PapersIcon from "../../components/icons/papersIcon";
 import { FakeBottomTab } from "../../components/fakeBottomTab";
 import { StatusBar } from "expo-status-bar";
-import { useFocusEffect } from "@react-navigation/native";
 
 export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -97,10 +96,10 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
             },
             {
               title: "Informações Topográficas",
-              icon: <BookPenIcon disabled />,
+              icon: <BookPenIcon />,
               id: 2,
-              onPress: () => navigation.navigate(""),
-              disabled: true,
+              onPress: () => navigation.navigate("TopographyScreen"),
+              disabled: false,
             },
             {
               title: "Dashboard",

@@ -5,6 +5,8 @@ import schema from "./schemas";
 import CavityRegister from "./model/cavityRegister";
 import User from "./model/user";
 import Project from "./model/project";
+import Topography from "./model/topography";
+
 const adapter = new SQLiteAdapter({
   schema,
   jsi: true,
@@ -15,5 +17,5 @@ const adapter = new SQLiteAdapter({
 
 export const database = new Database({
   adapter,
-  modelClasses: [CavityRegister, User, Project],
+  modelClasses: [CavityRegister, User, Project, Topography],
 });
