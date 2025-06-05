@@ -136,7 +136,7 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
               icon={item.icon}
               title={item.title}
               onPress={item.onPress}
-              disabled={item.id === 3 || !isConnected}
+              disabled={item.disabled}
             />
           )}
           ItemSeparatorComponent={({}) => <Divider height={16} />}

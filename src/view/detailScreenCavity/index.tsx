@@ -19,24 +19,25 @@ import {
   Biota,
   CaracterizacaoInterna,
   Dificuldades_externas,
-  Dificuldades_progressao_interna,
   Entrada,
   Espeleotemas,
   Grupo_litologico,
-  GuanoTipo,
-  HidrologiaData,
-  HidrologiaFeature,
-  Infraestrutura_acesso,
-  Infraestrutura_interna,
-  Insercao,
+  Hidrologia,
   MorfologiaData,
   Paleontologia,
-  Posicao_vertente,
   RouterProps,
-  SedimentoDetalhe,
-  SedimentosData,
-  Uso_cavidade,
-  Vegetacao,
+  Sedimentos,
+  Invertebrado,
+  InvertebradoAquatico,
+  Posicao_vertente, // Added from formatPosicaoVertente usage
+  Insercao, // Added from formatInsercao usage
+  Vegetacao, // Added from formatVegetacao usage
+  Uso_cavidade, // Added from formatUsoCavidade usage
+  Infraestrutura_acesso, // Added from formatInfraestruturaAcesso usage
+  Infraestrutura_interna, // Added from formatInfraestruturaInterna usage
+  Dificuldades_progressao_interna, // Added from formatDificuldadesInternas usage
+  HidrologiaFeature,
+  Cavidade, // Added from formatHidrologia usage
 } from "../../types";
 import { FC, useCallback, useEffect, useState } from "react";
 import { LabelText } from "../../components/labelText";
@@ -45,7 +46,117 @@ import { database } from "../../db";
 import { formatDate } from "../../util";
 import { LongButton } from "../../components/longButton";
 import Project from "../../db/model/project";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
+
+// Helper function
+const isFieldFilled = (value: any): boolean => {
+  if (value === null || typeof value === "undefined") return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  if (Array.isArray(value) && value.length === 0) return false;
+  return true;
+};
+
+// --- Definitions for Invertebrate Keys and Labels ---
+const invertebradoKeysArray: (keyof Omit<
+  Invertebrado,
+  "possui" | "outroEnabled" | "outro"
+>)[] = [
+  "aranha",
+  "acaro",
+  "amblipigio",
+  "opiliao",
+  "pseudo_escorpiao",
+  "escorpiao",
+  "formiga",
+  "besouro",
+  "mosca",
+  "mosquito",
+  "mariposa",
+  "barata",
+  "cupim",
+  "grilo",
+  "percevejo",
+  "piolho_de_cobra",
+  "centopeia",
+  "lacraia",
+  "caramujo_terrestre",
+  "tatuzinho_de_jardim",
+];
+const invertebradoDisplayToKeyMap: {
+  [key: string]: keyof Omit<Invertebrado, "possui" | "outroEnabled" | "outro">;
+} = {
+  Aranha: "aranha",
+  Ácaro: "acaro",
+  Amblípigo: "amblipigio",
+  Opilião: "opiliao",
+  "Pseudo-escorpião": "pseudo_escorpiao",
+  Escorpião: "escorpiao",
+  Formiga: "formiga",
+  Besouro: "besouro",
+  Mosca: "mosca",
+  Mosquito: "mosquito",
+  Mariposa: "mariposa",
+  Barata: "barata",
+  Cupim: "cupim",
+  Grilo: "grilo",
+  Percevejo: "percevejo",
+  "Piolho de cobra": "piolho_de_cobra",
+  Centopeia: "centopeia",
+  Lacraia: "lacraia",
+  Caramujo: "caramujo_terrestre", // Assuming "Caramujo" meant terrestrial in old data
+  "Tatuzinho de jardim": "tatuzinho_de_jardim",
+};
+const invertebradoLabels: Record<
+  (typeof invertebradoKeysArray)[number],
+  string
+> = {
+  aranha: "Aranha",
+  acaro: "Ácaro",
+  amblipigio: "Amblípigo",
+  opiliao: "Opilião",
+  pseudo_escorpiao: "Pseudo-escorpião",
+  escorpiao: "Escorpião",
+  formiga: "Formiga",
+  besouro: "Besouro",
+  mosca: "Mosca",
+  mosquito: "Mosquito",
+  mariposa: "Mariposa",
+  barata: "Barata",
+  cupim: "Cupim",
+  grilo: "Grilo",
+  percevejo: "Percevejo",
+  piolho_de_cobra: "Piolho de cobra",
+  centopeia: "Centopeia",
+  lacraia: "Lacraia",
+  caramujo_terrestre: "Caramujo terrestre",
+  tatuzinho_de_jardim: "Tatuzinho de jardim",
+};
+
+const invertebradoAquaticoKeysArray: (keyof Omit<
+  InvertebradoAquatico,
+  "possui" | "outroEnabled" | "outro"
+>)[] = ["caramujo_aquatico", "bivalve", "camarao", "caranguejo"];
+const invertebradoAquaticoDisplayToKeyMap: {
+  [key: string]: keyof Omit<
+    InvertebradoAquatico,
+    "possui" | "outroEnabled" | "outro"
+  >;
+} = {
+  Caramujo: "caramujo_aquatico", // Ensure this mapping is correct for your old data
+  Bivalve: "bivalve",
+  Camarão: "camarao",
+  Caranguejo: "caranguejo",
+};
+const invertebradoAquaticoLabels: Record<
+  (typeof invertebradoAquaticoKeysArray)[number],
+  string
+> = {
+  caramujo_aquatico: "Caramujo aquático",
+  bivalve: "Bivalve",
+  camarao: "Camarão",
+  caranguejo: "Caranguejo",
+};
+// --- End Definitions for Invertebrate Keys and Labels ---
 
 export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
   const [cavity, setCavity] = useState<CavityRegister | null>(null);
@@ -53,9 +164,36 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
   const [error, setError] = useState<string | null>(null);
   const [project, setProject] = useState<Project | null>(null);
 
+  // Parsed data states
+  const [entradasData, setEntradasData] = useState<Entrada[]>([]);
+  const [dificuldadesExternasData, setDificuldadesExternasData] =
+    useState<Dificuldades_externas | null>(null);
+  const [aspectosSocioambientaisData, setAspectosSocioambientaisData] =
+    useState<AspectosSocioambientais | null>(null);
+  const [caracterizacaoInternaData, setCaracterizacaoInternaData] =
+    useState<CaracterizacaoInterna | null>(null);
+  const [morfologiaData, setMorfologiaData] = useState<MorfologiaData | null>(
+    null
+  );
+  const [hidrologiaData, setHidrologiaData] = useState<Hidrologia | null>(null);
+  const [sedimentosData, setSedimentosData] = useState<Sedimentos | null>(null);
+  const [espeleotemasData, setEspeleotemasData] = useState<Espeleotemas | null>(
+    null
+  );
+  const [biotaData, setBiotaData] = useState<Biota | null>(null);
+  const [arqueologiaData, setArqueologiaData] = useState<Arqueologia | null>(
+    null
+  );
+  const [paleontologiaData, setPaleontologiaData] =
+    useState<Paleontologia | null>(null);
+  const [topografiaData, setTopografiaData] =
+    useState<Cavidade["topografia"]>();
+    const isFocused = useIsFocused();
+
   useEffect(() => {
-    const fetchCavity = async () => {
-      if (!route.params.cavityId) {
+    const fetchCavityAndParse = async () => {
+      const cavityId = route.params?.cavityId;
+      if (!cavityId) {
         setError("ID da cavidade não fornecido.");
         setIsLoading(false);
         return;
@@ -65,26 +203,213 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
       try {
         const cavityCollection =
           database.collections.get<CavityRegister>("cavity_register");
-        const foundCavity = await cavityCollection.find(route.params.cavityId);
+        const foundCavity = await cavityCollection.find(cavityId);
         setCavity(foundCavity);
-        const projectCollection = database.collections.get<Project>("project");
-        const foundProject = await projectCollection.find(
-          foundCavity.projeto_id as string
+        console.log({ foundCavity });
+        if (foundCavity.projeto_id) {
+          const projectCollection =
+            database.collections.get<Project>("project");
+          // Ensure project is found before setting, handle potential error
+          try {
+            const foundProject = await projectCollection.find(
+              foundCavity.projeto_id
+            );
+            console.log({ foundCavity: JSON.parse(foundCavity.caracterizacao_interna as string), foundProject });
+            setProject(foundProject);
+          } catch (projectError) {
+            console.warn(
+              `Project with ID ${foundCavity.projeto_id} not found for cavity ${cavityId}`,
+              projectError
+            );
+            setProject(null);
+          }
+        } else {
+          setProject(null);
+        }
+
+        const parse = (
+          jsonString: string | null | undefined,
+          defaultVal: any = {}
+        ) => {
+          if (jsonString === null || typeof jsonString === "undefined")
+            return JSON.parse(JSON.stringify(defaultVal));
+          try {
+            return JSON.parse(jsonString);
+          } catch (e) {
+            return JSON.parse(JSON.stringify(defaultVal));
+          }
+        };
+
+        // Define default structures for parsing, reflecting minimal valid state
+        const defaultDificuldadesExternas: Dificuldades_externas = {
+          nenhuma: true,
+        };
+        const defaultAspectosSocioambientais: AspectosSocioambientais = {
+          uso_cavidade: {},
+          comunidade_envolvida: { envolvida: false },
+          area_protegida: { nao_determinado: true },
+          infraestrutura_acesso: { nenhuma: true },
+        };
+        const defaultCaracterizacaoInterna: CaracterizacaoInterna = {
+          grupo_litologico: {},
+          infraestrutura_interna: { nenhuma: true },
+          dificuldades_progressao_interna: { nenhuma: true },
+          depredacao_localizada: false,
+          depredacao_intensa: false,
+        };
+        const defaultBiota: Biota = {
+          invertebrado: { possui: false },
+          invertebrado_aquatico: { possui: false },
+          anfibios: { possui: false },
+          repteis: { possui: false },
+          aves: { possui: false },
+          peixes: false,
+          morcegos: { possui: false },
+        };
+        const defaultSedimentos: Sedimentos = {
+          sedimentacao_clastica: { possui: false },
+          sedimentacao_organica: { possui: false },
+        };
+        const defaultEspeleotemas: Espeleotemas = { possui: false, tipos: [] };
+        const defaultArqueologia: Arqueologia = { possui: false, tipos: {} };
+        const defaultPaleontologia: Paleontologia = {
+          possui: false,
+          tipos: {},
+        };
+
+        setEntradasData(parse(foundCavity.entradas, []));
+        setDificuldadesExternasData(
+          parse(foundCavity.dificuldades_externas, defaultDificuldadesExternas)
         );
-        setProject(foundProject);
+        setAspectosSocioambientaisData(
+          parse(
+            foundCavity.aspectos_socioambientais,
+            defaultAspectosSocioambientais
+          )
+        );
+
+        const ciDb = parse(
+          foundCavity.caracterizacao_interna,
+          defaultCaracterizacaoInterna
+        );
+        console.log({ciDb})
+        const transformedCI: CaracterizacaoInterna = {
+          ...ciDb,
+        };
+        setCaracterizacaoInternaData(transformedCI);
+
+        setMorfologiaData(
+          parse(foundCavity.morfologia, {
+            padrao_planimetrico: {},
+            forma_secoes: {},
+          })
+        );
+        setHidrologiaData(parse(foundCavity.hidrologia, {}));
+        setSedimentosData(parse(foundCavity.sedimentos, defaultSedimentos));
+        setEspeleotemasData(
+          parse(foundCavity.espeleotemas, defaultEspeleotemas)
+        );
+
+        const biotaDbParsed = parse(foundCavity.biota, defaultBiota);
+        const transformedBiota: Biota = JSON.parse(
+          JSON.stringify(defaultBiota)
+        ); // Start with a full default
+        // Merge known properties from biotaDbParsed into transformedBiota
+        Object.keys(defaultBiota).forEach((key) => {
+          if (
+            biotaDbParsed.hasOwnProperty(key) &&
+            key !== "invertebrados" &&
+            key !== "invertebrados_aquaticos" &&
+            key !== "invertebrado" &&
+            key !== "invertebrado_aquatico"
+          ) {
+            (transformedBiota as any)[key] = biotaDbParsed[key];
+          }
+        });
+
+        if (
+          biotaDbParsed.invertebrados &&
+          Array.isArray(biotaDbParsed.invertebrados.tipos)
+        ) {
+          const inv: Invertebrado = {
+            ...defaultBiota.invertebrado!,
+            possui: biotaDbParsed.invertebrados.possui ?? false,
+            outroEnabled: biotaDbParsed.invertebrados.outroEnabled ?? false,
+            outro: biotaDbParsed.invertebrados.outro,
+          };
+          invertebradoKeysArray.forEach((key) => {
+            const oldTypeString =
+              Object.keys(invertebradoDisplayToKeyMap).find(
+                (k) => invertebradoDisplayToKeyMap[k] === key
+              ) || key;
+            (inv as any)[key] =
+              biotaDbParsed.invertebrados.tipos.includes(oldTypeString);
+          });
+          transformedBiota.invertebrado = inv;
+        } else if (
+          biotaDbParsed.invertebrado &&
+          typeof biotaDbParsed.invertebrado === "object"
+        ) {
+          transformedBiota.invertebrado = {
+            ...defaultBiota.invertebrado!,
+            ...biotaDbParsed.invertebrado,
+          };
+        }
+
+        if (
+          biotaDbParsed.invertebrados_aquaticos &&
+          Array.isArray(biotaDbParsed.invertebrados_aquaticos.tipos)
+        ) {
+          const invAq: InvertebradoAquatico = {
+            ...defaultBiota.invertebrado_aquatico!,
+            possui: biotaDbParsed.invertebrados_aquaticos.possui ?? false,
+            outroEnabled:
+              biotaDbParsed.invertebrados_aquaticos.outroEnabled ?? false,
+            outro: biotaDbParsed.invertebrados_aquaticos.outro,
+          };
+          invertebradoAquaticoKeysArray.forEach((key) => {
+            const oldTypeString =
+              Object.keys(invertebradoAquaticoDisplayToKeyMap).find(
+                (k) => invertebradoAquaticoDisplayToKeyMap[k] === key
+              ) || key;
+            (invAq as any)[key] =
+              biotaDbParsed.invertebrados_aquaticos.tipos.includes(
+                oldTypeString
+              );
+          });
+          transformedBiota.invertebrado_aquatico = invAq;
+        } else if (
+          biotaDbParsed.invertebrado_aquatico &&
+          typeof biotaDbParsed.invertebrado_aquatico === "object"
+        ) {
+          transformedBiota.invertebrado_aquatico = {
+            ...defaultBiota.invertebrado_aquatico!,
+            ...biotaDbParsed.invertebrado_aquatico,
+          };
+        }
+        setBiotaData(transformedBiota);
+
+        setArqueologiaData(parse(foundCavity.arqueologia, defaultArqueologia));
+        setPaleontologiaData(
+          parse(foundCavity.paleontologia, defaultPaleontologia)
+        );
+        setTopografiaData(
+          parse(foundCavity.topografia, { espeleometria: {}, previsao: {} })
+        );
       } catch (err) {
-        console.error("Error fetching cavity details:", err);
-        setError("Erro ao carregar detalhes da cavidade.");
-        setCavity(null); // Clear any previous data on error
+        console.error("Error fetching and parsing cavity details:", err);
+        setError("Erro ao carregar ou processar detalhes da cavidade.");
+        setCavity(null);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchCavity();
-  }, [route.params.cavityId]);
+    fetchCavityAndParse();
+  }, [route.params?.cavityId, navigation, isFocused]);
 
   useFocusEffect(
+    /* ... (same as before) ... */
     useCallback(() => {
       const onBackPress = () => {
         navigation.navigate("CavityScreen");
@@ -94,111 +419,45 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
         "hardwareBackPress",
         onBackPress
       );
-
-      return () => {
-        subscription.remove();
-      };
+      return () => subscription.remove();
     }, [navigation])
   );
 
-  if (isLoading) {
-    return (
-      <View
-        style={{
-          minHeight: "100%",
-          height: Dimensions.get("screen").height * 0.9,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <ActivityIndicator size="large" color={colors.accent[100]} />
-        <Divider />
-        <TextInter color={colors.white[100]} weight="medium">
-          Carregando detalhes...
-        </TextInter>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centered}>
-        <Header title="Erro" navigation={navigation} />
-        <Divider />
-        <TextInter color={colors.error[100]} style={{ marginTop: 20 }}>
-          {error}
-        </TextInter>
-      </View>
-    );
-  }
-
-  if (!cavity) {
-    return (
-      <View style={styles.centered}>
-        <Header title="Não Encontrado" navigation={navigation} />
-        <Divider />
-        <TextInter style={{ marginTop: 20 }}>
-          Cavidade não encontrada.
-        </TextInter>
-      </View>
-    );
-  }
-
-  const parseJsonField = (
-    fieldData: string | undefined | null,
-    defaultValue: any = null
-  ) => {
-    if (!fieldData) return defaultValue;
-    try {
-      return JSON.parse(fieldData);
-    } catch (e) {
-      console.warn("Failed to parse JSON field:", fieldData, e);
-      return defaultValue;
-    }
-  };
-
   const formatFlags = (
-    obj: Record<string, any> | undefined, // Use Record<string, any>
+    /* ... (same as before, ensure isFieldFilled is used if needed) ... */
+    obj: Record<string, any> | undefined | null,
     labels: Record<string, string>,
-    includeOutro = true
+    includeOutro = true,
+    isExclusiveNenhuma = false
   ): string => {
     if (!obj) return "Não informado";
+    if (isExclusiveNenhuma && obj.nenhuma === true)
+      return labels.nenhuma || "Nenhuma";
+
     const items: string[] = [];
-    // Iterate through the labels provided, checking if the corresponding key exists and is true in obj
     for (const key in labels) {
-      // Check if the key exists on the object before accessing it
+      if (isExclusiveNenhuma && key === "nenhuma") continue;
       if (Object.prototype.hasOwnProperty.call(obj, key) && obj[key] === true) {
         items.push(labels[key]);
       }
     }
-    // Handle 'outro' field if requested and present
-    if (
-      includeOutro &&
-      typeof obj.outro === "string" &&
-      obj.outro.trim() !== ""
-    ) {
-      // Check if 'outroEnabled' exists and is true, or just add 'outro' if it exists
-      const outroEnabled = "outroEnabled" in obj ? obj.outroEnabled : true;
-      if (outroEnabled) {
-        items.push(`Outro: ${obj.outro.trim()}`);
-      }
+    if (includeOutro && obj.outroEnabled && isFieldFilled(obj.outro)) {
+      // Used isFieldFilled
+      items.push(`Outro: ${obj.outro}`);
     }
-    // Handle exclusive 'nenhuma' flag if present
-    if (
-      Object.prototype.hasOwnProperty.call(obj, "nenhuma") &&
-      obj["nenhuma"] === true
-    ) {
-      // Return only 'Nenhuma' if it's true and defined in labels
-      return labels["nenhuma"] || "Nenhuma";
-    }
-
-    return items.length > 0 ? items.join(", ") : "Nenhuma"; // Default to 'Nenhuma' if no flags are true
+    return items.length > 0
+      ? items.join(", ")
+      : isExclusiveNenhuma
+      ? "Não informado"
+      : "Nenhuma selecionada";
   };
 
+  // ... (all other formatXyz functions: formatPosicaoVertente, formatInsercao, etc. remain as previously defined)
   const formatPosicaoVertente = (posicao?: Posicao_vertente): string =>
     formatFlags(
       posicao,
       { topo: "Topo", alta: "Alta", media: "Média", baixa: "Baixa" },
+      false,
       false
     );
   const formatInsercao = (insercao?: Insercao): string =>
@@ -219,8 +478,8 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
       mata_seca: "Mata seca",
       campo_sujo: "Campo sujo",
     });
-  const formatArqueologia = (arq?: Arqueologia): string => {
-    if (!arq?.possui) return "Não possui ou não informado";
+  const formatArqueologia = (arq?: Arqueologia | null): string => {
+    if (!arq?.possui) return "Não possui";
     return formatFlags(arq.tipos, {
       material_litico: "Material lítico",
       material_ceramico: "Material cerâmico",
@@ -231,8 +490,8 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
       nao_identificado: "Não identificado",
     });
   };
-  const formatPaleontologia = (pal?: Paleontologia): string => {
-    if (!pal?.possui) return "Não possui ou não informado";
+  const formatPaleontologia = (pal?: Paleontologia | null): string => {
+    if (!pal?.possui) return "Não possui";
     return formatFlags(pal.tipos, {
       ossada: "Ossada",
       iconofossil: "Iconofóssil",
@@ -240,7 +499,9 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
       nao_identificado: "Não identificado",
     });
   };
-  const formatDificuldadesExternas = (dif?: Dificuldades_externas): string =>
+  const formatDificuldadesExternas = (
+    dif?: Dificuldades_externas | null
+  ): string =>
     formatFlags(
       dif,
       {
@@ -256,9 +517,10 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
         passagem_curso_agua: "Passagem curso d'água",
         nenhuma: "Nenhuma",
       },
-      false
-    ); // 'nenhuma' is exclusive
-  const formatUsoCavidade = (uso?: Uso_cavidade): string =>
+      true,
+      true
+    );
+  const formatUsoCavidade = (uso?: Uso_cavidade | null): string =>
     formatFlags(uso, {
       religioso: "Religioso",
       cientifico_cultural: "Científico/Cultural",
@@ -273,7 +535,9 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
       mergulho: "Mergulho",
       rapel: "Rapel",
     });
-  const formatInfraestruturaAcesso = (infra?: Infraestrutura_acesso): string =>
+  const formatInfraestruturaAcesso = (
+    infra?: Infraestrutura_acesso | null
+  ): string =>
     formatFlags(
       infra,
       {
@@ -283,9 +547,10 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
         pousada_ou_hotel: "Pousada/Hotel",
         nenhuma: "Nenhuma",
       },
-      false
-    ); // 'nenhuma' is exclusive
-  const formatGrupoLitologico = (grupo?: Grupo_litologico): string =>
+      true,
+      true
+    );
+  const formatGrupoLitologico = (grupo?: Grupo_litologico | null): string =>
     formatFlags(grupo, {
       rochas_carbonaticas: "Rochas carbonáticas",
       rochas_ferriferas_ferruginosas: "Rochas ferríferas/ferruginosas",
@@ -294,45 +559,56 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
       rochas_granito_gnaissicas: "Rochas granito/gnáissicas",
     });
   const formatInfraestruturaInterna = (
-    infra?: Infraestrutura_interna
+    infra?: Infraestrutura_interna | null
   ): string => {
     if (!infra) return "Não informado";
+    if (infra.nenhuma) return "Nenhuma";
     const items = [];
     if (infra.passarela) items.push("Passarela");
     if (infra.corrimao) {
-      const corrimaoTipos = formatFlags(infra.corrimao, {
-        ferro: "Ferro",
-        madeira: "Madeira",
-        corda: "Corda",
-      });
-      if (corrimaoTipos !== "Nenhuma")
+      const corrimaoTipos = formatFlags(
+        infra.corrimao,
+        { ferro: "Ferro", madeira: "Madeira", corda: "Corda" },
+        true,
+        false
+      );
+      if (
+        corrimaoTipos !== "Nenhuma selecionada" &&
+        corrimaoTipos !== "Não informado"
+      )
         items.push(`Corrimão (${corrimaoTipos})`);
     }
     if (infra.portao) items.push("Portão");
     if (infra.escada) items.push("Escada");
-    if (infra.corda) items.push("Corda");
+    if (infra.corda) items.push("Corda (instalada)");
     if (infra.iluminacao_artificial) items.push("Iluminação artificial");
     if (infra.ponto_ancoragem) items.push("Ponto de ancoragem");
-    if (infra.nenhuma) items.push("Nenhuma");
-    return items.length > 0 ? items.join(", ") : "Nenhuma";
+    if (infra.outroEnabled && isFieldFilled(infra.outros))
+      items.push(`Outro: ${infra.outros}`);
+    return items.length > 0 ? items.join(", ") : "Nenhuma selecionada";
   };
   const formatDificuldadesInternas = (
-    dif?: Dificuldades_progressao_interna
+    dif?: Dificuldades_progressao_interna | null
   ): string =>
-    formatFlags(dif, {
-      teto_baixo: "Teto baixo",
-      blocos_instaveis: "Blocos instáveis",
-      trechos_escorregadios: "Trechos escorregadios",
-      rastejamento: "Rastejamento",
-      natacao: "Natação",
-      lances_verticais: "Lances verticais",
-      passagem_curso_agua: "Passagem curso d'água",
-      quebra_corpo: "Quebra corpo",
-      sifao: "Sifão",
-      cachoeira: "Cachoeira",
-      nenhuma: "Nenhuma",
-    });
-  const formatMorfologia = (morf?: MorfologiaData): string[] => {
+    formatFlags(
+      dif,
+      {
+        teto_baixo: "Teto baixo",
+        blocos_instaveis: "Blocos instáveis",
+        trechos_escorregadios: "Trechos escorregadios",
+        rastejamento: "Rastejamento",
+        natacao: "Natação",
+        lances_verticais: "Lances verticais",
+        passagem_curso_agua: "Passagem curso d'água",
+        quebra_corpo: "Quebra corpo",
+        sifao: "Sifão",
+        cachoeira: "Cachoeira",
+        nenhuma: "Nenhuma",
+      },
+      true,
+      true
+    );
+  const formatMorfologia = (morf?: MorfologiaData | null): string[] => {
     if (!morf) return ["Não informado"];
     const padrao = formatFlags(morf.padrao_planimetrico, {
       retilinea: "Retilínea",
@@ -359,50 +635,38 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
       irregular: "Irregular",
       mista: "Mista",
     });
-    return [`Padrão Planimétrico: ${padrao}`, `Forma das Seções: ${forma}`];
+    return [
+      `Padrão Planimétrico: ${padrao || "N/I"}`,
+      `Forma das Seções: ${forma || "N/I"}`,
+    ];
   };
-
-  const formatHidrologia = (hidro?: HidrologiaData): string[] => {
+  const formatHidrologia = (hidro?: Hidrologia | null): string[] => {
     if (!hidro) return ["Não informado"];
     const features: string[] = [];
-    const formatFeature = (feature?: HidrologiaFeature, label?: string) => {
-      if (feature?.possui && label) {
-        return `${label}: Sim (${feature.tipo || "Tipo N/A"})`;
-      }
-      return null; // Return null if not present or possui is false
+    const formatFeature = (feature?: HidrologiaFeature, label?: string) =>
+      feature?.possui && label
+        ? `${label}: Sim (${feature.tipo || "Tipo N/A"})`
+        : null;
+    const addFeature = (label: string, feature?: HidrologiaFeature) => {
+      const res = formatFeature(feature, label);
+      features.push(res || `${label}: Não`);
     };
-    features.push(
-      formatFeature(hidro.curso_agua, "Curso d'água") || "Curso d'água: Não"
-    );
-    features.push(formatFeature(hidro.lago, "Lago") || "Lago: Não");
-    features.push(
-      formatFeature(hidro.sumidouro, "Sumidouro") || "Sumidouro: Não"
-    );
-    features.push(
-      formatFeature(hidro.surgencia, "Surgência") || "Surgência: Não"
-    );
-    features.push(
-      formatFeature(hidro.gotejamento, "Gotejamento") || "Gotejamento: Não"
-    );
-    features.push(
-      formatFeature(hidro.empossamento, "Empossamento") || "Empossamento: Não"
-    );
-    features.push(
-      formatFeature(hidro.condensacao, "Condensação") || "Condensação: Não"
-    );
-    features.push(formatFeature(hidro.exudacao, "Exudação") || "Exudação: Não");
-
-    if (hidro.outro) {
-      features.push(`Outro: ${hidro.outro}`);
-    }
-    return features;
+    addFeature("Curso d'água", hidro.curso_agua);
+    addFeature("Lago", hidro.lago);
+    addFeature("Sumidouro", hidro.sumidouro);
+    addFeature("Surgência", hidro.surgencia);
+    addFeature("Gotejamento", hidro.gotejamento);
+    addFeature("Empossamento", hidro.empossamento);
+    addFeature("Condensação", hidro.condensacao);
+    addFeature("Exudação", hidro.exudacao);
+    if (isFieldFilled(hidro.outro)) features.push(`Outro: ${hidro.outro}`);
+    return features.length > 0
+      ? features
+      : ["Nenhuma característica hidrológica informada."];
   };
-
-  const formatSedimentos = (sed?: SedimentosData): string[] => {
+  const formatSedimentos = (sed?: Sedimentos | null): string[] => {
     if (!sed) return ["Não informado"];
     const result: string[] = [];
-
-    // Sedimentação Clástica
     const clastica = sed.sedimentacao_clastica;
     if (clastica?.possui) {
       result.push("Sedimentação Clástica: Sim");
@@ -410,7 +674,7 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
       const tipo = clastica.tipo;
       if (tipo) {
         if (tipo.rochoso) tiposClasticos.push("Rochoso");
-        const formatDetalhe = (detalhe?: SedimentoDetalhe, label?: string) =>
+        const formatDetalhe = (detalhe?: any, label?: string) =>
           detalhe && label
             ? `${label} (Dist: ${detalhe.distribuicao || "N/A"}, Orig: ${
                 detalhe.origem || "N/A"
@@ -430,16 +694,14 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
           formatDetalhe(tipo.matacao_predominante, "Matacão") || ""
         );
       }
+      if (clastica.outroEnabled && isFieldFilled(clastica.outros))
+        tiposClasticos.push(`Outros: ${clastica.outros}`);
       result.push(
         `  Tipos Clásticos: ${
           tiposClasticos.filter((t) => t).join(", ") || "Nenhum"
         }`
       );
-    } else {
-      result.push("Sedimentação Clástica: Não ou não informado");
-    }
-
-    // Sedimentação Orgânica
+    } else result.push("Sedimentação Clástica: Não");
     const organica = sed.sedimentacao_organica;
     if (organica?.possui) {
       result.push("Sedimentação Orgânica: Sim");
@@ -448,7 +710,7 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
       if (tipoOrg) {
         if (tipoOrg.guano) {
           const guanoTipos: string[] = [];
-          const formatGuano = (gTipo?: GuanoTipo, label?: string) =>
+          const formatGuano = (gTipo?: any, label?: string) =>
             gTipo?.possui && label ? `${label} (${gTipo.tipo || "N/A"})` : null;
           guanoTipos.push(
             formatGuano(tipoOrg.guano.carnivoro, "Carnívoro") || ""
@@ -459,18 +721,16 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
           guanoTipos.push(
             formatGuano(tipoOrg.guano.hematofago, "Hematófago") || ""
           );
-          // Corrected typo: inderterminado -> indeterminado
           guanoTipos.push(
             formatGuano(
               (tipoOrg.guano as any).inderterminado,
               "Indeterminado"
             ) || ""
-          ); // Use 'as any' to handle potential typo in data
-          if (guanoTipos.filter((t) => t).length > 0) {
+          );
+          if (guanoTipos.filter((t) => t).length > 0)
             tiposOrganicos.push(
               `Guano: ${guanoTipos.filter((t) => t).join(", ")}`
             );
-          }
         }
         if (tipoOrg.folhico) tiposOrganicos.push("Folhiço");
         if (tipoOrg.galhos) tiposOrganicos.push("Galhos");
@@ -480,50 +740,57 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
         if (tipoOrg.pelotas_regurgitacao)
           tiposOrganicos.push("Pelotas de regurgitação");
       }
+      if (organica.outroEnabled && isFieldFilled(organica.outros))
+        tiposOrganicos.push(`Outros: ${organica.outros}`);
       result.push(
         `  Tipos Orgânicos: ${tiposOrganicos.join(", ") || "Nenhum"}`
       );
-    } else {
-      result.push("Sedimentação Orgânica: Não ou não informado");
-    }
-
-    return result;
+    } else result.push("Sedimentação Orgânica: Não");
+    return result.length > 0 ? result : ["Nenhuma informação de sedimento."];
   };
 
-  const entradasData: Entrada[] = parseJsonField(cavity.entradas, []);
-  const arqueologiaData: Arqueologia | null = parseJsonField(
-    cavity.arqueologia,
-    null
-  );
-  const espeleotemasData: Espeleotemas | null = parseJsonField(
-    cavity.espeleotemas,
-    null
-  );
-  const biotaData: Biota | null = parseJsonField(cavity.biota, null);
-  const paleontologiaData: Paleontologia | null = parseJsonField(
-    cavity.paleontologia,
-    null
-  );
-  const caracterizacaoInternaData: CaracterizacaoInterna | null =
-    parseJsonField(cavity.caracterizacao_interna, null);
-  const dificuldadesExternasData: Dificuldades_externas | null = parseJsonField(
-    cavity.dificuldades_externas,
-    null
-  );
-  const aspectosSocioambientaisData: AspectosSocioambientais | null =
-    parseJsonField(cavity.aspectos_socioambientais, null);
-  const morfologiaData: MorfologiaData | null = parseJsonField(
-    cavity.morfologia,
-    null
-  );
-  const hidrologiaData: HidrologiaData | null = parseJsonField(
-    cavity.hidrologia,
-    null
-  );
-  const sedimentosData: SedimentosData | null = parseJsonField(
-    cavity.sedimentos,
-    null
-  );
+  // --- Rendering Logic ---
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.accent[100]} />
+        <Divider />
+        <TextInter color={colors.white[100]} weight="medium">
+          Carregando detalhes...
+        </TextInter>
+      </SafeAreaView>
+    );
+  }
+  if (error) {
+    return (
+      <SafeAreaView style={styles.centered}>
+        <Header
+          title="Erro"
+          navigation={navigation}
+          onCustomReturn={() => navigation.goBack()}
+        />
+        <Divider />
+        <TextInter color={colors.error[100]} style={{ marginTop: 20 }}>
+          {error}
+        </TextInter>
+      </SafeAreaView>
+    );
+  }
+  if (!cavity) {
+    return (
+      <SafeAreaView style={styles.centered}>
+        <Header
+          title="Não Encontrado"
+          navigation={navigation}
+          onCustomReturn={() => navigation.goBack()}
+        />
+        <Divider />
+        <TextInter style={{ marginTop: 20 }}>
+          Cavidade não encontrada.
+        </TextInter>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.main}>
@@ -541,44 +808,37 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
           <Divider />
           <LabelText
             label="Projeto"
-            text={project?.nome_projeto || "Não informado"}
+            text={
+              project?.nome_projeto ||
+              (cavity.projeto_id
+                ? `ID do Projeto: ${cavity.projeto_id}`
+                : "Não associado a projeto")
+            }
           />
           <Divider />
-          <LabelText
-            label="Responsável pelo registro"
-            text={cavity.responsavel || "Não informado"}
-          />
+          <LabelText label="Responsável" text={cavity.responsavel || "N/I"} />
           <Divider />
           <LabelText
             label="Nome da cavidade"
-            text={cavity.nome_cavidade || "Não informado"}
+            text={cavity.nome_cavidade || "N/I"}
           />
           <Divider />
           <LabelText
             label="Nome do sistema"
-            text={cavity.nome_sistema || "Não informado"}
+            text={cavity.nome_sistema || "N/I"}
           />
           <Divider />
-          <LabelText
-            label="Localidade"
-            text={cavity.localidade || "Não informado"}
-          />
+          <LabelText label="Localidade" text={cavity.localidade || "N/I"} />
           <Divider />
-          <LabelText
-            label="Município"
-            text={cavity.municipio || "Não informado"}
-          />
+          <LabelText label="Município" text={cavity.municipio || "N/I"} />
           <Divider />
-          <LabelText label="UF" text={cavity.uf || "Não informado"} />
+          <LabelText label="UF" text={cavity.uf || "N/I"} />
           <Divider />
-          <LabelText
-            label="Data"
-            text={formatDate(cavity.data) || "Não informado"}
-          />
+          <LabelText label="Data" text={formatDate(cavity.data) || "N/I"} />
           <Divider />
           <LabelText
             label="Desenvolvimento Linear (m)"
-            text={cavity.desenvolvimento_linear?.toString() ?? "Não informado"}
+            text={cavity.desenvolvimento_linear?.toString() ?? "N/I"}
           />
           <Divider />
           <TextInter
@@ -588,12 +848,12 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
           >
             Entradas ({entradasData.length})
           </TextInter>
-          {Array.isArray(entradasData) && entradasData.length > 0 ? (
+          {entradasData.length > 0 ? (
             entradasData.map((entrada, index) => (
               <View key={index} style={styles.entradaContainer}>
                 <View style={styles.entradaHeader}>
                   <TextInter weight="semi-bold" color={colors.white[90]}>
-                    {entrada.nome ? entrada.nome : `Entrada ${index + 1}`}
+                    {entrada.nome || `Entrada ${index + 1}`}
                   </TextInter>
                   {entrada.principal && (
                     <TextInter
@@ -610,49 +870,40 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
                   label="Datum"
                   text={entrada.coordenadas?.datum || "N/A"}
                 />
-                <Divider height={12} />
                 <LabelText
                   label="UTM E"
                   text={entrada.coordenadas?.utm?.utm_e?.toString() ?? "N/A"}
                 />
-                <Divider height={12} />
                 <LabelText
                   label="UTM N"
                   text={entrada.coordenadas?.utm?.utm_n?.toString() ?? "N/A"}
                 />
-                <Divider height={12} />
                 <LabelText
                   label="Zona UTM"
                   text={entrada.coordenadas?.utm?.zona || "N/A"}
                 />
-                <Divider height={12} />
                 <LabelText
                   label="Elevação (m)"
                   text={entrada.coordenadas?.utm?.elevacao?.toString() ?? "N/A"}
                 />
-                <Divider height={12} />
                 <LabelText
-                  label="Quant. de Satélites"
-                  text={entrada.coordenadas?.satelites.toString() || "N/A"}
+                  label="Satélites"
+                  text={entrada.coordenadas?.satelites?.toString() || "N/A"}
                 />
-                <Divider height={12} />
                 <LabelText
                   label="Inserção"
                   text={formatInsercao(entrada.caracteristicas?.insercao)}
                 />
-                <Divider height={12} />
                 <LabelText
                   label="Posição Vertente"
                   text={formatPosicaoVertente(
                     entrada.caracteristicas?.posicao_vertente
                   )}
                 />
-                <Divider height={12} />
                 <LabelText
                   label="Vegetação"
                   text={formatVegetacao(entrada.caracteristicas?.vegetacao)}
                 />
-                <Divider height={12} />
                 {entrada.foto ? (
                   <>
                     <LabelText label="Foto" text="" />
@@ -660,23 +911,21 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
                       style={styles.entradaImage}
                       source={{ uri: entrada.foto }}
                       resizeMode="cover"
-                      onError={(e) =>
-                        console.log("Image load error:", e.nativeEvent.error)
-                      }
                     />
                   </>
                 ) : (
-                  <LabelText label="Foto" text="Nenhuma imagem" />
+                  <LabelText label="Foto" text="Nenhuma" />
                 )}
                 {index < entradasData.length - 1 && <Divider height={15} />}
               </View>
             ))
           ) : (
             <TextInter fontSize={12} color={colors.dark[60]}>
-              Nenhuma entrada informada.
+              Nenhuma entrada.
             </TextInter>
           )}
           <Divider height={18} />
+
           <View style={styles.sectionContainer}>
             <TextInter color={colors.white[100]} fontSize={19}>
               Caracterização Interna
@@ -689,15 +938,12 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
             >
               Morfologia
             </TextInter>
-            {formatMorfologia(morfologiaData || undefined).map(
-              (line, index) => (
-                <TextInter key={`morf-${index}`} style={styles.detailText}>
-                  {line}
-                </TextInter>
-              )
-            )}
+            {formatMorfologia(morfologiaData).map((line, index) => (
+              <TextInter key={`morf-${index}`} style={styles.detailText}>
+                {line}
+              </TextInter>
+            ))}
             <Divider />
-            {/* Display Hidrologia */}
             <TextInter
               weight="medium"
               color={colors.dark[60]}
@@ -705,13 +951,11 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
             >
               Hidrologia
             </TextInter>
-            {formatHidrologia(hidrologiaData || undefined).map(
-              (line, index) => (
-                <TextInter key={`hidro-${index}`} style={styles.detailText}>
-                  {line}
-                </TextInter>
-              )
-            )}
+            {formatHidrologia(hidrologiaData).map((line, index) => (
+              <TextInter key={`hidro-${index}`} style={styles.detailText}>
+                {line}
+              </TextInter>
+            ))}
             <Divider />
             <LabelText
               label="Grupo Litológico"
@@ -723,17 +967,42 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
             <LabelText
               label="Desenvolvimento Predominante"
               text={
-                caracterizacaoInternaData?.desenvolvimento_predominante ||
-                "Não informado"
+                caracterizacaoInternaData?.desenvolvimento_predominante || "N/I"
               }
             />
             <Divider />
-            <LabelText
-              label="Estado de Conservação"
-              text={
-                caracterizacaoInternaData?.estado_conservacao || "Não informado"
-              }
-            />
+            <TextInter
+              weight="medium"
+              color={colors.white[80]}
+              style={styles.subHeader}
+            >
+              Estado de Conservação
+            </TextInter>
+            {caracterizacaoInternaData?.depredacao_localizada ||
+            caracterizacaoInternaData?.depredacao_intensa ? (
+              <>
+                {caracterizacaoInternaData?.depredacao_localizada && (
+                  <LabelText
+                    label="Depredação Localizada"
+                    text={
+                      caracterizacaoInternaData.descricao_depredacao_localizada ||
+                      "Detalhes N/I"
+                    }
+                  />
+                )}
+                {caracterizacaoInternaData?.depredacao_intensa && (
+                  <LabelText
+                    label="Depredação Intensa"
+                    text={
+                      caracterizacaoInternaData.descricao_depredacao_intensa ||
+                      "Detalhes N/I"
+                    }
+                  />
+                )}
+              </>
+            ) : (
+              <TextInter style={styles.detailText}>Conservada</TextInter>
+            )}
             <Divider />
             <LabelText
               label="Infraestrutura Interna"
@@ -748,7 +1017,6 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
                 caracterizacaoInternaData?.dificuldades_progressao_interna
               )}
             />
-            {/* Display Espeleotemas */}
             <Divider />
             <TextInter
               weight="medium"
@@ -758,14 +1026,14 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
               Espeleotemas
             </TextInter>
             {espeleotemasData?.possui ? (
-              espeleotemasData.lista && espeleotemasData.lista.length > 0 ? (
-                espeleotemasData.lista.map((item, index) => (
+              espeleotemasData.tipos && espeleotemasData.tipos.length > 0 ? (
+                espeleotemasData.tipos.map((item, index) => (
                   <LabelText
                     key={item.id || index}
-                    label={`- ${item.tipo || "Tipo não informado"}`}
-                    text={`Porte: ${item.porte || "N/A"}, Frequência: ${
+                    label={`- ${item.tipo || "N/I"}`}
+                    text={`Porte: ${item.porte || "N/A"}, Freq: ${
                       item.frequencia || "N/A"
-                    }, Conservação: ${item.estado_conservacao || "N/A"}`}
+                    }, Conserv: ${item.estado_conservacao || "N/A"}`}
                   />
                 ))
               ) : (
@@ -775,11 +1043,10 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
               )
             ) : (
               <TextInter fontSize={12} color={colors.dark[60]}>
-                Não possui ou não informado.
+                Não possui.
               </TextInter>
             )}
             <Divider />
-            {/* Display Sedimentos */}
             <TextInter
               weight="medium"
               color={colors.dark[60]}
@@ -787,15 +1054,14 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
             >
               Sedimentos
             </TextInter>
-            {formatSedimentos(sedimentosData || undefined).map(
-              (line, index) => (
-                <TextInter key={`sed-${index}`} style={styles.detailText}>
-                  {line}
-                </TextInter>
-              )
-            )}
+            {formatSedimentos(sedimentosData).map((line, index) => (
+              <TextInter key={`sed-${index}`} style={styles.detailText}>
+                {line}
+              </TextInter>
+            ))}
           </View>
           <Divider height={18} />
+
           <View style={styles.sectionContainer}>
             <TextInter color={colors.white[100]} fontSize={19}>
               Biota
@@ -804,82 +1070,75 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
             <LabelText
               label="Invertebrados"
               text={
-                formatFlags(
-                  biotaData?.invertebrados,
-                  { possui: "Possui" },
-                  false
-                ) +
-                  (biotaData?.invertebrados?.tipos
-                    ? `: ${biotaData.invertebrados.tipos.join(", ")}`
-                    : "") +
-                  (biotaData?.invertebrados?.outroEnabled &&
-                  biotaData?.invertebrados?.outro
-                    ? `, Outro: ${biotaData.invertebrados.outro}`
-                    : "") || "Não informado"
+                biotaData?.invertebrado?.possui
+                  ? formatFlags(
+                      biotaData.invertebrado,
+                      invertebradoLabels,
+                      true,
+                      false
+                    )
+                  : "Não possui"
               }
             />
             <Divider />
             <LabelText
               label="Invertebrados Aquáticos"
               text={
-                formatFlags(
-                  biotaData?.invertebrados_aquaticos,
-                  { possui: "Possui" },
-                  false
-                ) +
-                  (biotaData?.invertebrados_aquaticos?.tipos
-                    ? `: ${biotaData.invertebrados_aquaticos.tipos.join(", ")}`
-                    : "") +
-                  (biotaData?.invertebrados_aquaticos?.outroEnabled &&
-                  biotaData?.invertebrados_aquaticos?.outro
-                    ? `, Outro: ${biotaData.invertebrados_aquaticos.outro}`
-                    : "") || "Não informado"
+                biotaData?.invertebrado_aquatico?.possui
+                  ? formatFlags(
+                      biotaData.invertebrado_aquatico,
+                      invertebradoAquaticoLabels,
+                      true,
+                      false
+                    )
+                  : "Não possui"
               }
             />
             <Divider />
             <LabelText
               label="Anfíbios"
               text={
-                formatFlags(biotaData?.anfibios, { possui: "Possui" }, false) +
-                  (biotaData?.anfibios?.tipos
-                    ? `: ${biotaData.anfibios.tipos.join(", ")}`
-                    : "") +
-                  (biotaData?.anfibios?.outroEnabled &&
-                  biotaData?.anfibios?.outro
-                    ? `, Outro: ${biotaData.anfibios.outro}`
-                    : "") || "Não informado"
+                biotaData?.anfibios?.possui
+                  ? biotaData.anfibios.tipos &&
+                    biotaData.anfibios.tipos.length > 0
+                    ? biotaData.anfibios.tipos.join(", ")
+                    : isFieldFilled(biotaData.anfibios.outro)
+                    ? `Outro: ${biotaData.anfibios.outro}`
+                    : "Tipos N/I"
+                  : "Não possui"
               }
             />
             <Divider />
             <LabelText
               label="Répteis"
               text={
-                formatFlags(biotaData?.repteis, { possui: "Possui" }, false) +
-                  (biotaData?.repteis?.tipos
-                    ? `: ${biotaData.repteis.tipos.join(", ")}`
-                    : "") +
-                  (biotaData?.repteis?.outroEnabled && biotaData?.repteis?.outro
-                    ? `, Outro: ${biotaData.repteis.outro}`
-                    : "") || "Não informado"
+                biotaData?.repteis?.possui
+                  ? biotaData.repteis.tipos &&
+                    biotaData.repteis.tipos.length > 0
+                    ? biotaData.repteis.tipos.join(", ")
+                    : isFieldFilled(biotaData.repteis.outro)
+                    ? `Outro: ${biotaData.repteis.outro}`
+                    : "Tipos N/I"
+                  : "Não possui"
               }
             />
             <Divider />
             <LabelText
               label="Aves"
               text={
-                formatFlags(biotaData?.aves, { possui: "Possui" }, false) +
-                  (biotaData?.aves?.tipos
-                    ? `: ${biotaData.aves.tipos.join(", ")}`
-                    : "") +
-                  (biotaData?.aves?.outroEnabled && biotaData?.aves?.outro
-                    ? `, Outro: ${biotaData.aves.outro}`
-                    : "") || "Não informado"
+                biotaData?.aves?.possui
+                  ? biotaData.aves.tipos && biotaData.aves.tipos.length > 0
+                    ? biotaData.aves.tipos.join(", ")
+                    : isFieldFilled(biotaData.aves.outro)
+                    ? `Outro: ${biotaData.aves.outro}`
+                    : "Tipos N/I"
+                  : "Não possui"
               }
             />
             <Divider />
             <LabelText
               label="Peixes"
-              text={biotaData?.peixes ? "Sim" : "Não ou não informado"}
+              text={biotaData?.peixes ? "Sim" : "Não"}
             />
             <Divider />
             <TextInter
@@ -895,7 +1154,7 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
                 biotaData.morcegos.tipos.map((morcego, index) => (
                   <LabelText
                     key={index}
-                    label={`- ${morcego.tipo || "Tipo não informado"}`}
+                    label={`- ${morcego.tipo || "N/I"}`}
                     text={`Quantidade: ${morcego.quantidade || "N/A"}`}
                   />
                 ))
@@ -906,7 +1165,7 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
               )
             ) : (
               <TextInter fontSize={12} color={colors.dark[60]}>
-                Não possui ou não informado.
+                Não possui.
               </TextInter>
             )}
             {biotaData?.morcegos?.observacoes_gerais && (
@@ -917,6 +1176,7 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
             )}
           </View>
           <Divider height={18} />
+
           <View style={styles.sectionContainer}>
             <TextInter color={colors.white[100]} fontSize={19}>
               Arqueologia
@@ -924,12 +1184,10 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
             <Divider />
             <LabelText
               label="Vestígios"
-              text={formatArqueologia(arqueologiaData || undefined)}
+              text={formatArqueologia(arqueologiaData)}
             />
           </View>
           <Divider height={18} />
-
-          {/* Section: Paleontologia */}
           <View style={styles.sectionContainer}>
             <TextInter color={colors.white[100]} fontSize={19}>
               Paleontologia
@@ -937,12 +1195,10 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
             <Divider />
             <LabelText
               label="Vestígios"
-              text={formatPaleontologia(paleontologiaData || undefined)}
+              text={formatPaleontologia(paleontologiaData)}
             />
           </View>
           <Divider height={18} />
-
-          {/* Section: Aspectos Externos */}
           <View style={styles.sectionContainer}>
             <TextInter color={colors.white[100]} fontSize={19}>
               Aspectos Externos
@@ -950,9 +1206,7 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
             <Divider />
             <LabelText
               label="Dificuldades Externas"
-              text={formatDificuldadesExternas(
-                dificuldadesExternasData || undefined
-              )}
+              text={formatDificuldadesExternas(dificuldadesExternasData)}
             />
             <Divider />
             <TextInter
@@ -974,7 +1228,7 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
               text={
                 aspectosSocioambientaisData?.comunidade_envolvida?.envolvida
                   ? "Sim"
-                  : "Não ou não informado"
+                  : "Não"
               }
             />
             {aspectosSocioambientaisData?.comunidade_envolvida?.envolvida &&
@@ -995,24 +1249,24 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
                       aspectosSocioambientaisData.area_protegida.federal.nome
                     } (${
                       aspectosSocioambientaisData.area_protegida.federal.zona ||
-                      "Zona N/A"
+                      "N/A"
                     })`
                   : aspectosSocioambientaisData?.area_protegida?.estadual?.nome
                   ? `Estadual: ${
                       aspectosSocioambientaisData.area_protegida.estadual.nome
                     } (${
                       aspectosSocioambientaisData.area_protegida.estadual
-                        .zona || "Zona N/A"
+                        .zona || "N/A"
                     })`
                   : aspectosSocioambientaisData?.area_protegida?.municipal?.nome
                   ? `Municipal: ${
                       aspectosSocioambientaisData.area_protegida.municipal.nome
                     } (${
                       aspectosSocioambientaisData.area_protegida.municipal
-                        .zona || "Zona N/A"
+                        .zona || "N/A"
                     })`
                   : aspectosSocioambientaisData?.area_protegida?.nao_determinado
-                  ? "Não foi possível determinar"
+                  ? "Não determinado"
                   : "Não informado"
               }
             />
@@ -1025,7 +1279,7 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
             />
           </View>
           <Divider height={18} />
-          {!cavity.uploaded && (
+          {cavity && !cavity.uploaded && (
             <LongButton
               title="Editar"
               onPress={() =>
@@ -1035,18 +1289,27 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
               }
             />
           )}
+          <Divider height={20} />
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
+// Default minimal structures for biota if not fully present in DB record.
+// These match the structure of the Biota type and its sub-types.
+const defaultBiota: Biota = {
+  invertebrado: { possui: false, outroEnabled: false },
+  invertebrado_aquatico: { possui: false, outroEnabled: false },
+  anfibios: { possui: false, tipos: [], outroEnabled: false },
+  repteis: { possui: false, tipos: [], outroEnabled: false },
+  aves: { possui: false, tipos: [], outroEnabled: false },
+  peixes: false,
+  morcegos: { possui: false, tipos: [] },
+};
+
 const styles = StyleSheet.create({
-  main: {
-    backgroundColor: colors.dark[90],
-    flex: 1,
-    paddingHorizontal: 20,
-  },
+  main: { backgroundColor: colors.dark[90], flex: 1, paddingHorizontal: 20 },
   container: {
     flex: 1,
     borderWidth: 1,
@@ -1056,19 +1319,18 @@ const styles = StyleSheet.create({
     paddingVertical: 25,
     marginBottom: 20,
   },
-  image: {
-    width: 161,
-    height: 91,
-  },
   centered: {
     flex: 1,
     justifyContent: "flex-start",
     alignItems: "center",
     backgroundColor: colors.dark[90],
+    paddingTop: Platform.OS === "android" ? 25 : 0,
   },
   subHeader: {
     marginBottom: 8,
     marginTop: 5,
+    fontSize: 14,
+    color: colors.dark[40],
   },
   entradaContainer: {
     marginTop: 8,
@@ -1083,11 +1345,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 5,
   },
-  entradaText: {
-    fontSize: 13,
-    color: colors.dark[20],
-    marginTop: 1,
-  },
   entradaImage: {
     width: "80%",
     aspectRatio: 16 / 9,
@@ -1099,17 +1356,18 @@ const styles = StyleSheet.create({
   },
   sectionContainer: {
     borderWidth: 1,
-    borderColor: colors.dark[50],
+    borderColor: colors.dark[70],
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 20,
     backgroundColor: colors.dark[80],
+    marginBottom: 10,
   },
   detailText: {
     fontSize: 13,
     color: colors.dark[20],
     marginTop: 1,
-    marginBottom: 3, // Add some space between lines
-    lineHeight: 18, // Improve readability
+    marginBottom: 3,
+    lineHeight: 18,
   },
 });

@@ -32,24 +32,56 @@ export const checkIfIsBlank = (value: string) => {
   return value.trim() === "";
 };
 
-export const formatDate = (date: string): string => {
+export const formatDate = (dateString: string): string => {
   try {
-    const confirmIsADate = new Date(date).toISOString();
-    const [year, month, day] = confirmIsADate.split("T")[0].split("-");
-    const parsedDate = new Date(Number(year), Number(month) - 1, Number(day));
+    // Log the incoming date string for debugging
+    console.log("Input date string:", dateString);
 
-    if (isNaN(parsedDate.getTime())) {
+    // Step 1: Split the input string assuming "DD/MM/YYYY" format
+    const parts = dateString.split("/");
+    if (parts.length !== 3) {
+      console.error("Invalid date format. Expected DD/MM/YYYY. Received:", dateString);
+      return "Formato de data inválido"; // More specific error
+    }
+
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10); // Month from input is 1-indexed (e.g., 1 for January)
+    const year = parseInt(parts[2], 10);
+
+    // Basic validation for parsed numbers
+    if (isNaN(day) || isNaN(month) || isNaN(year)) {
+      console.error("Invalid date components after parsing. Input:", dateString);
+      return "Componentes da data inválidos";
+    }
+
+    // Step 2: Create a Date object.
+    // Note: The month for the JavaScript Date constructor is 0-indexed (0 for January, 1 for February, etc.)
+    const parsedDate = new Date(year, month - 1, day);
+
+    // Step 3: Validate the created date.
+    // This checks if the date is a valid calendar date (e.g., not Feb 30)
+    // and also ensures the Date constructor didn't roll over months/years due to invalid day/month.
+    if (
+      isNaN(parsedDate.getTime()) ||       // Check if it's an "Invalid Date"
+      parsedDate.getFullYear() !== year ||
+      parsedDate.getMonth() !== month - 1 ||
+      parsedDate.getDate() !== day
+    ) {
+      console.error("Date components do not form a valid calendar date. Input:", dateString);
       return "Data inválida";
     }
 
+    // Step 4: Format the valid Date object to the desired "pt-BR" locale string
     return parsedDate.toLocaleDateString("pt-BR", {
       day: "2-digit",
-      month: "long",
+      month: "long",  // "long" gives "junho", "numeric" would give "06"
       year: "numeric",
     });
+
   } catch (e) {
-    console.error("Error formatting date:", e);
-    return "Erro na data";
+    // Catch any other unexpected errors during the process
+    console.error("Unexpected error formatting date:", dateString, e);
+    return "Erro ao formatar data";
   }
 };
 

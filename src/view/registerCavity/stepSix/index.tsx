@@ -162,7 +162,7 @@ export const StepSix: FC<StepSixProps> = ({ navigation, route, validationAttempt
     <View style={styles.container}>
       <Divider />
       <TextInter color={colors.white[100]} fontSize={19} weight="medium">
-        Hidrologia
+        Hidrologia *
       </TextInter>
       <Divider />
       {renderFeatureSection("curso_agua", "Curso d’água")}

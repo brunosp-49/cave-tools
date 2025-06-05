@@ -85,6 +85,7 @@ console.log({latestCavities})
   );
 
   const handleOpenDetail = useCallback((projectId: string) => {
+    console.log(projectId)
     navigation.navigate("DetailScreenProject", { projectId });
   }, []);
 
@@ -125,6 +126,7 @@ console.log({latestCavities})
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
               <ProjectCard
+                key={item.id}
                 project={item}
                 onPress={() => handleOpenDetail(item.id)}
               />
