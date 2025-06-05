@@ -34,5 +34,8 @@ export const colors = {
   },
   warning: {
     100: "#FFA500",
+  },
+  primary_green: {
+    100: 'green'
   }
 };

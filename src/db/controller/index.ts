@@ -5,6 +5,7 @@ import {
   ProjectModel,
   ProjectPayload,
   UserModel,
+  type TopographyData,
 } from "../../types";
 import { encrypt } from "../../types/crypt";
 import { database } from "../index";
@@ -15,6 +16,7 @@ import { showError } from "../../redux/loadingSlice";
 import Project from "../model/project";
 import User from "../model/user";
 import { setUserName } from "../../redux/userSlice";
+import type Topography from "../model/topography";
 
 export interface UploadProjectPayload {
   _id: string;
@@ -144,6 +146,35 @@ export const createProject = async (
   }
 };
 
+export const createTopography = async (toposData: TopographyData[]): Promise<void> => {
+  try {
+    const topographyCollection = database.collections.get<Topography>("topography");
+
+    const operations = toposData.map(topoMap => topographyCollection.prepareCreate(topo => {
+      topo._raw.id = topoMap.registro_id;
+      topo.registro_id = topoMap.registro_id;
+      topo.cavity_id = topoMap.cavity_id;
+      topo.data = topoMap.data;
+      topo.azimuth = topoMap.azimuth;
+      topo.distance = topoMap.distance;
+      topo.from = topoMap.from;
+      topo.incline = topoMap.incline;
+      topo.to = topoMap.to;
+      topo.turnDown = topoMap.turnDown;
+      topo.turnLeft = topoMap.turnLeft;
+      topo.turnRight = topoMap.turnRight;
+      topo.turnUp = topoMap.turnUp;
+    }))
+
+    await database.write(async () => {
+      await database.batch(...operations);
+    });
+    console.log(`Topography created ${toposData.length} successfully!`);
+  } catch (error) {
+    console.error("Error creating topography:", error);
+  }
+}
+
 // GET
 export const fetchAllCavities = async (): Promise<CavityRegisterData[]> => {
   try {
@@ -231,6 +262,18 @@ export const fetchAllProjects = async (): Promise<ProjectModel[]> => {
   }
 };
 
+export const fetchAllTopographies = async (): Promise<TopographyData[]> => {
+  try {
+    const topographyCollection = database.collections.get<Topography>("topography");
+    const topographies = await topographyCollection.query().fetch();
+
+    return topographies.map((topography: any) => topography._raw);
+  } catch (error) {
+    console.error("Error fetching topographies:", error);
+    return [];
+  }
+};
+
 export const getProjectsWithPendingCavitiesCount = async (): Promise<number> => {
   try {
     const projectCollection = database.get<Project>('project');
@@ -241,7 +284,7 @@ export const getProjectsWithPendingCavitiesCount = async (): Promise<number> => 
       const cavityCollection = database.get<CavityRegister>('cavity_register');
       // Verifica se o projeto em si está pendente OU se tem cavidades pendentes
       const pendingCavitiesForThisProject = await cavityCollection.query(
-        Q.where('projeto_id', project.id), 
+        Q.where('projeto_id', project.id),
         Q.where('uploaded', false)
       ).fetchCount();
 
@@ -254,7 +297,7 @@ export const getProjectsWithPendingCavitiesCount = async (): Promise<number> => 
     return projectsWithPendingCavities;
   } catch (error) {
     console.error("[DB Controller] Error counting projects with pending items:", error);
-    throw error; 
+    throw error;
   }
 };
 
@@ -267,8 +310,8 @@ export const fetchProjectsWithPendingCavities = async (): Promise<UploadProjectP
     for (const project of allProjects) {
       const cavityCollection = database.get<CavityRegister>('cavity_register');
       const pendingCavitiesModels = await cavityCollection.query(
-        Q.where('projeto_id', project.id), 
-        Q.where('uploaded', false) 
+        Q.where('projeto_id', project.id),
+        Q.where('uploaded', false)
       ).fetch();
 
       // Inclui o projeto se ele próprio não foi carregado OU se tem cavidades pendentes
@@ -280,19 +323,19 @@ export const fetchProjectsWithPendingCavities = async (): Promise<UploadProjectP
                 return JSON.parse(fieldData);
               } catch (e) {
                 console.warn(`[DB Controller] Failed to parse JSON for field ${fieldName} in cavity ${cm.registro_id}:`, fieldData, e);
-                return null; 
+                return null;
               }
             }
-            return fieldData; 
+            return fieldData;
           };
 
           return {
             registro_id: cm.registro_id,
-            projeto_id: cm.projeto_id, 
+            projeto_id: cm.projeto_id,
             responsavel: cm.responsavel,
             nome_cavidade: cm.nome_cavidade,
             nome_sistema: cm.nome_sistema,
-            data: cm.data, 
+            data: cm.data,
             municipio: cm.municipio,
             uf: cm.uf,
             localidade: cm.localidade,
@@ -312,16 +355,16 @@ export const fetchProjectsWithPendingCavities = async (): Promise<UploadProjectP
             // Não incluir 'uploaded' no payload da cavidade para a API, a menos que a API espere.
           } as Cavidade;
         });
-        
+
         projectsToSyncAggregated.push({
-            _id: project.id, // ID local para referência
-            fk_cliente: project.fk_cliente,
-            nome_projeto: project.nome_projeto,
-            inicio: project.inicio,
-            descricao_projeto: project.descricao_projeto,
-            responsavel: project.responsavel,
-            // uploaded: project.uploaded, // Opcional: enviar o estado de upload do projeto
-            cavities: cavitiesPayload, // Renomeado para 'projects'
+          _id: project.id, // ID local para referência
+          fk_cliente: project.fk_cliente,
+          nome_projeto: project.nome_projeto,
+          inicio: project.inicio,
+          descricao_projeto: project.descricao_projeto,
+          responsavel: project.responsavel,
+          // uploaded: project.uploaded, // Opcional: enviar o estado de upload do projeto
+          cavities: cavitiesPayload, // Renomeado para 'projects'
         });
       }
     }
@@ -453,21 +496,21 @@ export const syncConsolidatedUpload = async (
       if (response.status === 200 || response.status === 201 || response.status === 204) {
         await database.write(async () => {
           const localProject = await database.get<Project>('project').find(projectPackage._id);
-          if (localProject && !localProject.uploaded) { 
+          if (localProject && !localProject.uploaded) {
             await localProject.update(p => { p.uploaded = true; });
-             console.log(`[DB Controller] Project ${localProject.nome_projeto} marked as uploaded.`);
+            console.log(`[DB Controller] Project ${localProject.nome_projeto} marked as uploaded.`);
           }
 
           for (const syncedCavity of projectPackage.cavities) { // Usa projectPackage.projects
             const localCavities = await database.get<CavityRegister>('cavity_register').query(Q.where('registro_id', syncedCavity.registro_id)).fetch();
             if (localCavities.length > 0) {
-                const localCavity = localCavities[0];
-                if (!localCavity.uploaded) { 
-                    await localCavity.update(c => { c.uploaded = true; });
-                    console.log(`[DB Controller] Cavity ${localCavity.nome_cavidade} (Reg ID: ${localCavity.registro_id}) marked as uploaded.`);
-                }
+              const localCavity = localCavities[0];
+              if (!localCavity.uploaded) {
+                await localCavity.update(c => { c.uploaded = true; });
+                console.log(`[DB Controller] Cavity ${localCavity.nome_cavidade} (Reg ID: ${localCavity.registro_id}) marked as uploaded.`);
+              }
             } else {
-                console.warn(`[DB Controller] Local cavity with registro_id ${syncedCavity.registro_id} not found after sync for project ${projectPackage.nome_projeto}.`);
+              console.warn(`[DB Controller] Local cavity with registro_id ${syncedCavity.registro_id} not found after sync for project ${projectPackage.nome_projeto}.`);
             }
           }
         });
@@ -491,6 +534,29 @@ export const syncConsolidatedUpload = async (
   } else {
     console.error('[DB Controller] Consolidated upload finished with errors:', errors);
     return { success: false, error: errors.join('; \n') };
+  }
+};
+
+export const updateTopography = async (registro_id: string, updatedData: Partial<TopographyData>): Promise<void> => {
+  try {
+    const topographyCollection = database.collections.get<Topography>("topography");
+    const topography = await topographyCollection.find(registro_id);
+
+    await database.write(async () => {
+      await topography.update((topo) => {
+        topo.from = updatedData.from || topo.from;
+        topo.incline = updatedData.incline || topo.incline;
+        topo.to = updatedData.to || topo.to;
+        topo.turnDown = updatedData.turnDown || topo.turnDown;
+        topo.turnLeft = updatedData.turnLeft || topo.turnLeft;
+        topo.turnRight = updatedData.turnRight || topo.turnRight;
+        topo.turnUp = updatedData.turnUp || topo.turnUp;
+      });
+    });
+
+    console.log("Topography updated successfully!");
+  } catch (error) {
+    console.error("Error updating Topography:", error);
   }
 };
 
@@ -578,3 +644,19 @@ export const deleteAllProjects = async (): Promise<void> => {
     console.error("Error deleting all projects:", error);
   }
 };
+
+export const deleteTopography = async (registro_id: string): Promise<void> => {
+  try {
+    const topographyCollection = database.collections.get<Topography>("topography");
+    const topography = await topographyCollection.find(registro_id);
+
+    await database.write(async () => {
+      await topography.markAsDeleted();
+      await topography.destroyPermanently();
+    });
+
+    console.log("Topography deleted successfully!");
+  } catch (error) {
+    console.error("Error deleting topography:", error);
+  }
+}

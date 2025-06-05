@@ -41,6 +41,8 @@ import { DetailScreenCavity } from "../view/detailScreenCavity";
 import { DetailScreenProject } from "../view/detailScreenProject";
 import { HomeScreen } from "../view/home";
 import Dashboard from "../view/dashboard";
+import TopographyCreateScreen from "../view/TopographyCreate";
+import { TopographyDetailScreen } from "../view/topographyDetails";
 
 const Drawer = createDrawerNavigator();
 
@@ -109,8 +111,16 @@ const DrawerNavigator = () => {
       <Drawer.Screen
         name="TopographyScreen"
         component={TopographyScreen}
-        name="DetailScreenCavity"
-        component={DetailScreenCavity}
+        options={{ headerShown: false }}
+      />
+      <Drawer.Screen
+        name="TopographyDetailScreen"
+        component={TopographyDetailScreen}
+        options={{ headerShown: false }}
+      />
+      <Drawer.Screen
+        name="TopographyCreateScreen"
+        component={TopographyCreateScreen}
         options={{ headerShown: false }}
       />
       <Drawer.Screen

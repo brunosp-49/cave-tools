@@ -1,5 +1,4 @@
 import {
-  Animated,
   FlatList,
   SafeAreaView,
   StyleSheet,
@@ -8,24 +7,26 @@ import {
 import { Header } from "../../components/header";
 import { colors } from "../../assets/colors";
 import TextInter from "../../components/textInter";
-import { FC, useCallback, useRef, useState } from "react";
+import { FC } from "react";
 import { RouterProps } from "../../types";
-import { useAppSelector } from "../../hook";
 import { MenuCard } from "../home/components/menuCard";
 import { Divider } from "../../components/divider";
 import { useDispatch } from "react-redux";
-import { useInternetConnection } from "../../hook/useInternetConnection";
+import { FakeBottomTab } from "../../components/fakeBottomTab";
+import { updateMode } from "../../redux/topographySlice";
 
 export const TopographyScreen: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch();
 
-  const { userName } = useAppSelector((state) => state.user);
-  const isConnected = useInternetConnection();
+  const changeScreen = (mode: string) => {
+    dispatch(updateMode(mode))
+    navigation.navigate('TopographyCreateScreen');
+  }
 
   return (
     <SafeAreaView style={styles.main}>
       <View style={styles.container}>
-        <Header title="Topografia" navigation={navigation} />
+        <Header title="Topografia" navigation={navigation} onCustomReturn={() => navigation.goBack()} />
         <Divider height={50} />
         <TextInter fontSize={19} weight="medium" color={colors.white[100]}>
           Selecione o que deseja fazer
@@ -35,34 +36,24 @@ export const TopographyScreen: FC<RouterProps> = ({ navigation }) => {
           data={[
             {
               title: "Inserir informações topográficas",
-              // icon: <PieChartIcon />,
               icon: null,
-              id: 4,
-              onPress: () => navigation.navigate("Dashboard"),
+              id: 1,
+              onPress: () => changeScreen('create'),
               disabled: false,
             },
             {
               title: "Editar informações topográficas",
-              // icon: <PapersIcon />,
               icon: null,
-              id: 5,
-              onPress: () => navigation.navigate("ProjectScreen"),
-              disabled: false,
+              id: 2,
+              onPress: () => changeScreen('edit'),
+              disabled: true,
             },
             {
               title: "Visualizar informações topográficas",
               icon: null,
-              // icon: (
-              //   <Ionicons
-              //     name="cloud-upload"
-              //     size={42}
-              //     color={isConnected ? colors.accent[100] : colors.accent[30]}
-              //     style={{ marginRight: 4 }}
-              //   />
-              // ),
-              id: 6,
-              // onPress: () => setIsUploadModalVisible(true),
-              disabled: !isConnected,
+              id: 3,
+              onPress: () => changeScreen('view'),
+              disabled: false
             },
           ]}
           keyExtractor={(item) => String(item.id)}
@@ -70,13 +61,13 @@ export const TopographyScreen: FC<RouterProps> = ({ navigation }) => {
             <MenuCard
               icon={item.icon}
               title={item.title}
-              onPress={() => item.onPress}
-              disabled={item.id === 2 || item.id === 3 || !isConnected}
+              onPress={item.onPress}
             />
           )}
-          ItemSeparatorComponent={({}) => <Divider height={16} />}
+          ItemSeparatorComponent={({ }) => <Divider height={16} />}
         />
       </View>
+      <FakeBottomTab onPress={() => navigation.navigate("RegisterCavity")} />
     </SafeAreaView>
   );
 };

@@ -1,0 +1,13 @@
+import React from "react";
+import { SvgIconProps } from "../../types";
+import { Path, Svg } from "react-native-svg";
+
+const WideScreenIcon: React.FC<SvgIconProps> = ({ size = 49 }) => {
+  return (
+    <Svg width="21" height="21" fill="none" viewBox="0 0 21 21">
+      <Path d="M7.58333 11.7717L9.22833 13.4167L3.97833 18.6667H8.16667V21H0V12.8333H2.33333V17.0217L7.58333 11.7717ZM9.22833 7.58333L7.58333 9.22833L2.33333 3.97833V8.16667H0V0H8.16667V2.33333H3.97833L9.22833 7.58333ZM13.4167 11.7717L18.6667 17.0217V12.8333H21V21H12.8333V18.6667H17.0217L11.7717 13.4167L13.4167 11.7717ZM11.7717 7.58333L17.0217 2.33333H12.8333V0H21V8.16667H18.6667V3.97833L13.4167 9.22833L11.7717 7.58333Z" fill="white"/>
+    </Svg>
+  );
+};
+
+export default WideScreenIcon;

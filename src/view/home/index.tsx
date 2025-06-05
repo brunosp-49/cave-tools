@@ -28,7 +28,6 @@ import { useAppSelector } from "../../hook";
 import PapersIcon from "../../components/icons/papersIcon";
 import { FakeBottomTab } from "../../components/fakeBottomTab";
 import { StatusBar } from "expo-status-bar";
-import { useFocusEffect } from "@react-navigation/native";
 
 export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -137,7 +136,7 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
               icon={item.icon}
               title={item.title}
               onPress={item.onPress}
-              disabled={item.id === 2 || item.id === 3 || !isConnected}
+              disabled={item.id === 3 || !isConnected}
             />
           )}
           ItemSeparatorComponent={({}) => <Divider height={16} />}
