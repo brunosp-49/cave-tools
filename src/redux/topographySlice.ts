@@ -49,15 +49,15 @@ const projectFilterInitialState: ProjectFilter = {
 const topographyInitialState: TopographyPoint[] = [
   {
     cavity_id: '',
-    azimuth: 0,
-    distance: 0,
-    from: 0,
-    incline: 0,
-    to: 0,
-    turnDown: 0,
-    turnLeft: 0,
-    turnRight: 0,
-    turnUp: 0
+    azimuth: '',
+    distance: '',
+    from: '',
+    incline: '',
+    to: '',
+    turnDown: '',
+    turnLeft: '',
+    turnRight: '',
+    turnUp: ''
   }
 ]
 

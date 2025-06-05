@@ -13,15 +13,15 @@ export interface RouterProps {
 
 export type TopographyPoint = {
   cavity_id: string;
-  from: number;
-  to: number;
-  distance: number;
-  azimuth: number;
-  incline: number;
-  turnUp: number;
-  turnDown: number;
-  turnRight: number;
-  turnLeft: number;
+  from: string;
+  to: string;
+  distance: string;
+  azimuth: string;
+  incline: string;
+  turnUp: string;
+  turnDown: string;
+  turnRight: string;
+  turnLeft: string;
 };
 
 export interface TableTopographyProps {

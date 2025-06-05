@@ -16,8 +16,9 @@ import { updateCavityId, updateCurrentStep } from "../../../redux/topographySlic
 
 const StepTwo: FC<StepComponentProps> = ({ navigation, validationAttempted }) => {
   const dispatch = useDispatch();
-  const {topography, currentStep, mode } = useSelector((state: RootState) => ({
+  const { topography, currentStep, mode, filter } = useSelector((state: RootState) => ({
     topography: state.topography.cavity_id,
+    filter: state.topography.projectFilter,
     currentStep: state.topography.currentStep,
     mode: state.topography.mode
   }));
@@ -31,7 +32,27 @@ const StepTwo: FC<StepComponentProps> = ({ navigation, validationAttempted }) =>
     }
     try {
       const cavityCollection = database.get<CavityRegister>("cavity_register");
-      const fetchedCavities = await cavityCollection.query(Q.sortBy("data", Q.desc), Q.take(5)).fetch();
+
+      const filters = [];
+      if (filter.project?.value) {
+        filters.push(Q.where('projeto_id', filter.project.value));
+      }
+      if (filter.cavity_name) {
+        filters.push(Q.where('nome_cavidade', Q.like(`%${filter.cavity_name}%`)));
+      }
+      // if (filter.cavity_id) {
+      //   filters.push(Q.where('cavity_id', filter.cavity_id));
+      // }
+      if (filter.state) {
+        filters.push(Q.where('uf', filter.state));
+      }
+      if (filter.city) {
+        filters.push(Q.where('municipio', filter.city));
+      }
+
+      const fetchedCavities = await cavityCollection.query(
+        ...filters,
+      ).fetch();
       setLatestCavities(fetchedCavities);
     } catch (error) {
       console.error("Error fetching cavities:", error);
