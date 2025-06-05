@@ -129,6 +129,11 @@ const DrawerNavigator = () => {
         options={{ headerShown: false }}
       />
       <Drawer.Screen
+        name="DetailScreenCavity"
+        component={DetailScreenCavity}
+        options={{ headerShown: false }}
+      />
+      <Drawer.Screen
         name="HomeScreen"
         component={HomeScreen}
         options={{ headerShown: false }}
