@@ -1,4 +1,4 @@
-import React, { FC, useCallback, useMemo } from "react"; // Adicionado useMemo e FC
+import React, { FC, useCallback, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { colors } from "../../../assets/colors";
@@ -6,12 +6,13 @@ import { Divider } from "../../../components/divider";
 import TextInter from "../../../components/textInter";
 import { Checkbox } from "../../../components/checkbox";
 import { Input } from "../../../components/input";
-import RadioButtonGroup from "../../../components/radio";
+import RadioButtonGroup from "../../../components/radio"; // Still used for Desenvolvimento Predominante
 import {
+  CaracterizacaoInterna, // Import this for correct typing
   Dificuldades_progressao_interna,
   Grupo_litologico,
   Infraestrutura_interna,
-  RouterProps, // Importar RouterProps
+  RouterProps,
 } from "../../../types";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "../../../redux/store";
@@ -21,26 +22,19 @@ import {
   setInfraestruturaInternaOutrosText,
 } from "../../../redux/cavitySlice";
 
-// Interface para as props do StepFour
-// Se StepComponentProps já está definido em um arquivo de tipos central, importe-o de lá.
 interface StepFourProps extends RouterProps {
   validationAttempted: boolean;
 }
 
-type GrupoLitologicoKeys = keyof Grupo_litologico;
+type GrupoLitologicoKeys = keyof Omit<Grupo_litologico, "outro">; // Exclude 'outro' for boolean toggles
 type InfraInternaSpecificKeys = Exclude<
   keyof Infraestrutura_interna,
-  "outroEnabled" | "outros" | "corrimao" // corrimao é tratado separadamente
+  "outroEnabled" | "outros" | "corrimao"
 >;
 type CorrimaoKeys = keyof NonNullable<Infraestrutura_interna["corrimao"]>;
-type DificuldadeProgKeys = keyof Dificuldades_progressao_interna;
+type DificuldadeProgKeys = keyof Omit<Dificuldades_progressao_interna, "outro">; // Exclude 'outro' for boolean toggles
 
-type EstadoConservacaoValue =
-  | "Conservada"
-  | "Depredação localizada"
-  | "Depredação intensa";
-
-// Função auxiliar para verificar se um campo está preenchido
+// This function is defined locally. Consider moving to a shared utils file.
 const isFieldFilled = (value: any): boolean => {
   if (value === null || typeof value === "undefined") return false;
   if (typeof value === "string" && value.trim() === "") return false;
@@ -54,57 +48,78 @@ export const StepFour: FC<StepFourProps> = ({
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const cavidade = useSelector((state: RootState) => state.cavity.cavidade);
-  const caracterizacao: Partial<
-    typeof cavidade.caracterizacao_interna & {
-      estado_conservacao_detalhes?: string; // Adicionado para tipagem correta
-    }
-  > = cavidade.caracterizacao_interna ?? {};
+
+  // Ensure caracterizacao_interna and its sub-properties are initialized or have defaults
+  const caracterizacao = cavidade.caracterizacao_interna ?? {};
   const grupoLitologico = caracterizacao.grupo_litologico ?? {};
-  const infraInterna = caracterizacao.infraestrutura_interna ?? {};
-  const dificuldadeProg = caracterizacao.dificuldades_progressao_interna ?? {};
+  const infraInterna = caracterizacao.infraestrutura_interna ?? {
+    nenhuma: true,
+  }; // Default if undefined
+  const dificuldadeProg = caracterizacao.dificuldades_progressao_interna ?? {
+    nenhuma: true,
+  }; // Default if undefined
   const corrimao = infraInterna.corrimao ?? {};
 
   const infraOutroEnabled = infraInterna.outroEnabled || false;
   const infraOutrosText = infraInterna.outros || "";
 
-  // Lógica de Erros Específicos para StepFour
   const stepFourErrors = useMemo(() => {
-    if (!validationAttempted) {
-      return {};
-    }
+    if (!validationAttempted) return {};
     const errors: { [key: string]: string } = {};
     const errorMsgRequired = "Este campo é obrigatório.";
 
     // Validação Grupo Litológico
-    if (
-      grupoLitologico.outro !== undefined &&
-      !isFieldFilled(grupoLitologico.outro)
+    const gl = grupoLitologico;
+    const hasSpecificLithology =
+      gl.rochas_carbonaticas ||
+      gl.rochas_ferriferas_ferruginosas ||
+      gl.rochas_siliciclasticas ||
+      gl.rochas_peliticas ||
+      gl.rochas_granito_gnaissicas;
+    const outroLithologyFilled = isFieldFilled(gl.outro);
+    if (!hasSpecificLithology && !outroLithologyFilled) {
+      errors.grupo_litologico_geral = "Selecione um tipo ou preencha 'Outro'.";
+    } else if (
+      gl.hasOwnProperty("outro") &&
+      gl.outro !== undefined &&
+      !isFieldFilled(gl.outro) &&
+      !hasSpecificLithology
     ) {
+      // If 'outro' is the intended selection method and it's empty after being "activated" (not undefined)
       errors.grupo_litologico_outro = errorMsgRequired;
     }
-
-    // Validação Estado de Conservação
-    if (
-      (caracterizacao.estado_conservacao === "Depredação localizada" ||
-        caracterizacao.estado_conservacao === "Depredação intensa") &&
-      !isFieldFilled(caracterizacao.estado_conservacao_detalhes)
-    ) {
-      errors.estado_conservacao_detalhes = errorMsgRequired;
+    if (!caracterizacao.desenvolvimento_predominante) {
+      errors.desenvolvimento_predominante = errorMsgRequired;
     }
+    // Validação Estado de Conservação (New Fields)
+    if (
+      caracterizacao.depredacao_localizada &&
+      !isFieldFilled(caracterizacao.descricao_depredacao_localizada)
+    ) {
+      errors.descricao_depredacao_localizada = errorMsgRequired;
+    }
+    if (
+      caracterizacao.depredacao_intensa &&
+      !isFieldFilled(caracterizacao.descricao_depredacao_intensa)
+    ) {
+      errors.descricao_depredacao_intensa = errorMsgRequired;
+    }
+    // If neither depredacao_localizada nor depredacao_intensa is true, it implies "Conservada"
+    // No specific error for "Conservada" needing to be selected, as it's the default state.
 
-    // Validação Corrimão
+    // Validação Corrimão (remains similar, ensure infraInterna.corrimao is checked)
     if (infraInterna.corrimao) {
-      // Se o checkbox "Corrimão" principal está marcado
       const corrimaoData = infraInterna.corrimao;
       const algumaOpcaoCorrimaoSelecionada =
         corrimaoData.ferro ||
         corrimaoData.madeira ||
         corrimaoData.corda ||
-        corrimaoData.outro !== undefined; // "Outro" é ativo se o texto não for undefined
-
+        (corrimaoData.outro !== undefined && isFieldFilled(corrimaoData.outro));
       if (!algumaOpcaoCorrimaoSelecionada) {
-        errors.corrimao_tipo = "Selecione pelo menos um tipo de corrimão.";
-      } else if (
+        errors.corrimao_tipo =
+          "Selecione pelo menos um tipo de corrimão ou desmarque 'Corrimão'.";
+      }
+      if (
         corrimaoData.outro !== undefined &&
         !isFieldFilled(corrimaoData.outro)
       ) {
@@ -116,52 +131,52 @@ export const StepFour: FC<StepFourProps> = ({
     if (infraInterna.outroEnabled && !isFieldFilled(infraInterna.outros)) {
       errors.infraestrutura_outro_texto = errorMsgRequired;
     }
+    // Validação geral para Infraestrutura Interna
+    if (!infraInterna.nenhuma) {
+      const corrimaoSelected =
+        infraInterna.corrimao &&
+        (infraInterna.corrimao.ferro ||
+          infraInterna.corrimao.madeira ||
+          infraInterna.corrimao.corda ||
+          isFieldFilled(infraInterna.corrimao.outro));
+      const otherInfraSelected =
+        infraInterna.passarela ||
+        infraInterna.portao ||
+        infraInterna.escada ||
+        infraInterna.corda ||
+        infraInterna.iluminacao_artificial ||
+        infraInterna.ponto_ancoragem;
+      const outroInfraFilled =
+        infraInterna.outroEnabled && isFieldFilled(infraInterna.outros);
+      if (!corrimaoSelected && !otherInfraSelected && !outroInfraFilled) {
+        errors.infraestrutura_geral =
+          "Se 'Nenhuma' não está marcada, selecione ao menos uma infraestrutura.";
+      }
+    }
 
     // Validação Dificuldade de Progressão Interna "Outro"
-    if (
-      dificuldadeProg.outro !== undefined &&
-      !isFieldFilled(dificuldadeProg.outro)
-    ) {
+    const dp = dificuldadeProg;
+    if (dp.outro !== undefined && !isFieldFilled(dp.outro)) {
       errors.dificuldade_prog_outro_texto = errorMsgRequired;
     }
-
-    // Validação geral para Infraestrutura Interna (se nenhuma opção marcada)
-    const infraKeys = Object.keys(infraInterna) as Array<
-      keyof Infraestrutura_interna
-    >;
-    const algumaInfraSelecionada = infraKeys.some((key) => {
-      if (key === "corrimao") return !!infraInterna.corrimao;
-      if (key === "outroEnabled")
-        return infraInterna.outroEnabled && isFieldFilled(infraInterna.outros);
-      if (key === "outros") return false; // Já tratado por outroEnabled
-      return !!infraInterna[key];
-    });
-    if (
-      infraKeys.length > 0 &&
-      !algumaInfraSelecionada &&
-      !infraInterna.nenhuma
-    ) {
-      // errors.infraestrutura_geral = "Selecione uma opção de infraestrutura ou 'Nenhuma'.";
-    }
-
     // Validação geral para Dificuldade de Progressão Interna
-    const difKeys = Object.keys(dificuldadeProg) as Array<
-      keyof Dificuldades_progressao_interna
-    >;
-    const algumaDificuldadeSelecionada = difKeys.some((key) => {
-      if (key === "outro")
-        return (
-          dificuldadeProg.outro !== undefined &&
-          isFieldFilled(dificuldadeProg.outro)
-        );
-      return !!dificuldadeProg[key];
-    });
-    if (
-      difKeys.length > 0 &&
-      !algumaDificuldadeSelecionada &&
-      !dificuldadeProg.nenhuma
-    ) {
-      // errors.dificuldade_geral = "Selecione uma dificuldade ou 'Nenhuma'.";
+    if (!dp.nenhuma) {
+      const anySpecificDifProg =
+        dp.teto_baixo ||
+        dp.blocos_instaveis ||
+        dp.trechos_escorregadios ||
+        dp.rastejamento ||
+        dp.natacao ||
+        dp.lances_verticais ||
+        dp.passagem_curso_agua ||
+        dp.quebra_corpo ||
+        dp.sifao ||
+        dp.cachoeira;
+      const outroDifProgFilled = isFieldFilled(dp.outro);
+      if (!anySpecificDifProg && !outroDifProgFilled) {
+        errors.dificuldade_geral =
+          "Se 'Nenhuma' não está marcada, selecione ao menos uma dificuldade ou preencha 'Outro'.";
+      }
     }
 
     return errors;
@@ -182,20 +197,17 @@ export const StepFour: FC<StepFourProps> = ({
 
   const handleGrupoLitologicoChange = useCallback(
     (fieldName: GrupoLitologicoKeys) => {
-      const basePath = ["caracterizacao_interna", "grupo_litologico"];
-      const path = [...basePath, fieldName];
-      const currentValue = grupoLitologico[fieldName];
-
-      if (fieldName === "outro") {
-        const isCurrentlyActiveForInput = grupoLitologico.outro !== undefined;
-        const newValue = isCurrentlyActiveForInput ? undefined : "";
-        handleUpdate(path, newValue);
-      } else {
-        handleUpdate(path, !currentValue);
-      }
+      const path = ["caracterizacao_interna", "grupo_litologico", fieldName];
+      handleUpdate(path, !grupoLitologico[fieldName]);
     },
     [grupoLitologico, handleUpdate]
   );
+
+  const handleGrupoLitologicoOutroToggle = useCallback(() => {
+    const path = ["caracterizacao_interna", "grupo_litologico", "outro"];
+    const newValue = grupoLitologico.outro === undefined ? "" : undefined; // Toggle between empty string and undefined
+    handleUpdate(path, newValue);
+  }, [grupoLitologico, handleUpdate]);
 
   const handleDesenvolvimentoPredominanteChange = useCallback(
     (value: string) => {
@@ -207,157 +219,143 @@ export const StepFour: FC<StepFourProps> = ({
     [handleUpdate]
   );
 
-  const handleEstadoConservacaoChange = useCallback(
-    (value: EstadoConservacaoValue | string) => {
-      handleUpdate(["caracterizacao_interna", "estado_conservacao"], value);
-      if (value === "Conservada") {
-        // Limpa detalhes se "Conservada"
-        handleUpdate(
-          ["caracterizacao_interna", "estado_conservacao_detalhes"],
-          ""
-        );
-      } else if (caracterizacao.estado_conservacao_detalhes === undefined) {
-        // Se mudar para depredação e detalhes for undefined
-        handleUpdate(
-          ["caracterizacao_interna", "estado_conservacao_detalhes"],
-          "" // Inicializa para permitir digitação
-        );
-      }
-    },
-    [handleUpdate, caracterizacao.estado_conservacao_detalhes]
-  );
+  // Handler for "Depredação localizada" checkbox
+  const handleDepredacaoLocalizadaToggle = useCallback(() => {
+    const newValue = !caracterizacao.depredacao_localizada;
+    handleUpdate(["caracterizacao_interna", "depredacao_localizada"], newValue);
+    if (!newValue) {
+      // If turning off, clear its description
+      handleUpdate(
+        ["caracterizacao_interna", "descricao_depredacao_localizada"],
+        undefined
+      );
+    } else if (caracterizacao.descricao_depredacao_localizada === undefined) {
+      // If turning on and description is undefined, init to empty string
+      handleUpdate(
+        ["caracterizacao_interna", "descricao_depredacao_localizada"],
+        ""
+      );
+    }
+    // Optional: If depredacoes are mutually exclusive
+    // if (newValue && caracterizacao.depredacao_intensa) {
+    //   handleUpdate(["caracterizacao_interna", "depredacao_intensa"], false);
+    //   handleUpdate(["caracterizacao_interna", "descricao_depredacao_intensa"], undefined);
+    // }
+  }, [caracterizacao, handleUpdate]);
+
+  // Handler for "Depredação intensa" checkbox
+  const handleDepredacaoIntensaToggle = useCallback(() => {
+    const newValue = !caracterizacao.depredacao_intensa;
+    handleUpdate(["caracterizacao_interna", "depredacao_intensa"], newValue);
+    if (!newValue) {
+      // If turning off, clear its description
+      handleUpdate(
+        ["caracterizacao_interna", "descricao_depredacao_intensa"],
+        undefined
+      );
+    } else if (caracterizacao.descricao_depredacao_intensa === undefined) {
+      // If turning on and description is undefined, init to empty string
+      handleUpdate(
+        ["caracterizacao_interna", "descricao_depredacao_intensa"],
+        ""
+      );
+    }
+    // Optional: If depredacoes are mutually exclusive
+    // if (newValue && caracterizacao.depredacao_localizada) {
+    //   handleUpdate(["caracterizacao_interna", "depredacao_localizada"], false);
+    //   handleUpdate(["caracterizacao_interna", "descricao_depredacao_localizada"], undefined);
+    // }
+  }, [caracterizacao, handleUpdate]);
 
   const handleInfraInternaChange = useCallback(
     (fieldName: InfraInternaSpecificKeys | "corrimao" | "nenhuma") => {
-      // Adicionado "corrimao" e "nenhuma"
-      const currentState = infraInterna;
-      const currentValueForField =
-        currentState[fieldName as keyof Infraestrutura_interna]; // Cast para evitar erro de tipo
-      const isTurningOnThisField =
-        fieldName === "corrimao"
-          ? !currentState.corrimao // Verifica se o objeto corrimao existe
-          : !currentValueForField;
-
       const basePath = ["caracterizacao_interna", "infraestrutura_interna"];
       const path = [...basePath, fieldName];
-      let primaryValue: any;
+      const currentFieldValue = (infraInterna as any)[fieldName];
+      let newValue;
 
       if (fieldName === "corrimao") {
-        primaryValue = isTurningOnThisField
-          ? { ferro: false, madeira: false, corda: false, outro: undefined }
-          : undefined;
+        newValue = infraInterna.corrimao
+          ? undefined
+          : { ferro: false, madeira: false, corda: false, outro: undefined };
       } else {
-        primaryValue = isTurningOnThisField;
+        newValue = !currentFieldValue;
       }
-      handleUpdate(path, primaryValue);
+      handleUpdate(path, newValue);
 
-      if (fieldName === "nenhuma" && isTurningOnThisField) {
-        const specificItemKeys: Array<
-          Exclude<InfraInternaSpecificKeys, "nenhuma"> | "corrimao"
-        > = [
-          "passarela",
-          "corrimao",
-          "portao",
-          "escada",
-          "corda",
-          "iluminacao_artificial",
-          "ponto_ancoragem",
-        ];
-
-        specificItemKeys.forEach((key) => {
-          const keyPath = [...basePath, key];
-          const isCorrimao = key === "corrimao";
-          if (
-            isCorrimao
-              ? !!currentState.corrimao
-              : !!currentState[key as InfraInternaSpecificKeys]
-          ) {
-            handleUpdate(keyPath, isCorrimao ? undefined : false);
+      if (fieldName === "nenhuma" && newValue === true) {
+        // If "Nenhuma" is checked
+        Object.keys(infraInterna).forEach((key) => {
+          if (key !== "nenhuma") {
+            if (key === "corrimao") handleUpdate([...basePath, key], undefined);
+            else if (key === "outroEnabled")
+              handleUpdate([...basePath, key], false);
+            else if (key === "outros")
+              handleUpdate([...basePath, key], undefined);
+            else if (typeof (infraInterna as any)[key] === "boolean")
+              handleUpdate([...basePath, key], false);
           }
         });
-        if (currentState.outroEnabled) {
-          dispatch(toggleInfraestruturaInternaOutrosEnabled());
-        }
-      } else if (fieldName !== "nenhuma" && isTurningOnThisField) {
-        if (currentState.nenhuma) {
-          handleUpdate([...basePath, "nenhuma"], false);
-        }
+      } else if (
+        fieldName !== "nenhuma" &&
+        newValue === true &&
+        infraInterna.nenhuma
+      ) {
+        // If other option is checked, uncheck "Nenhuma"
+        handleUpdate([...basePath, "nenhuma"], false);
       }
     },
-    [infraInterna, handleUpdate, dispatch]
+    [infraInterna, handleUpdate, dispatch] // dispatch might not be needed if toggleInfraestruturaInternaOutrosEnabled handles 'nenhuma'
   );
 
   const handleToggleInfraOutrosCheckbox = useCallback(() => {
-    const willBeTurnedOn = !infraInterna.outroEnabled;
     dispatch(toggleInfraestruturaInternaOutrosEnabled());
-
-    if (willBeTurnedOn && infraInterna.nenhuma) {
+    if (!infraInterna.outroEnabled && infraInterna.nenhuma) {
+      // If turning "Outro" ON and "Nenhuma" is checked
       handleUpdate(
         ["caracterizacao_interna", "infraestrutura_interna", "nenhuma"],
         false
       );
     }
-  }, [dispatch, infraInterna, handleUpdate]);
+  }, [dispatch, infraInterna.nenhuma, infraInterna.outroEnabled, handleUpdate]);
 
   const handleInfraOutrosTextUpdate = (text: string) => {
     dispatch(setInfraestruturaInternaOutrosText(text));
   };
 
   const handleDificuldadeProgChange = useCallback(
-    (fieldName: DificuldadeProgKeys) => {
-      const currentDificuldadeProgState = dificuldadeProg;
+    (fieldName: DificuldadeProgKeys | "outro" | "nenhuma") => {
       const basePath = [
         "caracterizacao_interna",
         "dificuldades_progressao_interna",
       ];
-
-      let isTurningOnField: boolean;
-      let updatedValueForField: any;
+      const path = [...basePath, fieldName];
+      const currentFieldValue = (dificuldadeProg as any)[fieldName];
+      let newValue;
 
       if (fieldName === "outro") {
-        const isCurrentlyActive =
-          currentDificuldadeProgState.outro !== undefined;
-        updatedValueForField = isCurrentlyActive ? undefined : "";
-        isTurningOnField = !isCurrentlyActive;
+        newValue = dificuldadeProg.outro === undefined ? "" : undefined;
       } else {
-        updatedValueForField = !currentDificuldadeProgState[fieldName];
-        isTurningOnField = updatedValueForField;
+        newValue = !currentFieldValue;
       }
+      handleUpdate(path, newValue);
 
-      handleUpdate([...basePath, fieldName], updatedValueForField);
-
-      const nenhumaKey: DificuldadeProgKeys = "nenhuma";
-      const allSpecificKeys: Exclude<DificuldadeProgKeys, "nenhuma">[] = [
-        "teto_baixo",
-        "blocos_instaveis",
-        "trechos_escorregadios",
-        "rastejamento",
-        "natacao",
-        "lances_verticais",
-        "passagem_curso_agua",
-        "quebra_corpo",
-        "sifao",
-        "cachoeira",
-        "outro",
-      ];
-
-      if (fieldName === nenhumaKey && isTurningOnField) {
-        allSpecificKeys.forEach((key) => {
-          const valueInState = currentDificuldadeProgState[key];
-          if (key === "outro") {
-            if (valueInState !== undefined) {
-              handleUpdate([...basePath, key], undefined);
-            }
-          } else {
-            if (valueInState === true) {
+      if (fieldName === "nenhuma" && newValue === true) {
+        // If "Nenhuma" is checked
+        Object.keys(dificuldadeProg).forEach((key) => {
+          if (key !== "nenhuma") {
+            if (key === "outro") handleUpdate([...basePath, key], undefined);
+            else if (typeof (dificuldadeProg as any)[key] === "boolean")
               handleUpdate([...basePath, key], false);
-            }
           }
         });
-      } else if (isTurningOnField && fieldName !== nenhumaKey) {
-        if (currentDificuldadeProgState.nenhuma === true) {
-          handleUpdate([...basePath, nenhumaKey], false);
-        }
+      } else if (
+        fieldName !== "nenhuma" &&
+        newValue === true &&
+        dificuldadeProg.nenhuma
+      ) {
+        // If other option is checked
+        handleUpdate([...basePath, "nenhuma"], false);
       }
     },
     [dificuldadeProg, handleUpdate]
@@ -365,31 +363,30 @@ export const StepFour: FC<StepFourProps> = ({
 
   const handleCorrimaoChange = useCallback(
     (fieldName: CorrimaoKeys) => {
-      const currentCorrimaoState = infraInterna.corrimao || {};
       const basePath = [
         "caracterizacao_interna",
         "infraestrutura_interna",
         "corrimao",
       ];
       const path = [...basePath, fieldName];
-      const currentValue = currentCorrimaoState[fieldName];
+      const currentCorrimaoSubValue = corrimao[fieldName];
 
       if (fieldName === "outro") {
-        const isCurrentlyActive = currentValue !== undefined;
-        const newValue = isCurrentlyActive ? undefined : "";
-        if (!infraInterna.corrimao && !isCurrentlyActive) {
-          handleUpdate(
-            ["caracterizacao_interna", "infraestrutura_interna", "corrimao"],
-            { ...currentCorrimaoState, [fieldName]: newValue } // Garante que o objeto corrimao é criado
-          );
-        } else {
-          handleUpdate(path, newValue);
-        }
+        const newValue = corrimao.outro === undefined ? "" : undefined;
+        handleUpdate(path, newValue);
       } else {
-        handleUpdate(path, !currentValue);
+        handleUpdate(path, !currentCorrimaoSubValue);
+      }
+      // If any corrimao option is turned on, ensure "Nenhuma" (for infraestrutura_interna) is off
+      if (!currentCorrimaoSubValue && infraInterna.nenhuma) {
+        // !currentCorrimaoSubValue means it's about to be turned ON
+        handleUpdate(
+          ["caracterizacao_interna", "infraestrutura_interna", "nenhuma"],
+          false
+        );
       }
     },
-    [infraInterna.corrimao, handleUpdate]
+    [corrimao, infraInterna.nenhuma, handleUpdate]
   );
 
   return (
@@ -402,6 +399,11 @@ export const StepFour: FC<StepFourProps> = ({
       <TextInter color={colors.white[100]} weight="medium">
         Grupo litológico
       </TextInter>
+      {!!stepFourErrors.grupo_litologico_geral && (
+        <TextInter style={[styles.errorText, { marginTop: 2 }]}>
+          {stepFourErrors.grupo_litologico_geral}
+        </TextInter>
+      )}
       <Divider height={12} />
       <Checkbox
         label="Rochas carbonáticas"
@@ -440,25 +442,28 @@ export const StepFour: FC<StepFourProps> = ({
       <Checkbox
         label="Outro (Grupo Litológico)"
         checked={grupoLitologico.outro !== undefined}
-        onChange={() => handleGrupoLitologicoChange("outro")}
+        onChange={handleGrupoLitologicoOutroToggle}
       />
-      <Divider height={12} />
       {grupoLitologico.outro !== undefined && (
-        <Input
-          placeholder="Especifique o outro grupo"
-          label="Qual outro grupo?"
-          required
-          value={grupoLitologico.outro || ""}
-          onChangeText={(text) =>
-            handleUpdate(
-              ["caracterizacao_interna", "grupo_litologico", "outro"],
-              text
-            )
-          }
-          hasError={!!stepFourErrors.grupo_litologico_outro}
-          errorMessage={stepFourErrors.grupo_litologico_outro}
-        />
+        <>
+          <Divider height={12} />
+          <Input
+            placeholder="Especifique o outro grupo"
+            label="Qual outro grupo?"
+            required
+            value={grupoLitologico.outro || ""}
+            onChangeText={(text) =>
+              handleUpdate(
+                ["caracterizacao_interna", "grupo_litologico", "outro"],
+                text
+              )
+            }
+            hasError={!!stepFourErrors.grupo_litologico_outro}
+            errorMessage={stepFourErrors.grupo_litologico_outro}
+          />
+        </>
       )}
+      <Divider height={18} />
 
       <TextInter color={colors.white[100]} weight="medium">
         Desenvolvimento predominante
@@ -473,43 +478,79 @@ export const StepFour: FC<StepFourProps> = ({
           { id: "3", value: "Misto", label: "Misto" },
         ]}
       />
-      <Divider height={12} />
+      {!!stepFourErrors.desenvolvimento_predominante && (
+        <TextInter style={[styles.errorText, { marginTop: 2 }]}>
+          {stepFourErrors.desenvolvimento_predominante}
+        </TextInter>
+      )}
+      <Divider height={18} />
 
       <TextInter color={colors.white[100]} weight="medium">
         Estado de conservação
       </TextInter>
       <Divider height={12} />
-      <RadioButtonGroup
-        onValueChange={handleEstadoConservacaoChange}
-        value={caracterizacao.estado_conservacao || ""}
-        options={[
-          { id: "1", value: "Conservada", label: "Conservada" },
-          {
-            id: "2",
-            value: "Depredação localizada",
-            label: "Depredação localizada",
-          },
-          { id: "3", value: "Depredação intensa", label: "Depredação intensa" },
-        ]}
+      {/* New Checkboxes for Depredacao */}
+      <Checkbox
+        label="Conservada"
+        checked={
+          !caracterizacao.depredacao_localizada &&
+          !caracterizacao.depredacao_intensa
+        }
+        onChange={() => {
+          // Clicking "Conservada" unchecks both depredacoes
+          if (caracterizacao.depredacao_localizada)
+            handleDepredacaoLocalizadaToggle();
+          if (caracterizacao.depredacao_intensa)
+            handleDepredacaoIntensaToggle();
+        }}
       />
-      <Divider height={5} />
-      {(caracterizacao.estado_conservacao === "Depredação localizada" ||
-        caracterizacao.estado_conservacao === "Depredação intensa") && (
+      <Divider height={12} />
+      <Checkbox
+        label="Depredação localizada"
+        checked={caracterizacao.depredacao_localizada || false}
+        onChange={handleDepredacaoLocalizadaToggle}
+      />
+      {caracterizacao.depredacao_localizada && (
         <>
           <Divider height={12} />
           <Input
-            label="Detalhes da Depredação"
+            label="Descrição da Depredação Localizada"
             required
-            placeholder="Reportar Condição / Detalhes"
-            value={caracterizacao.estado_conservacao_detalhes || ""}
+            placeholder="Detalhes da depredação localizada"
+            value={caracterizacao.descricao_depredacao_localizada || ""}
             onChangeText={(text) =>
               handleUpdate(
-                ["caracterizacao_interna", "estado_conservacao_detalhes"],
+                ["caracterizacao_interna", "descricao_depredacao_localizada"],
                 text
               )
             }
-            hasError={!!stepFourErrors.estado_conservacao_detalhes}
-            errorMessage={stepFourErrors.estado_conservacao_detalhes}
+            hasError={!!stepFourErrors.descricao_depredacao_localizada}
+            errorMessage={stepFourErrors.descricao_depredacao_localizada}
+          />
+        </>
+      )}
+      <Divider height={12} />
+      <Checkbox
+        label="Depredação intensa"
+        checked={caracterizacao.depredacao_intensa || false}
+        onChange={handleDepredacaoIntensaToggle}
+      />
+      {caracterizacao.depredacao_intensa && (
+        <>
+          <Divider height={12} />
+          <Input
+            label="Descrição da Depredação Intensa"
+            required
+            placeholder="Detalhes da depredação intensa"
+            value={caracterizacao.descricao_depredacao_intensa || ""}
+            onChangeText={(text) =>
+              handleUpdate(
+                ["caracterizacao_interna", "descricao_depredacao_intensa"],
+                text
+              )
+            }
+            hasError={!!stepFourErrors.descricao_depredacao_intensa}
+            errorMessage={stepFourErrors.descricao_depredacao_intensa}
           />
         </>
       )}
@@ -518,7 +559,11 @@ export const StepFour: FC<StepFourProps> = ({
       <TextInter color={colors.white[100]} weight="medium">
         Infraestrutura interna
       </TextInter>
-      {/* {!!stepFourErrors.infraestrutura_geral && <TextInter style={styles.errorText}>{stepFourErrors.infraestrutura_geral}</TextInter>} */}
+      {!!stepFourErrors.infraestrutura_geral && (
+        <TextInter style={styles.errorText}>
+          {stepFourErrors.infraestrutura_geral}
+        </TextInter>
+      )}
       <Divider height={12} />
       <Checkbox
         label="Passarela"
@@ -537,12 +582,9 @@ export const StepFour: FC<StepFourProps> = ({
             Tipo de Corrimão
           </TextInter>
           {!!stepFourErrors.corrimao_tipo && (
-            <>
-            <Divider height={8} />
             <TextInter style={styles.errorText}>
               {stepFourErrors.corrimao_tipo}
             </TextInter>
-            </>
           )}
           <Divider height={12} />
           <Checkbox
@@ -630,9 +672,9 @@ export const StepFour: FC<StepFourProps> = ({
         checked={infraOutroEnabled}
         onChange={handleToggleInfraOutrosCheckbox}
       />
-      <Divider height={12} />
       {infraOutroEnabled && (
         <>
+          <Divider height={12} />
           <Input
             placeholder="Especifique qual outra infraestrutura"
             required
@@ -644,6 +686,7 @@ export const StepFour: FC<StepFourProps> = ({
           />
         </>
       )}
+      <Divider height={12} />
       <Checkbox
         label="Nenhuma (Infraestrutura)"
         checked={infraInterna.nenhuma || false}
@@ -654,7 +697,11 @@ export const StepFour: FC<StepFourProps> = ({
       <TextInter color={colors.white[100]} weight="medium">
         Dificuldade de progressão interna
       </TextInter>
-      {/* {!!stepFourErrors.dificuldade_geral && <TextInter style={styles.errorText}>{stepFourErrors.dificuldade_geral}</TextInter>} */}
+      {!!stepFourErrors.dificuldade_geral && (
+        <TextInter style={styles.errorText}>
+          {stepFourErrors.dificuldade_geral}
+        </TextInter>
+      )}
       <Divider height={12} />
       <Checkbox
         label="Teto baixo"
@@ -721,9 +768,9 @@ export const StepFour: FC<StepFourProps> = ({
         checked={dificuldadeProg.outro !== undefined}
         onChange={() => handleDificuldadeProgChange("outro")}
       />
-      <Divider height={12} />
       {dificuldadeProg.outro !== undefined && (
         <>
+          <Divider height={12} />
           <Input
             label="Qual outra dificuldade de progressão?"
             required
@@ -744,6 +791,7 @@ export const StepFour: FC<StepFourProps> = ({
           />
         </>
       )}
+      <Divider height={12} />
       <Checkbox
         label="Nenhuma (Dificuldade Progressão)"
         checked={dificuldadeProg.nenhuma || false}
@@ -755,24 +803,13 @@ export const StepFour: FC<StepFourProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingBottom: 30, // Adicionado padding para evitar que o último item cole na borda
-  },
-  secondLayer: {
-    paddingLeft: 20, // Indentação para sub-itens
-    marginTop: 5, // Pequeno espaço acima da seção aninhada
-  },
-  inputSpacing: {
-    // Para espaçamento abaixo dos inputs "Outro"
-    marginBottom: 12,
-  },
+  container: { flex: 1, paddingBottom: 30 },
+  secondLayer: { paddingLeft: 20, marginTop: 5 },
   errorText: {
-    // Estilo para mensagens de erro
     color: colors.error[100],
     fontSize: 12,
-    marginTop: -8, // Ajuste para posicionar perto do campo
+    marginTop: -8,
     marginBottom: 8,
-    paddingLeft: 5, // Pequeno padding para alinhar com inputs/checkboxes
+    paddingLeft: 5,
   },
 });

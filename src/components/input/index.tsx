@@ -159,18 +159,17 @@ export const Input: FC<InputProps> = ({
   useEffect(() => {
     if (numericType === 'decimal' && onChangeText && typeof value === 'string') {
       const initialCleaned = cleanAndFormatNumericString(value, 'decimal', decimalPlaces);
-      // Aplicar toFixed para garantir o formato "X.00" para valores iniciais
       const finalFormattedValue = finalizeDecimalFormat(initialCleaned, decimalPlaces);
-
+  
+      // By removing the following 'if' block or just the onChangeText call,
+      // this effect will no longer try to force a format change during typing.
+      /*
       if (finalFormattedValue !== value) {
-        onChangeText(finalFormattedValue);
+        // onChangeText(finalFormattedValue); // <-- THIS LINE IS COMMENTED OUT/REMOVED
       }
+      */
     } else if (numericType === 'integer' && onChangeText && typeof value === 'string') {
-      // Para inteiros, a limpeza básica é suficiente para o valor inicial
       const finalFormattedValue = cleanAndFormatNumericString(value, 'integer');
-      if (finalFormattedValue !== value) {
-        onChangeText(finalFormattedValue);
-      }
     }
   }, [value, numericType, decimalPlaces, onChangeText]);
 
@@ -245,7 +244,7 @@ export const Input: FC<InputProps> = ({
             keyboardType={finalKeyboardType}
             onSubmitEditing={onSubmitEditing}
             secureTextEntry={secureTextEntry && isPasswordVisible}
-            onBlur={parentOnBlur}
+            onBlur={internalOnBlur} 
             mask={mask}
             editable={!disabled}
             numberOfLines={numberOfLines}
@@ -265,7 +264,7 @@ export const Input: FC<InputProps> = ({
             keyboardType={finalKeyboardType}
             onSubmitEditing={onSubmitEditing}
             secureTextEntry={secureTextEntry && isPasswordVisible}
-            onBlur={parentOnBlur}
+            onBlur={internalOnBlur}
             editable={!disabled}
             numberOfLines={numberOfLines}
             textAlignVertical={numberOfLines && numberOfLines > 1 ? 'top' : 'center'}

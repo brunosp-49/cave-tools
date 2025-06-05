@@ -34,6 +34,7 @@ export const checkIfIsBlank = (value: string) => {
 
 export const formatDate = (date: string): string => {
   try {
+    console.log(date)
     const confirmIsADate = new Date(date).toISOString();
     const [year, month, day] = confirmIsADate.split("T")[0].split("-");
     const parsedDate = new Date(Number(year), Number(month) - 1, Number(day));

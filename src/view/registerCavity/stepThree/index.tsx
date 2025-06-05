@@ -119,6 +119,8 @@ export const StepThree: FC<StepThreeProps> = ({ navigation, route, validationAtt
       errors.comunidade_descricao = errorMsgRequired;
     }
 
+    
+
     // Validação para Área Protegida
     const currentJurisdictionDataForValidation = 
         selectedJurisdictionId && selectedJurisdictionId !== "nenhuma"

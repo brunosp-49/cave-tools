@@ -86,6 +86,15 @@ export const StepOne: FC<StepComponentProps> = ({ navigation, validationAttempte
     if (!isFieldFilled(cavidade.responsavel)) {
       errors.responsavel = errorMsgRequired;
     }
+    if (!isFieldFilled(cavidade.municipio)) {
+      errors.municipio = errorMsgRequired;
+    }
+    if (!isFieldFilled(cavidade.uf)) {
+      errors.uf = errorMsgRequired;
+    }
+    if (!isFieldFilled(cavidade.nome_sistema)) {
+      errors.nome_sistema = errorMsgRequired;
+    }
     if (!isFieldFilled(cavidade.nome_cavidade)) {
       errors.nome_cavidade = errorMsgRequired;
     }
@@ -212,27 +221,31 @@ export const StepOne: FC<StepComponentProps> = ({ navigation, validationAttempte
         placeholder="Digite o nome do sistema"
         value={cavidade.nome_sistema || ""}
         onChangeText={(text) => handleInputChange(["nome_sistema"], text)}
+        required
+        hasError={!!stepOneErrors.nome_sistema}
+        errorMessage={stepOneErrors.nome_sistema}
         // Não há validação específica para nome_sistema em validateStep, então sem erro
       />
       <Select
         label="UF"
         placeholder="Selecione a UF"
-        // required // Descomente se UF for obrigatório
+        required
         optionsList={ufOptions}
         value={selectedUfOption?.value || ""}
         onChangeText={(selectedOption: SelectOption) => {
           handleInputChange(["uf"], selectedOption.id);
         }}
-        // hasError={!!stepOneErrors.uf} // Adicione se UF for obrigatório
-        // errorMessage={stepOneErrors.uf}
+        hasError={!!stepOneErrors.uf} // Adicione se UF for obrigatório
+        errorMessage={stepOneErrors.uf}
       />
       <Input
         label="Município"
         placeholder="Digite o nome do município"
         value={cavidade.municipio || ""}
+        required
         onChangeText={(text) => handleInputChange(["municipio"], text)}
-        // hasError={!!stepOneErrors.municipio} // Adicione se Município for obrigatório
-        // errorMessage={stepOneErrors.municipio}
+        hasError={!!stepOneErrors.municipio} // Adicione se Município for obrigatório
+        errorMessage={stepOneErrors.municipio}
       />
       <Input
         label="Localidade"

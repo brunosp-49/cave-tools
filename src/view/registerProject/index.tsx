@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { colors } from "../../assets/colors";
 import { Header } from "../../components/header";
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FC, useCallback, useMemo, useRef, useState } from "react";
 import { RouterProps } from "../../types";
 import { SuccessModal } from "../../components/modal/successModal";
 import { Input } from "../../components/input";
@@ -44,7 +44,6 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(formatDateToInput(new Date().toISOString()));
-  const [responsible, setResponsible] = useState("");
   const dispatch = useDispatch();
 
   const [validationAttempted, setValidationAttempted] = useState(false);
@@ -58,16 +57,13 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
     if (!isFilled(name)) {
       errors.name = msgRequired;
     }
-    if (!isFilled(responsible)) {
-      errors.responsible = msgRequired;
-    }
     // Adicione validações para 'description' e 'date' se se tornarem obrigatórias
     // if (!isFilled(description)) errors.description = msgRequired;
     // if (!isFilled(date)) errors.date = msgRequired;
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
-  }, [name, responsible, description, date]);
+  }, [name, description, date]);
   const isFormValid = useMemo(() => {
     if (!validationAttempted) return true;
     return validateForm();
@@ -103,7 +99,6 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
         id: uuid.v4().toString(),
         descricao_projeto: description,
         nome_projeto: name,
-        fk_cliente: String(user[0].user_id),
         inicio: date
         ? (() => {
             try {
@@ -127,7 +122,6 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
             }
           })()
         : new Date().toISOString(),
-        responsavel: responsible,
       });
       setSuccessModal(true);
       setValidationAttempted(false);
@@ -149,7 +143,6 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
         setName("");
         setDescription("");
         setDate("");
-        setResponsible("");
         setValidationAttempted(false);
         setFormErrors({});
         navigation.navigate("ProjectScreen");
@@ -170,7 +163,6 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
     setName("");
     setDescription("");
     setDate("");
-    setResponsible("");
     setValidationAttempted(false);
     setFormErrors({});
     navigation.navigate("ProjectScreen");
@@ -203,15 +195,6 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
                 required
                 hasError={!!formErrors.name}
                 errorMessage={formErrors.name}
-              />
-              <Input
-                placeholder="Nome do usuário"
-                value={responsible}
-                onChangeText={setResponsible}
-                label="Usuário responsável"
-                required
-                hasError={!!formErrors.responsible}
-                errorMessage={formErrors.responsible}
               />
               <Input
                 placeholder="Descreva o projeto"
@@ -248,7 +231,6 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
           setName("");
           setDescription("");
           setDate("");
-          setResponsible("");
           setValidationAttempted(false);
           setFormErrors({});
           navigation.navigate("ProjectScreen");
