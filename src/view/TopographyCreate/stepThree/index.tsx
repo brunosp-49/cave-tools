@@ -14,15 +14,15 @@ import type { TopographyPoint } from "../../../types";
 
 const createEmptyReduxPoint = (cavity_id: string): TopographyPoint => ({
   cavity_id: cavity_id,
-  from: 0,
-  to: 0,
-  distance: 0,
-  azimuth: 0,
-  incline: 0,
-  turnUp: 0,
-  turnDown: 0,
-  turnRight: 0,
-  turnLeft: 0,
+  from: '',
+  to: '',
+  distance: '',
+  azimuth: '',
+  incline: '',
+  turnUp: '',
+  turnDown: '',
+  turnRight: '',
+  turnLeft: '',
 });
 
 const StepThree: FC<StepComponentProps> = ({ navigation, validationAttempted }) => {
@@ -39,13 +39,11 @@ const StepThree: FC<StepComponentProps> = ({ navigation, validationAttempted }) 
   }, [])
 
   const handleInputChange = useCallback(
-    (index: number, field: keyof TopographyPoint, text: string | number) => {
-      const numericValue = text === "" ? 0 : text;
-
+    (index: number, field: keyof TopographyPoint, text: string) => {
       dispatch(
         updateTopography({
           path: [index, field],
-          value: numericValue,
+          value: text,
         })
       );
     },
@@ -91,7 +89,7 @@ const StepThree: FC<StepComponentProps> = ({ navigation, validationAttempted }) 
               <Input
                 label="Referência (De)"
                 placeholder="Digite Aqui"
-                value={point.from.toString()}
+                value={point.from}
                 keyboardType="numeric"
                 onChangeText={text =>
                   handleInputChange(index, 'from', text)
@@ -101,7 +99,7 @@ const StepThree: FC<StepComponentProps> = ({ navigation, validationAttempted }) 
               <Input
                 label="Referência (Para)"
                 placeholder="Digite Aqui"
-                value={point.to.toString()}
+                value={point.to}
                 keyboardType="numeric"
                 onChangeText={text =>
                   handleInputChange(index, 'to', text)
@@ -111,7 +109,7 @@ const StepThree: FC<StepComponentProps> = ({ navigation, validationAttempted }) 
               <Input
                 label="Distância"
                 placeholder="Digite Aqui"
-                value={point.distance.toString()}
+                value={point.distance}
                 keyboardType="numeric"
                 onChangeText={text =>
                   handleInputChange(index, 'distance', text)
@@ -121,7 +119,7 @@ const StepThree: FC<StepComponentProps> = ({ navigation, validationAttempted }) 
               <Input
                 label="Azimute"
                 placeholder="Digite Aqui"
-                value={point.azimuth.toString()}
+                value={point.azimuth}
                 keyboardType="numeric"
                 onChangeText={text =>
                   handleInputChange(index, 'azimuth', text)
@@ -131,7 +129,7 @@ const StepThree: FC<StepComponentProps> = ({ navigation, validationAttempted }) 
               <Input
                 label="Inclinação"
                 placeholder="Digite Aqui"
-                value={point.incline.toString()}
+                value={point.incline}
                 keyboardType="numeric"
                 onChangeText={text =>
                   handleInputChange(index, 'incline', text)
@@ -141,7 +139,7 @@ const StepThree: FC<StepComponentProps> = ({ navigation, validationAttempted }) 
               <Input
                 label="Para cima"
                 placeholder="Digite Aqui"
-                value={point.turnUp.toString()}
+                value={point.turnUp}
                 keyboardType="numeric"
                 onChangeText={text =>
                   handleInputChange(index, 'turnUp', text)
@@ -151,7 +149,7 @@ const StepThree: FC<StepComponentProps> = ({ navigation, validationAttempted }) 
               <Input
                 label="Para baixo"
                 placeholder="Digite Aqui"
-                value={point.turnDown.toString()}
+                value={point.turnDown}
                 keyboardType="numeric"
                 onChangeText={text =>
                   handleInputChange(index, 'turnDown', text)
@@ -161,7 +159,7 @@ const StepThree: FC<StepComponentProps> = ({ navigation, validationAttempted }) 
               <Input
                 label="Para direita"
                 placeholder="Digite Aqui"
-                value={point.turnRight.toString()}
+                value={point.turnRight}
                 keyboardType="numeric"
                 onChangeText={text =>
                   handleInputChange(index, 'turnRight', text)
@@ -171,7 +169,7 @@ const StepThree: FC<StepComponentProps> = ({ navigation, validationAttempted }) 
               <Input
                 label="Para esquerda"
                 placeholder="Digite Aqui"
-                value={point.turnLeft.toString()}
+                value={point.turnLeft}
                 keyboardType="numeric"
                 onChangeText={text =>
                   handleInputChange(index, 'turnLeft', text)
