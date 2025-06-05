@@ -12,8 +12,9 @@ interface ProjectCardProps {
 }
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onPress }) => {
+  console.log({project})
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress}>
+    <TouchableOpacity style={styles.card} onPress={onPress} key={project.id}>
       <View style={styles.topContainer}>
         <TextInter
           weight="medium"

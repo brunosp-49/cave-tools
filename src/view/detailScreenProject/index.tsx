@@ -70,6 +70,7 @@ export const DetailScreenProject: FC<RouterProps> = ({ navigation, route }) => {
       setIsLoadingCavities(true);
     }
     console.log("Fetching latest cavities...");
+    console.log(route.params.projectId);
     try {
       const cavityCollection = database.get<CavityRegister>("cavity_register");
       const fetchedCavities = await cavityCollection
@@ -78,6 +79,7 @@ export const DetailScreenProject: FC<RouterProps> = ({ navigation, route }) => {
           Q.sortBy("data", Q.desc)
         )
         .fetch();
+      console.log("Fetched cavities:", fetchedCavities);
       setLatestCavities(fetchedCavities);
     } catch (error) {
       console.error("Error fetching cavities:", error);
@@ -86,7 +88,7 @@ export const DetailScreenProject: FC<RouterProps> = ({ navigation, route }) => {
         setIsLoadingCavities(false);
       }
     }
-  }, []);
+  }, [navigation, route.params.projectId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -179,69 +181,67 @@ export const DetailScreenProject: FC<RouterProps> = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.main}>
-    <ScrollView showsVerticalScrollIndicator={false}>
-      <Header
-        title="Visualizar Projeto"
-        navigation={navigation}
-        onCustomReturn={() => navigation.navigate("ProjectScreen")}
-      />
-      <Divider />
-      <View style={styles.container}>
-        <TextInter color={colors.white[100]} fontSize={19}>
-          Registro
-        </TextInter>
-        <Divider />
-        <LabelText
-          label="Nome"
-          text={project.nome_projeto || "Não informado"}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <Header
+          title="Visualizar Projeto"
+          navigation={navigation}
+          onCustomReturn={() => navigation.navigate("ProjectScreen")}
         />
         <Divider />
-        <LabelText
-          label="Usuário responsável"
-          text={project.responsavel || "Não informado"}
-        />
-        <Divider />
-        <LabelText
-          label="Descrição"
-          text={project.descricao_projeto || "Não informado"}
-        />
-        <Divider />
-        <LabelText
-          label="Data da criação"
-          text={formatDate(project.inicio) || "Não informado"}
-        />
-      </View>
-      <Divider />
-      {!project.uploaded && (
-        <>
-          <LongButton
-            title="Editar"
-            onPress={() =>
-              navigation.navigate("EditProject", { projectId: project.id })
-            }
+        <View style={styles.container}>
+          <TextInter color={colors.white[100]} fontSize={19}>
+            Registro
+          </TextInter>
+          <Divider />
+          <LabelText
+            label="Nome"
+            text={project.nome_projeto || "Não informado"}
           />
           <Divider />
-        </>
-      )}
-      <TextInter fontSize={18} weight="medium" color={colors.white[100]}>
-        Cavidades do projeto(salvas offline)
-      </TextInter>
-      <Divider />
-      <FlatList
-        data={latestCavities}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <CavityCard cavity={item} onPress={() => handleOpenDetail(item.id)} />
+          <LabelText
+            label="Descrição"
+            text={project.descricao_projeto || "Não informado"}
+          />
+          <Divider />
+          <LabelText
+            label="Data da criação"
+            text={formatDate(project.inicio) || "Não informado"}
+          />
+        </View>
+        <Divider />
+        {!project.uploaded && (
+          <>
+            <LongButton
+              title="Editar"
+              onPress={() =>
+                navigation.navigate("EditProject", { projectId: project.id })
+              }
+            />
+            <Divider />
+          </>
         )}
-        ItemSeparatorComponent={() => <Divider height={12} />}
-        ListEmptyComponent={renderEmptyList}
-        contentContainerStyle={
-          latestCavities.length === 0
-            ? styles.emptyListContent
-            : { paddingBottom: Platform.OS === "ios" ? 110 : 84 }
-        }
-      />
-    </ScrollView>
+        <TextInter fontSize={18} weight="medium" color={colors.white[100]}>
+          Cavidades do projeto(salvas offline)
+        </TextInter>
+        <Divider />
+        <FlatList
+          data={latestCavities}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <CavityCard
+              cavity={item}
+              onPress={() => handleOpenDetail(item.id)}
+            />
+          )}
+          ItemSeparatorComponent={() => <Divider height={12} />}
+          ListEmptyComponent={renderEmptyList}
+          contentContainerStyle={
+            latestCavities.length === 0
+              ? styles.emptyListContent
+              : { paddingBottom: Platform.OS === "ios" ? 110 : 84 }
+          }
+        />
+      </ScrollView>
     </SafeAreaView>
   );
 };

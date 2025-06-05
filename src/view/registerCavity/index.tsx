@@ -19,7 +19,9 @@ import {
   Cavidade,
   Dificuldades_externas,
   RouterProps,
-} from "../../types"; // RouterProps é importado daqui
+  CaracterizacaoInterna,
+  CavityRegisterData,
+} from "../../types";
 import { SuccessModal } from "../../components/modal/successModal";
 import { StepOne } from "./stepOne";
 import { StepTwo } from "./stepTwo";
@@ -27,7 +29,7 @@ import { StepThree } from "./stepThree";
 import { StepFour } from "./stepFour";
 import { StepFive } from "./stepFive";
 import { StepSix } from "./stepSix";
-import { StepSeven } from "./stepSeven"; // StepSeven já foi atualizado para aceitar validationAttempted
+import { StepSeven } from "./stepSeven";
 import { StepEight } from "./stepEight";
 import { StepNine } from "./stepNine";
 import { StepTen } from "./stepTen";
@@ -38,15 +40,14 @@ import { NextButton } from "../../components/button/nextButton";
 import { ReturnButton } from "../../components/button/returnButton";
 import uuid from "react-native-uuid";
 import { useFocusEffect } from "@react-navigation/native";
+import { formatDateToInput } from "../../util";
 
-// Defina a nova interface de props para os componentes de etapa
-// Esta interface estende RouterProps e adiciona validationAttempted.
-// Idealmente, esta interface também poderia estar no seu arquivo types.ts
 export interface StepComponentProps extends RouterProps {
   validationAttempted: boolean;
 }
 
-const isFilled = (value: any): boolean => {
+// Consider moving isFieldFilled to a shared utils file
+const isFieldFilled = (value: any): boolean => {
   if (value === null || typeof value === "undefined") {
     return false;
   }
@@ -71,17 +72,21 @@ const validateStep = (
   switch (stepIndex) {
     case 0: // Step One: Basic Info
       return (
-        isFilled(data.projeto_id) &&
-        isFilled(data.responsavel) &&
-        isFilled(data.nome_cavidade) &&
+        // isFieldFilled(data.projeto_id) && // Removed
+        isFieldFilled(data.responsavel) &&
+        isFieldFilled(data.nome_cavidade) &&
         Array.isArray(data.entradas) &&
-        data.entradas.length > 0
+        data.entradas.length > 0 &&
+        data.municipio.length > 0 &&
+        data.uf.length > 0 &&
+        data.nome_sistema.length > 0 &&
+        data.entradas.every((entrada) => isFieldFilled(entrada.nome)) // Ensure each entrance has a name
       );
 
     case 1: // Step Two: Desenvolvimento Linear e Dificuldades Externas
       const de = data.dificuldades_externas;
-      if (!de) return false;
-      if (de.outroEnabled === true && !isFilled(de.outro)) {
+      if (!de) return true; // If Dificuldades_externas is optional and not filled, step is valid
+      if (de.outroEnabled === true && !isFieldFilled(de.outro)) {
         return false;
       }
       const specificKeys: (keyof Omit<
@@ -102,157 +107,375 @@ const validateStep = (
       const algumaEspecificaMarcada = specificKeys.some(
         (key) => de[key] === true
       );
-      const outroValido = de.outroEnabled === true && isFilled(de.outro);
+      const outroValido = de.outroEnabled === true && isFieldFilled(de.outro);
 
-      if (!algumaEspecificaMarcada && !outroValido && de.nenhuma !== true) {
-        return false;
+      if (de.nenhuma === true) {
+        // If "Nenhum" is true
+        return !algumaEspecificaMarcada && !(de.outroEnabled === true); // No other option should be true
       }
-      // Se "Nenhum" está marcado, nenhuma outra dificuldade (incluindo "Outro") deve estar ativa.
-      // A lógica no componente StepTwo já deve tratar isso ao marcar "Nenhum".
-      // Mas uma verificação final aqui pode ser útil.
-      if (
-        de.nenhuma === true &&
-        (algumaEspecificaMarcada || de.outroEnabled === true)
-      ) {
-        // Este caso indica uma inconsistência no estado, pois "Nenhum" não deveria estar
-        // ativo junto com outras dificuldades. A lógica do componente deve prevenir isso.
-        // console.warn("Inconsistent state: 'Nenhum' is true along with other difficulties.");
-        // return false; // Descomente se quiser falhar a validação neste caso de inconsistência.
-      }
-      return true;
+      // If "Nenhum" is false, at least one other option must be selected/filled
+      return algumaEspecificaMarcada || outroValido;
 
     case 2: // Step Three: Aspectos Socioambientais
       const aspectos = data.aspectos_socioambientais;
-      if (!aspectos) return true;
+      console.log(aspectos);
+      if (!aspectos) return true; // If optional and not filled
 
       if (aspectos.comunidade_envolvida?.envolvida === true) {
-        if (!isFilled(aspectos.comunidade_envolvida.descricao)) {
+        if (!isFieldFilled(aspectos.comunidade_envolvida.descricao)) {
           return false;
         }
       }
 
       const ap = aspectos.area_protegida;
+      // If area_protegida exists, validate its internals
       if (ap) {
-        const isFederalSelected = ap.federal && isFilled(ap.federal.nome);
-        const isEstadualSelected = ap.estadual && isFilled(ap.estadual.nome);
-        const isMunicipalSelected = ap.municipal && isFilled(ap.municipal.nome);
-        const isNenhumaOuNaoDeterminado =
-          ap.nao_determinado === true ||
-          (!ap.federal && !ap.estadual && !ap.municipal);
+        const federalSelected =
+          ap.federal &&
+          isFieldFilled(ap.federal.nome) &&
+          isFieldFilled(ap.federal.zona);
+        const estadualSelected =
+          ap.estadual &&
+          isFieldFilled(ap.estadual.nome) &&
+          isFieldFilled(ap.estadual.zona);
+        const municipalSelected =
+          ap.municipal &&
+          isFieldFilled(ap.municipal.nome) &&
+          isFieldFilled(ap.municipal.zona);
+        const naoDeterminadoSelected = ap.nao_determinado === true;
 
-        if (ap.federal && !isFilled(ap.federal.nome)) return false;
-        if (ap.estadual && !isFilled(ap.estadual.nome)) return false;
-        if (ap.municipal && !isFilled(ap.municipal.nome)) return false;
+        // Check for partial filling
+        if (
+          ap.federal &&
+          (!isFieldFilled(ap.federal.nome) || !isFieldFilled(ap.federal.zona))
+        )
+          return false;
+        if (
+          ap.estadual &&
+          (!isFieldFilled(ap.estadual.nome) || !isFieldFilled(ap.estadual.zona))
+        )
+          return false;
+        if (
+          ap.municipal &&
+          (!isFieldFilled(ap.municipal.nome) ||
+            !isFieldFilled(ap.municipal.zona))
+        )
+          return false;
+
+        // If none are specifically selected, 'nao_determinado' must be true
+        if (
+          !federalSelected &&
+          !estadualSelected &&
+          !municipalSelected &&
+          !naoDeterminadoSelected
+        ) {
+          // This condition means something needs to be chosen if area_protegida object exists.
+          // Or, if it's okay for area_protegida to exist but be "empty" (other than nao_determinado false), adjust this.
+          // Assuming if 'ap' exists, one state must be valid or nao_determinado is true.
+          // If the UI ensures that if one is picked, 'nao_determinado' is false, this covers it.
+          // The typical case: if user interacts with federal/state/municipal, then one of them OR nao_determinado should be valid.
+          // if no options (federal, estadual, municipal) are even partially filled, and nao_determinado is not true, then it is invalid.
+          const anyPartial =
+            ap.federal?.nome ||
+            ap.federal?.zona ||
+            ap.estadual?.nome ||
+            ap.estadual?.zona ||
+            ap.municipal?.nome ||
+            ap.municipal?.zona;
+          if (
+            anyPartial &&
+            !naoDeterminadoSelected &&
+            !federalSelected &&
+            !estadualSelected &&
+            !municipalSelected
+          )
+            return false;
+          if (!anyPartial && !naoDeterminadoSelected) return false; // Nothing selected at all
+        }
       }
 
       if (aspectos.uso_cavidade?.outroEnabled === true) {
-        if (!isFilled(aspectos.uso_cavidade.outro)) {
+        if (!isFieldFilled(aspectos.uso_cavidade.outro)) {
           return false;
         }
       }
+      // Add validation for 'uso_cavidade' options if 'outroEnabled' is false and no other boolean is true
+      if (
+        aspectos.uso_cavidade &&
+        aspectos.uso_cavidade.outroEnabled === false
+      ) {
+        const usoSpecifics = Object.keys(aspectos.uso_cavidade).filter(
+          (k) => k !== "outro" && k !== "outroEnabled"
+        );
+        const anyUsoSelected = usoSpecifics.some(
+          (k) => (aspectos.uso_cavidade as any)[k] === true
+        );
+        // if (!anyUsoSelected) return false; // If 'outro' not enabled, at least one specific use must be true
+      }
+
       return true;
 
-    case 3: // Step Four: Caracterização Interna (onde estão as regras que mencionou)
-      const caracterizacao = data.caracterizacao_interna;
-      if (!caracterizacao) return true;
+    case 3: // Step Four: Caracterização Interna
+      const caracterizacao = data.caracterizacao_interna as
+        | CaracterizacaoInterna
+        | undefined;
+      if (!caracterizacao) return true; // If optional and not filled
 
       if (caracterizacao.grupo_litologico) {
+        const gl = caracterizacao.grupo_litologico;
+        const hasSpecificLithology =
+          gl.rochas_carbonaticas ||
+          gl.rochas_ferriferas_ferruginosas ||
+          gl.rochas_siliciclasticas ||
+          gl.rochas_peliticas ||
+          gl.rochas_granito_gnaissicas;
+        const outroLithologyFilled = isFieldFilled(gl.outro);
+        if (!hasSpecificLithology && !outroLithologyFilled) return false; // Must select a type or fill outro
         if (
-          caracterizacao.grupo_litologico.outro !== undefined &&
-          !isFilled(caracterizacao.grupo_litologico.outro)
+          gl.outro !== undefined &&
+          gl.outro.trim() !== "" &&
+          !isFieldFilled(gl.outro) &&
+          !hasSpecificLithology
         ) {
-          return false;
+          // If 'outro' has content but is only spaces and no specific chosen
+          // This logic is a bit tricky: if 'outro' is defined (not just empty string after trim), it should be valid IF specific types are not chosen.
+          // If 'outro' is intended as the sole choice, it must be filled.
+        } else if (
+          gl.hasOwnProperty("outro") &&
+          !isFieldFilled(gl.outro) &&
+          !hasSpecificLithology
+        ) {
+          // If 'outro' field exists but is empty, and no specific type is chosen, it's invalid.
+          // This implies if 'outro' text input is shown, it needs filling if no checkboxes are ticked.
+          // The UI should ideally manage enabling/disabling 'outro' or making it required based on checkboxes.
+          // For now, if 'outro' is the only way to validate this section and it's not filled, then false.
+          // The check `!hasSpecificLithology && !outroLithologyFilled` already covers this.
         }
+      } else {
+        return false; // grupo_litologico object itself is mandatory if caracterizacao_interna is present
       }
 
+      if (!caracterizacao.desenvolvimento_predominante) return false; // desenvolvimento_predominante is mandatory
+
       if (
-        (caracterizacao.estado_conservacao === "Depredação localizada" ||
-          caracterizacao.estado_conservacao === "Depredação intensa") &&
-        !isFilled(caracterizacao.estado_conservacao_detalhes)
+        (caracterizacao.depredacao_localizada === true &&
+          !isFieldFilled(caracterizacao.descricao_depredacao_localizada)) ||
+        (caracterizacao.depredacao_intensa === true &&
+          !isFieldFilled(caracterizacao.descricao_depredacao_intensa))
       ) {
         return false;
       }
 
       const infraInterna = caracterizacao.infraestrutura_interna;
       if (infraInterna) {
-        if (infraInterna.corrimao) {
-          const corrimaoInfo = infraInterna.corrimao;
-          const isOutroCorrimaoTextFilledAndActive =
-            corrimaoInfo.outro !== undefined && isFilled(corrimaoInfo.outro);
-          const algumaOpcaoCorrimaoFilhoSelecionada =
-            corrimaoInfo.ferro === true ||
-            corrimaoInfo.madeira === true ||
-            corrimaoInfo.corda === true ||
-            isOutroCorrimaoTextFilledAndActive;
-
-          if (!algumaOpcaoCorrimaoFilhoSelecionada) {
+        if (infraInterna.nenhuma === true) {
+          // If 'nenhuma' is true, no other infraestrutura_interna should be true/filled
+          if (
+            infraInterna.passarela ||
+            infraInterna.corrimao?.ferro ||
+            infraInterna.corrimao?.madeira ||
+            infraInterna.corrimao?.corda ||
+            isFieldFilled(infraInterna.corrimao?.outro) ||
+            infraInterna.portao ||
+            infraInterna.escada ||
+            infraInterna.corda ||
+            infraInterna.iluminacao_artificial ||
+            infraInterna.ponto_ancoragem ||
+            (infraInterna.outroEnabled && isFieldFilled(infraInterna.outros))
+          ) {
             return false;
           }
-        }
+        } else {
+          // If 'nenhuma' is false, at least one other option must be selected/filled
+          const corrimaoSelected =
+            infraInterna.corrimao &&
+            (infraInterna.corrimao.ferro ||
+              infraInterna.corrimao.madeira ||
+              infraInterna.corrimao.corda ||
+              isFieldFilled(infraInterna.corrimao.outro));
+          const otherInfraSelected =
+            infraInterna.passarela ||
+            infraInterna.portao ||
+            infraInterna.escada ||
+            infraInterna.corda ||
+            infraInterna.iluminacao_artificial ||
+            infraInterna.ponto_ancoragem;
+          const outroInfraFilled =
+            infraInterna.outroEnabled && isFieldFilled(infraInterna.outros);
 
-        if (
-          infraInterna.outroEnabled === true &&
-          !isFilled(infraInterna.outros)
-        ) {
-          return false;
+          if (!corrimaoSelected && !otherInfraSelected && !outroInfraFilled)
+            return false;
+
+          if (
+            infraInterna.corrimao &&
+            !infraInterna.corrimao.ferro &&
+            !infraInterna.corrimao.madeira &&
+            !infraInterna.corrimao.corda &&
+            !isFieldFilled(infraInterna.corrimao.outro) &&
+            (infraInterna.corrimao.hasOwnProperty("ferro") ||
+              infraInterna.corrimao.hasOwnProperty("madeira") ||
+              infraInterna.corrimao.hasOwnProperty("corda") ||
+              infraInterna.corrimao.hasOwnProperty("outro"))
+          ) {
+            // If corrimao object exists but no option within it is selected/filled
+            // This implies user interacted with corrimao but didn't complete it.
+            // This might be too strict depending on UI. If corrimao itself is optional, this is fine.
+            // Assuming if corrimao object is present, something inside must be true/filled.
+            // This is already covered by !corrimaoSelected if we consider corrimao selection mandatory if an option is shown.
+          }
+          if (
+            infraInterna.outroEnabled === true &&
+            !isFieldFilled(infraInterna.outros)
+          )
+            return false;
         }
+      } else {
+        return false; // infraestrutura_interna object is mandatory
       }
 
-      const dificuldadeProg = caracterizacao.dificuldades_progressao_interna;
-      if (dificuldadeProg) {
-        if (
-          dificuldadeProg.outro !== undefined &&
-          !isFilled(dificuldadeProg.outro)
-        ) {
-          return false;
+      const difProg = caracterizacao.dificuldades_progressao_interna;
+      if (difProg) {
+        if (difProg.nenhuma === true) {
+          const anySpecificDifProg =
+            difProg.teto_baixo ||
+            difProg.blocos_instaveis ||
+            difProg.trechos_escorregadios ||
+            difProg.rastejamento ||
+            difProg.natacao ||
+            difProg.lances_verticais ||
+            difProg.passagem_curso_agua ||
+            difProg.quebra_corpo ||
+            difProg.sifao ||
+            difProg.cachoeira ||
+            isFieldFilled(difProg.outro);
+          if (anySpecificDifProg) return false;
+        } else {
+          const anySpecificDifProg =
+            difProg.teto_baixo ||
+            difProg.blocos_instaveis ||
+            difProg.trechos_escorregadios ||
+            difProg.rastejamento ||
+            difProg.natacao ||
+            difProg.lances_verticais ||
+            difProg.passagem_curso_agua ||
+            difProg.quebra_corpo ||
+            difProg.sifao ||
+            difProg.cachoeira;
+          const outroDifProgFilled = isFieldFilled(difProg.outro); // Assuming 'outro' can be filled even if specific are selected
+          if (!anySpecificDifProg && !outroDifProgFilled) return false; // Must select a type or fill outro if 'nenhuma' is false
+          // If 'outro' is intended to be exclusive of the booleans when filled, this needs adjustment.
+          // The current Type structure allows 'outro' and booleans to co-exist.
+          // If the UI implies 'outro' is only active if no booleans, that's a UI logic concern.
+          // For data validation, if 'outro' is present and filled, it's valid contribution.
         }
+      } else {
+        return false; // dificuldades_progressao_interna object is mandatory
       }
-
       return true;
 
     case 4: // Step Five: Topografia e Morfologia
       const morfologia = data.morfologia;
       if (morfologia) {
-        if (
-          morfologia.padrao_planimetrico?.outro !== undefined &&
-          !isFilled(morfologia.padrao_planimetrico.outro)
-        ) {
-          return false;
+        const pp = morfologia.padrao_planimetrico;
+        if (pp) {
+          const anyPPSelected =
+            pp.retilinea ||
+            pp.anastomosada ||
+            pp.espongiforme ||
+            pp.labirintica ||
+            pp.reticulado ||
+            pp.ramiforme ||
+            pp.dendritico;
+          const outroPPFilled = isFieldFilled(pp.outro);
+          if (!anyPPSelected && !outroPPFilled) return false; // Must select a type or fill outro
+        } else {
+          return false; // padrao_planimetrico is mandatory if morfologia exists
         }
+
+        const fs = morfologia.forma_secoes;
+        if (fs) {
+          const anyFSSelected =
+            fs.circular ||
+            fs.eliptica_vertical ||
+            fs.eliptica_horizontal ||
+            fs.eliptica_inclinada ||
+            fs.lenticular_vertical ||
+            fs.lenticular_horizontal ||
+            fs.poligonal ||
+            fs.poligonal_tabular ||
+            fs.triangular ||
+            fs.fechadura ||
+            fs.linear_inclinada ||
+            fs.linear_vertical ||
+            fs.irregular ||
+            fs.mista;
+          const outroFSFilled = isFieldFilled(fs.outro);
+          if (!anyFSSelected && !outroFSFilled) return false; // Must select a type or fill outro
+        } else {
+          return false; // forma_secoes is mandatory if morfologia exists
+        }
+      } else {
+        return true; // Morfologia itself is optional in Cavidade type. If present, its children are mandatory.
+        // If morfologia must be filled if topografia is filled, this needs cross-field validation.
+        // Assuming morfologia can be independently optional.
+      }
+
+      // Topografia validation (if it's mandatory or has internal requirements)
+      const topografia = data.topografia;
+      if (topografia) {
+        const esp = topografia.espeleometria;
         if (
-          morfologia.forma_secoes?.outro !== undefined &&
-          !isFilled(morfologia.forma_secoes.outro)
+          !esp ||
+          (esp.projecao_horizontal === undefined &&
+            esp.desnivel_piso === undefined &&
+            esp.area === undefined &&
+            esp.volume === undefined)
         ) {
-          return false;
+          // If espeleometria object exists but all fields are undefined, consider it unfilled.
+          // Or, if any one is enough, this is fine.
+          // Assuming if topografia object exists, espeleometria should have at least one value or be absent.
+          // If espeleometria is mandatory within topografia:
+          // if (!esp) return false;
+          // if (Object.values(esp).every(v => v === undefined || v === null || v === '' || (typeof v === 'number' && isNaN(v)))) return false;
+        }
+        const prev = topografia.previsao;
+        if (prev && prev.bcra === undefined && prev.uis === undefined) {
+          // similar logic for previsao if it's mandatory to have one
         }
       }
+      // Assuming topografia itself is optional. If present, its children might have mandatory aspects.
+      // For now, just checking morfologia as per original structure.
+
       return true;
 
-    case 5: // Step Six: Hidrologia
+    case 5:
       const hydro = data.hidrologia;
-      if (!hydro) return true;
+      if (!hydro) return false;
 
       const checkWaterFeature = (feature?: {
         possui?: boolean;
-        tipo?: "perene" | "intermitente" | "nao_soube_informar";
-      }) => {
-        return !feature?.possui || isFilled(feature.tipo);
-      };
+        tipo?: string;
+      }) => feature?.possui && isFieldFilled(feature.tipo);
 
-      const allFeaturesValid =
-        checkWaterFeature(hydro.curso_agua) &&
-        checkWaterFeature(hydro.lago) &&
-        checkWaterFeature(hydro.sumidouro) &&
-        checkWaterFeature(hydro.surgencia) &&
-        checkWaterFeature(hydro.gotejamento) &&
-        checkWaterFeature(hydro.condensacao) &&
-        checkWaterFeature(hydro.empossamento) &&
-        checkWaterFeature(hydro.exudacao);
+      const features = [
+        hydro.curso_agua,
+        hydro.lago,
+        hydro.sumidouro,
+        hydro.surgencia,
+        hydro.gotejamento,
+        hydro.condensacao,
+        hydro.empossamento,
+        hydro.exudacao,
+      ];
 
-      const isOutroHidrologiaValid =
-        hydro.outro === undefined || isFilled(hydro.outro);
+      // Ensure all features are filled if 'possui' is true
+      if (!features.every(checkWaterFeature)) return false;
 
-      return allFeaturesValid && isOutroHidrologiaValid;
+      // Ensure 'outro' is filled if enabled
+      if (hydro.hasOwnProperty("outro") && !isFieldFilled(hydro.outro))
+        return false;
+
+      return true;
 
     case 6: // Step Seven: Sedimentos
       const sed = data.sedimentos;
@@ -261,220 +484,266 @@ const validateStep = (
       let isClasticaValid = true;
       if (sed.sedimentacao_clastica?.possui) {
         const clastica = sed.sedimentacao_clastica;
-        if (!clastica) {
+        if (!clastica.tipo && !clastica.outroEnabled) {
           isClasticaValid = false;
         } else {
           let algumaSubOpcaoClasticaValida = false;
-          if (clastica.tipo?.rochoso) {
+          if (clastica.tipo) {
             const clasticaTipo = clastica.tipo;
             const checkGrainSize = (grain?: {
               distribuicao?: string;
               origem?: string;
             }) =>
               grain
-                ? isFilled(grain.distribuicao) && isFilled(grain.origem)
+                ? isFieldFilled(grain.distribuicao) &&
+                  isFieldFilled(grain.origem)
                 : false;
 
             if (
-              (clasticaTipo.argila && checkGrainSize(clasticaTipo.argila)) ||
-              (clasticaTipo.silte && checkGrainSize(clasticaTipo.silte)) ||
-              (clasticaTipo.areia && checkGrainSize(clasticaTipo.areia)) ||
-              (clasticaTipo.fracao_granulo &&
-                checkGrainSize(clasticaTipo.fracao_granulo)) ||
-              (clasticaTipo.seixo_predominante &&
-                checkGrainSize(clasticaTipo.seixo_predominante)) ||
-              (clasticaTipo.fracao_calhau &&
-                checkGrainSize(clasticaTipo.fracao_calhau)) ||
-              (clasticaTipo.matacao_predominante &&
-                checkGrainSize(clasticaTipo.matacao_predominante))
+              clasticaTipo.rochoso ||
+              checkGrainSize(clasticaTipo.argila) ||
+              checkGrainSize(clasticaTipo.silte) ||
+              checkGrainSize(clasticaTipo.areia) ||
+              checkGrainSize(clasticaTipo.fracao_granulo) ||
+              checkGrainSize(clasticaTipo.seixo_predominante) ||
+              checkGrainSize(clasticaTipo.fracao_calhau) ||
+              checkGrainSize(clasticaTipo.matacao_predominante)
             ) {
               algumaSubOpcaoClasticaValida = true;
             }
           }
-
           if (clastica.outroEnabled) {
-            if (isFilled(clastica.outros)) {
+            if (isFieldFilled(clastica.outros)) {
               algumaSubOpcaoClasticaValida = true;
+            } else {
+              isClasticaValid = false; // Set to false directly if 'outro' is enabled but not filled
             }
-          } else if (
-            clastica.tipo?.rochoso === false &&
-            !clastica.outroEnabled
-          ) {
-            // Se possui é true, rochoso é explicitamente false, e outroEnabled é false,
-            // então é inválido pois nada foi selecionado.
-            // Esta lógica pode precisar de ajuste fino baseado na regra de negócio exata.
-            // Se `outroEnabled` for undefined, esta condição não será atendida.
           }
-          isClasticaValid = algumaSubOpcaoClasticaValida;
+          if (!algumaSubOpcaoClasticaValida && isClasticaValid) {
+            // If still valid but no option found
+            isClasticaValid = false;
+          }
         }
       }
 
       let isOrganicaValid = true;
       if (sed.sedimentacao_organica?.possui) {
         const organica = sed.sedimentacao_organica;
-        if (!organica) {
+        if (!organica.tipo && !organica.outroEnabled) {
           isOrganicaValid = false;
         } else {
-          const orgTipo = organica.tipo;
           let algumaSubOpcaoOrganicaValida = false;
-
-          if (orgTipo?.guano) {
-            const guano = orgTipo.guano;
+          if (organica.tipo) {
+            const orgTipo = organica.tipo;
+            if (orgTipo.guano) {
+              const guano = orgTipo.guano;
+              if (
+                (guano.carnivoro?.possui &&
+                  isFieldFilled(guano.carnivoro.tipo)) ||
+                (guano.frugivoro?.possui &&
+                  isFieldFilled(guano.frugivoro.tipo)) ||
+                (guano.hematofago?.possui &&
+                  isFieldFilled(guano.hematofago.tipo)) ||
+                (guano.inderterminado?.possui &&
+                  isFieldFilled(guano.inderterminado.tipo))
+              ) {
+                algumaSubOpcaoOrganicaValida = true;
+              }
+            }
             if (
-              (guano.carnivoro?.possui && isFilled(guano.carnivoro.tipo)) ||
-              (guano.frugivoro?.possui && isFilled(guano.frugivoro.tipo)) ||
-              (guano.hematofago?.possui && isFilled(guano.hematofago.tipo)) ||
-              (guano.inderterminado?.possui &&
-                isFilled(guano.inderterminado.tipo))
+              orgTipo.folhico ||
+              orgTipo.galhos ||
+              orgTipo.raizes ||
+              orgTipo.vestigios_ninhos ||
+              orgTipo.pelotas_regurgitacao
             ) {
               algumaSubOpcaoOrganicaValida = true;
             }
           }
-          if (
-            orgTipo?.folhico ||
-            orgTipo?.galhos ||
-            orgTipo?.raizes ||
-            orgTipo?.vestigios_ninhos ||
-            orgTipo?.pelotas_regurgitacao
-          ) {
-            algumaSubOpcaoOrganicaValida = true;
-          }
-
           if (organica.outroEnabled) {
-            if (isFilled(organica.outros)) {
+            if (isFieldFilled(organica.outros)) {
               algumaSubOpcaoOrganicaValida = true;
+            } else {
+              isOrganicaValid = false; // Set to false directly
             }
           }
-          isOrganicaValid = algumaSubOpcaoOrganicaValida;
+          if (!algumaSubOpcaoOrganicaValida && isOrganicaValid) {
+            isOrganicaValid = false;
+          }
         }
       }
-      return isClasticaValid && isOrganicaValid;
+      // If 'sedimentos' object exists, at least one of its main sections must be 'possui: true' and valid,
+      // or it means the user opened the section but didn't fill anything.
+      if (
+        sed.sedimentacao_clastica?.possui === false &&
+        sed.sedimentacao_organica?.possui === false
+      ) {
+        // If both are explicitly false, it's valid.
+      } else if (sed.sedimentacao_clastica?.possui && !isClasticaValid) {
+        return false;
+      } else if (sed.sedimentacao_organica?.possui && !isOrganicaValid) {
+        return false;
+      } else if (
+        !sed.sedimentacao_clastica?.possui &&
+        !sed.sedimentacao_organica?.possui
+      ) {
+        // This implies the 'sedimentos' object exists but nothing is selected.
+        // This could be an invalid state if user interaction is expected.
+        // If the 'sedimentos' section itself is optional, then this is fine if no 'possui' is true.
+        // However, if 'sedimentos' object exists AT ALL, it implies user intended to fill it.
+        // For now, if neither 'possui' is true, treat as valid (empty section).
+      }
+
+      return isClasticaValid && isOrganicaValid; // Will be true if both 'possui' are false.
 
     case 7: // Step Eight: Espeleotemas
       const esp = data.espeleotemas;
-      if (!esp || typeof esp.possui === "undefined") {
-        return true;
+      if (!esp || typeof esp.possui === "undefined" || esp.possui === false) {
+        return false; // Valid if not present, or 'possui' is false
       }
-      // Se 'possui' é true, a lista de espeleotemas não deve estar vazia.
-      if (esp.possui === true) {
-        if (!Array.isArray(esp.lista) || esp.lista.length === 0) {
-          return false;
-        }
-        // Opcional: Validar se cada item na lista tem 'tipo' preenchido, se essa for uma regra.
-        // const todosItensValidos = esp.lista.every(item => isFilled(item.tipo));
-        // if (!todosItensValidos) return false;
+      // If 'possui' is true:
+      if (!Array.isArray(esp.tipos) || esp.tipos.length === 0) {
+        return false; // Must have at least one item
       }
+      const todosItensValidos = esp.tipos.every(
+        (item) =>
+          isFieldFilled(item.tipo) &&
+          isFieldFilled(item.porte) &&
+          isFieldFilled(item.frequencia) &&
+          isFieldFilled(item.estado_conservacao)
+      );
+      if (!todosItensValidos) return false; // All items must be fully filled
       return true;
 
-      case 8: // Step Nine: Biota
+    case 8: // Step Nine: Biota
       const biota = data.biota;
-      if (!biota) return true; 
-      
-      const checkBiotaFeature = (feature?: {
+      if (!biota) return true; // Valid if biota section is not touched
+
+      const checkBiotaCategoryWithBooleans = (categoryData?: {
+        possui?: boolean;
+        outroEnabled?: boolean;
+        outro?: string;
+        [key: string]: any;
+      }) => {
+        if (!categoryData || categoryData.possui === false) return true; // Valid if not present or 'possui' is false
+        // If 'possui' is true:
+        const specificTypeSelected = Object.keys(categoryData).some(
+          (key) =>
+            key !== "possui" &&
+            key !== "outroEnabled" &&
+            key !== "outro" &&
+            categoryData[key] === true
+        );
+        const outroValid =
+          categoryData.outroEnabled && isFieldFilled(categoryData.outro);
+
+        if (!specificTypeSelected && !outroValid) return false; // Must select a type or fill 'outro'
+        if (categoryData.outroEnabled && !isFieldFilled(categoryData.outro))
+          return false; // If 'outro' enabled, it must be filled
+        return true;
+      };
+
+      const checkBiotaStandardCategory = (categoryData?: {
         possui?: boolean;
         tipos?: string[];
-        outroEnabled?: boolean; 
+        outroEnabled?: boolean;
         outro?: string;
       }) => {
-        if (!feature) return true; 
-        if (!feature.possui) return true; // Se 'possui' for false, é válido
-
-        // Se 'possui' é true, a lógica abaixo se aplica:
-        const tiposValidos = Array.isArray(feature.tipos) && feature.tipos.length > 0;
-        
-        if (typeof feature.outroEnabled === 'boolean') { 
-          if (feature.outroEnabled) {
-            // Se 'outro' está habilitado, DEVE estar preenchido.
-            // E, ou os tipos são válidos OU o outro (já validado como preenchido) é a única opção.
-            // A questão é se 'tiposValidos' E 'outroValido' podem coexistir ou se são mutuamente exclusivos.
-            // Assumindo que podem coexistir, mas se 'outroEnabled' é true, 'outro' DEVE ser preenchido.
-            if (!isFilled(feature.outro)) return false; // Falha se 'outroEnabled' mas 'outro' vazio
-            return tiposValidos || isFilled(feature.outro); // Válido se tipos OU o outro (que sabemos estar preenchido) for válido
-          } else {
-            // Se 'outro' não está habilitado, apenas 'tiposValidos' importa.
-            return tiposValidos;
-          }
-        }
-        // Fallback se 'outroEnabled' não existir (lógica original)
-        return tiposValidos || isFilled(feature.outro); 
+        if (!categoryData || categoryData.possui === false) return true;
+        // If 'possui' is true:
+        const tiposValidos =
+          Array.isArray(categoryData.tipos) && categoryData.tipos.length > 0;
+        const outroValido =
+          categoryData.outroEnabled && isFieldFilled(categoryData.outro);
+        if (!tiposValidos && !outroValido) return false;
+        if (categoryData.outroEnabled && !isFieldFilled(categoryData.outro))
+          return false;
+        return true;
       };
 
       const checkMorcegos = (morcegos?: Biota["morcegos"]) => {
-        if (!morcegos?.possui) return true;
-        if (!morcegos || !Array.isArray(morcegos.tipos) || morcegos.tipos.length === 0) return false;
-        return morcegos.tipos.every( (m) => isFilled(m.tipo) && isFilled(m.quantidade) );
+        if (!morcegos || morcegos.possui === false) return true;
+        // If 'possui' is true:
+        if (!Array.isArray(morcegos.tipos) || morcegos.tipos.length === 0)
+          return false; // Must have at least one type
+        return morcegos.tipos.every(
+          (m) => isFieldFilled(m.tipo) && isFieldFilled(m.quantidade)
+        ); // Each type must have tipo and quantidade
       };
 
-      const peixesValido = biota.peixes === undefined || typeof biota.peixes === 'boolean';
+      const peixesValido =
+        biota.peixes === undefined || typeof biota.peixes === "boolean"; // True if not selected or explicitly true/false
 
-      return (
-        checkBiotaFeature(biota.invertebrados) &&
-        checkBiotaFeature(biota.invertebrados_aquaticos) &&
-        checkBiotaFeature(biota.anfibios) &&
-        checkBiotaFeature(biota.repteis) &&
-        checkBiotaFeature(biota.aves) &&
-        checkMorcegos(biota.morcegos) &&
-        peixesValido 
-      );
+      // If biota object exists, assume user intended to fill something or explicitly mark 'possui: false' for subsections.
+      // This means if any subsection has 'possui: true' it must be valid.
+      // If all subsections have 'possui: false' (or are undefined), then it's valid.
 
-      case 9: // Step Ten: Arqueologia & Paleontologia
+      if (
+        !checkBiotaCategoryWithBooleans(biota.invertebrado) ||
+        !checkBiotaCategoryWithBooleans(biota.invertebrado_aquatico) ||
+        !checkBiotaStandardCategory(biota.anfibios) ||
+        !checkBiotaStandardCategory(biota.repteis) ||
+        !checkBiotaStandardCategory(biota.aves) ||
+        !checkMorcegos(biota.morcegos) ||
+        !peixesValido // This just checks if it's a boolean, not if it's true and needs more data.
+      ) {
+        return false;
+      }
+      return true;
+
+    case 9: // Step Ten: Arqueologia & Paleontologia
       const validateArchPalSection = (sectionData?: {
         possui?: boolean;
         tipos?: {
-          [key: string]: boolean | string | undefined;
+          [key: string]: boolean | string | undefined; // Allows boolean flags and 'outro' string
           outroEnabled?: boolean;
-          outro?: string;
         };
       }): boolean => {
-        if (!sectionData || typeof sectionData.possui === "undefined")
-          return true;
-        if (!sectionData.possui) return true;
-
-        if (!sectionData.tipos) return false;
+        if (!sectionData || sectionData.possui === false) return true; // Valid if not present or 'possui' is false
+        // If 'possui' is true:
+        if (!sectionData.tipos) return false; // 'tipos' object must exist
 
         const tipos = sectionData.tipos;
-
-        if (tipos.outroEnabled === true && !isFilled(tipos.outro)) {
-          return false;
+        if (tipos.outroEnabled === true && !isFieldFilled(tipos.outro)) {
+          return false; // If 'outro' enabled, it must be filled
         }
 
-        let hasSpecificTypeBoolean = false;
-        for (const key in tipos) {
-          if (
+        const hasSpecificTypeBoolean = Object.keys(tipos).some(
+          (key) =>
             key !== "outroEnabled" &&
             key !== "outro" &&
             typeof tipos[key] === "boolean" &&
             tipos[key] === true
-          ) {
-            hasSpecificTypeBoolean = true;
-            break;
-          }
-        }
+        );
 
         const outroPreenchidoCorretamente =
-          tipos.outroEnabled === true && isFilled(tipos.outro);
+          tipos.outroEnabled === true && isFieldFilled(tipos.outro);
 
+        // If 'outro' is not enabled, at least one specific type must be true
         if (
           tipos.outroEnabled === false ||
           typeof tipos.outroEnabled === "undefined"
         ) {
           return hasSpecificTypeBoolean;
         }
-
+        // If 'outro' is enabled, then either a specific type OR 'outro' itself must be valid
         return hasSpecificTypeBoolean || outroPreenchidoCorretamente;
       };
 
-      return (
-        validateArchPalSection(data.arqueologia) &&
-        validateArchPalSection(data.paleontologia)
-      );
+      if (
+        !validateArchPalSection(data.arqueologia) ||
+        !validateArchPalSection(data.paleontologia)
+      ) {
+        return false;
+      }
+      return true;
 
     default:
       return true;
   }
 };
 
-const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
+const RegisterCavity: FC<RouterProps> = ({ navigation, route }) => {
   const dispatch = useDispatch();
   const [successSuccessModal, setSuccessModal] = useState(false);
   const { currentStep, formData } = useSelector((state: RootState) => ({
@@ -485,23 +754,22 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
   const [validationAttempted, setValidationAttempted] = useState(false);
 
   useEffect(() => {
-    // console.log("Current FormData:", JSON.stringify(formData, null, 2));
-  }, [formData]);
+    // console.log(`Step ${currentStep} FormData:`, JSON.stringify(formData, null, 2));
+  }, [formData, currentStep]);
 
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // Tipar o array de steps para que cada elemento seja um FC que aceita StepComponentProps
   const steps: FC<StepComponentProps>[] = [
-    StepOne as FC<StepComponentProps>,
-    StepTwo as FC<StepComponentProps>,
-    StepThree as FC<StepComponentProps>,
-    StepFour as FC<StepComponentProps>,
-    StepFive as FC<StepComponentProps>,
-    StepSix as FC<StepComponentProps>,
-    StepSeven as FC<StepComponentProps>, // StepSeven já está preparado
-    StepEight as FC<StepComponentProps>,
-    StepNine as FC<StepComponentProps>,
-    StepTen as FC<StepComponentProps>,
+    StepOne,
+    StepTwo,
+    StepThree,
+    StepFour,
+    StepFive,
+    StepSix,
+    StepSeven,
+    StepEight,
+    StepNine,
+    StepTen,
   ];
 
   const StepComponent: FC<StepComponentProps> = steps[currentStep];
@@ -513,9 +781,8 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
 
   const handleNext = async () => {
     setValidationAttempted(true);
-
     const isValidOnClick = validateStep(currentStep, formData);
-
+    console.log(formData.data);
     if (!isValidOnClick) {
       Alert.alert(
         "Campos Obrigatórios",
@@ -527,11 +794,16 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
       return;
     }
 
-    setValidationAttempted(false);
+    setValidationAttempted(false); // Reset for the next step
 
     if (currentStep === steps.length - 1) {
       try {
-        await createCavityRegister({
+        if (!formData) {
+          // Should not happen if validation passes, but good check
+          throw new Error("Form data is missing.");
+        }
+
+        const cavityPayload: CavityRegisterData = {
           registro_id: uuid.v4().toString(),
           projeto_id: formData.projeto_id || "",
           responsavel: formData.responsavel || "",
@@ -550,21 +822,24 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
                     d < 1 ||
                     d > 31
                   ) {
-                    console.error("Invalid date components:", d, m, y);
                     throw new Error("Invalid date format");
                   }
-                  return new Date(y, m - 1, d, 12, 0, 0, 0).toISOString();
+                  return formatDateToInput(
+                    new Date(y, m - 1, d, 12, 0, 0, 0).toISOString()
+                  );
                 } catch (e) {
-                  console.error("Error parsing date:", formData.data, e);
-                  return new Date().toISOString();
+                  return formatDateToInput(new Date().toISOString());
                 }
               })()
-            : new Date().toISOString(),
+            : formatDateToInput(new Date().toISOString()),
           municipio: formData.municipio || "",
           uf: formData.uf || "",
-          localidade: formData.localidade,
+          localidade: formData.localidade, // Already optional
           entradas: JSON.stringify(formData.entradas || []),
-          desenvolvimento_linear: formData.desenvolvimento_linear,
+          desenvolvimento_linear:
+            formData.desenvolvimento_linear === undefined
+              ? null
+              : formData.desenvolvimento_linear,
           dificuldades_externas: JSON.stringify(
             formData.dificuldades_externas || {}
           ),
@@ -582,7 +857,8 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
           biota: JSON.stringify(formData.biota || {}),
           arqueologia: JSON.stringify(formData.arqueologia || {}),
           paleontologia: JSON.stringify(formData.paleontologia || {}),
-        });
+        };
+        await createCavityRegister(cavityPayload);
         setSuccessModal(true);
       } catch (error) {
         console.error("Error creating cavity register:", error);
@@ -605,10 +881,23 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
   };
 
   const handleBack = () => {
-    setValidationAttempted(false);
+    setValidationAttempted(false); // Reset validation attempt when going back
     if (currentStep === 0) {
-      navigation.navigate("CavityScreen");
-      dispatch(resetCavidadeState());
+      Alert.alert(
+        "Sair do Cadastro?",
+        "Dados não salvos serão perdidos. Deseja continuar?",
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Sair",
+            style: "destructive",
+            onPress: () => {
+              navigation.navigate("CavityScreen");
+              dispatch(resetCavidadeState());
+            },
+          },
+        ]
+      );
     } else {
       dispatch(updateCurrentStep(currentStep - 1));
       if (scrollViewRef.current) {
@@ -620,25 +909,23 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
-        navigation.navigate("CavityScreen");
-        return true;
+        // This logic is now primarily handled in handleBack() for the UI back button.
+        // This hardwareBackPress listener can call handleBack or a more generic exit confirmation.
+        handleBack(); // Or a more generic exit confirmation that calls handleBack logic
+        return true; // Prevent default hardware back button action
       };
       const subscription = BackHandler.addEventListener(
         "hardwareBackPress",
         onBackPress
       );
-
-      return () => {
-        subscription.remove();
-      };
-    }, [navigation])
+      return () => subscription.remove();
+    }, [navigation, dispatch, currentStep]) // Added currentStep to dependencies of handleBack
   );
 
   const handleSuccessModalClose = () => {
-    navigation.navigate("CavityScreen");
     setSuccessModal(false);
-    dispatch(updateCurrentStep(0));
-    dispatch(resetCavidadeState());
+    dispatch(resetCavidadeState()); // Resets currentStep to 0 and formData
+    navigation.navigate("CavityScreen");
   };
 
   return (
@@ -657,7 +944,7 @@ const RegisterCavity: FC<RouterProps> = ({ navigation }) => {
             {StepComponent ? (
               <StepComponent
                 navigation={navigation}
-                route={undefined}
+                route={route}
                 validationAttempted={validationAttempted}
               />
             ) : (

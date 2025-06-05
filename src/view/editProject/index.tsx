@@ -18,10 +18,7 @@ import { Input } from "../../components/input";
 import { Divider } from "../../components/divider";
 import { NextButton } from "../../components/button/nextButton";
 import { ReturnButton } from "../../components/button/returnButton";
-import {
-  fetchAllUsers,
-  updateProject,
-} from "../../db/controller";
+import { fetchAllUsers, updateProject } from "../../db/controller";
 import { useDispatch } from "react-redux";
 import { showError } from "../../redux/loadingSlice";
 import { database } from "../../db";
@@ -52,7 +49,6 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
-  const [responsible, setResponsible] = useState("");
   const [errorLoading, setErrorLoading] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -69,12 +65,9 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
     if (!isFilled(name)) {
       errors.name = msgRequired;
     }
-    if (!isFilled(responsible)) {
-      errors.responsible = msgRequired;
-    }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
-  }, [name, responsible]);
+  }, [name]);
 
   const saveProject = async () => {
     setValidationAttempted(true);
@@ -91,39 +84,56 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
     }
 
     if (!route?.params?.projectId) {
-        dispatch(showError({ title: "Erro", message: "ID do projeto não encontrado." }));
-        return;
+      dispatch(
+        showError({ title: "Erro", message: "ID do projeto não encontrado." })
+      );
+      return;
     }
 
     try {
-      const user = await fetchAllUsers(); 
+      const user = await fetchAllUsers();
       if (user.length === 0) {
-        dispatch(showError({ title: "Erro de Usuário", message: "Nenhum usuário encontrado." }));
-        return; 
+        dispatch(
+          showError({
+            title: "Erro de Usuário",
+            message: "Nenhum usuário encontrado.",
+          })
+        );
+        return;
       }
       await updateProject(route.params.projectId, {
         descricao_projeto: description,
         nome_projeto: name,
-        fk_cliente: String(user[0].user_id),
         inicio: date
           ? (() => {
               try {
                 const [d, m, y] = date.split("/").map(Number);
-                 if (isNaN(d) || isNaN(m) || isNaN(y) || m < 1 || m > 12 || d < 1 || d > 31) {
-                    throw new Error("Invalid date components");
+                if (
+                  isNaN(d) ||
+                  isNaN(m) ||
+                  isNaN(y) ||
+                  m < 1 ||
+                  m > 12 ||
+                  d < 1 ||
+                  d > 31
+                ) {
+                  throw new Error("Invalid date components");
                 }
                 return new Date(y, m - 1, d, 12).toISOString();
               } catch (e) {
-                console.error("Error parsing date for project update:", date, e);
+                console.error(
+                  "Error parsing date for project update:",
+                  date,
+                  e
+                );
                 return new Date().toISOString();
               }
             })()
           : new Date().toISOString(),
-        responsavel: responsible,
       });
       setSuccessModal(true);
-      setValidationAttempted(false); 
-      setFormErrors({}); 
+      setValidationAttempted(false);
+      setFormErrors({});
     } catch (error: any) {
       console.log("Error updating project:", error);
       dispatch(
@@ -148,19 +158,18 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
       const foundProject = await projectCollection.find(route.params.projectId);
       setName(foundProject.nome_projeto || "");
       setDescription(foundProject.descricao_projeto || "");
-      setDate(formatDateToInput(foundProject.inicio) || ""); 
-      setResponsible(foundProject.responsavel || "");
+      setDate(formatDateToInput(foundProject.inicio) || "");
     } catch (err) {
       console.error("Error fetching project details:", err);
       setErrorLoading("Erro ao carregar detalhes do projeto.");
     } finally {
       setIsLoading(false);
     }
-  }, [route?.params?.projectId]); 
+  }, [route?.params?.projectId]);
 
   useEffect(() => {
     if (route?.params?.projectId) {
-        fetchProject();
+      fetchProject();
     }
   }, [fetchProject, route?.params?.projectId]);
 
@@ -168,7 +177,6 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
     setName("");
     setDescription("");
     setDate("");
-    setResponsible("");
     setValidationAttempted(false);
     setFormErrors({});
     navigation.navigate("ProjectScreen");
@@ -180,7 +188,6 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
         setName("");
         setDescription("");
         setDate("");
-        setResponsible("");
         setValidationAttempted(false);
         setFormErrors({});
         navigation.navigate("ProjectScreen");
@@ -204,9 +211,8 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
       }
       setValidationAttempted(false);
       setFormErrors({});
-    }, [fetchProject, route?.params?.projectId, navigation]) 
+    }, [fetchProject, route?.params?.projectId, navigation])
   );
-
 
   if (isLoading) {
     return (
@@ -220,7 +226,7 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
     );
   }
 
-  if (errorLoading) { 
+  if (errorLoading) {
     return (
       <SafeAreaView style={styles.centered}>
         <Header
@@ -228,7 +234,10 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
           onCustomReturn={() => navigation.navigate("ProjectScreen")}
         />
         <Divider />
-        <TextInter color={colors.error[100]} style={{ marginTop: 20, textAlign: 'center' }}>
+        <TextInter
+          color={colors.error[100]}
+          style={{ marginTop: 20, textAlign: "center" }}
+        >
           {errorLoading}
         </TextInter>
       </SafeAreaView>
@@ -241,62 +250,48 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
         style={styles.main}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <ScrollView 
-            ref={scrollViewRef}
-            contentContainerStyle={styles.scrollContent} // Usar scrollContent aqui
-            keyboardShouldPersistTaps="handled"
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContent} // Usar scrollContent aqui
+          keyboardShouldPersistTaps="handled"
         >
-            {/* O View style={styles.container} foi removido como wrapper direto do ScrollView */}
-            {/* O conteúdo agora é filho direto do ScrollView, e scrollContent cuida do layout */}
-            <Header
-              title="Editar Projeto"
-              onCustomReturn={handleReturn}
+          {/* O View style={styles.container} foi removido como wrapper direto do ScrollView */}
+          {/* O conteúdo agora é filho direto do ScrollView, e scrollContent cuida do layout */}
+          <Header title="Editar Projeto" onCustomReturn={handleReturn} />
+          <Divider />
+          <View style={styles.bodyContainer}>
+            <Input
+              placeholder="Nome do Projeto"
+              label="Nome"
+              value={name}
+              onChangeText={setName}
+              required
+              hasError={!!formErrors.name}
+              errorMessage={formErrors.name}
             />
-            <Divider />
-            <View style={styles.bodyContainer}>
-              <Input
-                placeholder="Nome do Projeto"
-                label="Nome"
-                value={name}
-                onChangeText={setName}
-                required
-                hasError={!!formErrors.name}
-                errorMessage={formErrors.name}
-              />
-              <Input
-                placeholder="Nome do usuário"
-                value={responsible}
-                onChangeText={setResponsible}
-                label="Usuário responsável"
-                required
-                hasError={!!formErrors.responsible}
-                errorMessage={formErrors.responsible}
-              />
-              <Input
-                placeholder="Descreva o projeto"
-                label="Descrição"
-                value={description}
-                onChangeText={setDescription}
-              />
-              <Input
-                placeholder="DD/MM/AAAA"
-                label="Data da Criação"
-                keyboardType="numeric"
-                mask="99/99/9999"
-                value={date}
-                onChangeTextMask={setDate}
-              />
-            </View>
-            <View style={styles.buttonContainer}>
-              <ReturnButton
-                onPress={handleReturn}
-              />
-              <NextButton
-                onPress={saveProject}
-                buttonTitle="Salvar Edições"
-                disabled={false} 
-              />
-            </View>
+            <Input
+              placeholder="Descreva o projeto"
+              label="Descrição"
+              value={description}
+              onChangeText={setDescription}
+            />
+            <Input
+              placeholder="DD/MM/AAAA"
+              label="Data da Criação"
+              keyboardType="numeric"
+              mask="99/99/9999"
+              value={date}
+              onChangeTextMask={setDate}
+            />
+          </View>
+          <View style={styles.buttonContainer}>
+            <ReturnButton onPress={handleReturn} />
+            <NextButton
+              onPress={saveProject}
+              buttonTitle="Salvar Edições"
+              disabled={false}
+            />
+          </View>
           <SuccessModal
             visible={successSuccessModal}
             title="Projeto editado com sucesso!"
@@ -321,12 +316,12 @@ const styles = StyleSheet.create({
   },
   // styles.container foi removido pois seu conteúdo foi movido para serem filhos diretos do ScrollView
   // e scrollContent já lida com padding e flexGrow.
-  scrollContent: { 
-    flexGrow: 1, 
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "space-between", // Para distribuir Header, bodyContainer, buttonContainer
     paddingHorizontal: 20,
     paddingTop: 10, // Adicionado paddingTop para o Header
-    paddingBottom: 25, 
+    paddingBottom: 25,
   },
   buttonContainer: {
     flexDirection: "row",
@@ -335,18 +330,18 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 58,
     // marginTop: 'auto', // Removido, pois justifyContent: 'space-between' em scrollContent deve cuidar disso
-                         // Se o bodyContainer não preencher, pode ser necessário adicionar de volta ou ajustar flex do bodyContainer
+    // Se o bodyContainer não preencher, pode ser necessário adicionar de volta ou ajustar flex do bodyContainer
     marginTop: 20, // Adicionado um marginTop fixo para garantir espaço
   },
   bodyContainer: {
     flex: 1, // Permite que o bodyContainer cresça
     width: "100%",
   },
-  centered: { 
+  centered: {
     flex: 1,
-    justifyContent: "center", 
-    alignItems: "center",    
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: colors.dark[90],
-    paddingHorizontal: 20, 
+    paddingHorizontal: 20,
   },
 });

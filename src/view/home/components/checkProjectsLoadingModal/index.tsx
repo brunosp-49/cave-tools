@@ -42,7 +42,6 @@ import {
 } from "../../../../redux/userSlice";
 import { ThunkDispatch } from "@reduxjs/toolkit";
 import { resetLoadingState } from "../../../../redux/loadingSlice";
-import { ProjectWithPendingCavities } from "../../../../db/controller"; 
 import UploadProgressBar from "../../../../components/progressBar/uploadProgressBar";
 
 type InitialCheckOutcome =
@@ -250,8 +249,8 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
               });
             } catch (refreshError) {
               console.error("Token refresh failed, logging off:", refreshError);
-              await logoff();
-              currentOutcomeStatus = "LOGGED_OFF"; 
+              // await logoff();
+              currentOutcomeStatus = "ERROR_IN_CHECK"; 
             }
           } else if (isTokenAlmostExpired(currentUser.last_login_date)) {
             const daysLeft = getDaysUntilExpiration(currentUser.last_login_date);

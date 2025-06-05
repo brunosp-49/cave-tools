@@ -247,6 +247,7 @@ export const CavityScreen: FC<RouterProps> = ({ navigation }) => {
         <View style={styles.container}>
               <Header
                 title="Caracterização"
+                navigation={navigation}
                 onCustomReturn={() => navigation.navigate("HomeScreen")}
               />
               <Divider height={35} />
