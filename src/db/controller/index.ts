@@ -277,6 +277,7 @@ export const fetchAllProjects = async (): Promise<ProjectModel[]> => {
     return projects.map((p: Project) => ({
       _id: p.id,
       id: p.id,
+      status: 'Aberta',
       nome_projeto: p.nome_projeto,
       inicio: p.inicio,
       descricao_projeto: p.descricao_projeto,
@@ -583,7 +584,7 @@ export const syncConsolidatedUpload = async (
       const user = users[0];
       console.log({ projectPackage });
       // O payload enviado para a API é o projectPackage inteiro
-      const response = await api.post("/projetos/app_upload/", projectPackage, {
+      const response = await api.post("/projetfghos/app_upload/", projectPackage, {
         headers: { Authorization: `Bearer ${user.token}` },
       }); // Adapte o endpoint
       console.log({ response });
