@@ -161,6 +161,8 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
           inicio: project.inicio, 
           descricao_projeto: project.descricao_projeto,
           responsavel: project.cliente.nome, 
+          status: 'Ativo',
+          
         }));
         await createProjects(projectsToCreate); 
         dispatch(setModalHasProjects(true));

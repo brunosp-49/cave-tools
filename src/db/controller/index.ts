@@ -277,6 +277,7 @@ export const fetchAllProjects = async (): Promise<ProjectModel[]> => {
     return projects.map((p: Project) => ({
       _id: p.id,
       id: p.id,
+      status: 'Aberta',
       nome_projeto: p.nome_projeto,
       inicio: p.inicio,
       descricao_projeto: p.descricao_projeto,
