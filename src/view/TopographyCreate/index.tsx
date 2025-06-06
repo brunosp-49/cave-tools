@@ -1,5 +1,5 @@
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RouterProps, TopographyPoint, type TopographyData } from "../../types";
+import { FC, useCallback, useMemo, useRef, useState } from "react";
+import { RouterProps, TopographyPoint } from "../../types";
 import { SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, BackHandler, Alert } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import { colors } from "../../assets/colors";
@@ -35,7 +35,6 @@ const validateStep = (
 }
 
 const TopographyCreateScreen: FC<RouterProps> = ({ navigation, route }) => {
-  const [editingTopography, setEditingTopography] = useState(true);
   const [validationAttempted, setValidationAttempted] = useState(false);
   const [successSuccessModal, setSuccessModal] = useState(false);
   const [isOpenConfirmModal, setIsOpenConfirmModal] = useState(false);

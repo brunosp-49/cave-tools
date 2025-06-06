@@ -34,8 +34,9 @@ const StepTwo: FC<StepComponentProps> = ({ navigation, validationAttempted }) =>
       const cavityCollection = database.get<CavityRegister>("cavity_register");
 
       const filters = [];
-      if (filter.project?.value) {
-        filters.push(Q.where('projeto_id', filter.project.value));
+
+      if (filter.project?.id) {
+        filters.push(Q.where('projeto_id', filter.project.id));
       }
       if (filter.cavity_name) {
         filters.push(Q.where('nome_cavidade', Q.like(`%${filter.cavity_name}%`)));
