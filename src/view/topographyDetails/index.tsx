@@ -35,15 +35,15 @@ export const TopographyDetailScreen: FC<RouterProps> = ({ navigation }) => {
         if (isMounted) {
           const options: TopographyPoint[] = topographies.filter(topo => topo.cavity_id === cavity_id).map((topo) => ({
             cavity_id: topo.cavity_id,
-            from: Number(topo.from),
-            to: Number(topo.to),
-            distance: Number(topo.distance),
-            azimuth: Number(topo.azimuth),
-            incline: Number(topo.incline),
-            turnUp: Number(topo.turnUp),
-            turnDown: Number(topo.turnDown),
-            turnRight: Number(topo.turnRight),
-            turnLeft: Number(topo.turnLeft),
+            from: topo.from,
+            to: topo.to,
+            distance: topo.distance,
+            azimuth: topo.azimuth,
+            incline: topo.incline,
+            turnUp: topo.turnUp,
+            turnDown: topo.turnDown,
+            turnRight: topo.turnRight,
+            turnLeft: topo.turnLeft,
           }));
           setTopographyOptions(options);
         }
