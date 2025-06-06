@@ -77,54 +77,84 @@ export const CavityScreen: FC<RouterProps> = ({ navigation }) => {
     try {
       const cavityCollection = database.get<CavityRegister>("cavity_register");
       const allCavities = await cavityCollection.query().fetch();
-      const now = new Date();
-      
-      const approximateBarSlotWidth = 60; 
+      const now = new Date(); // Current date, e.g., June 5th, 2025
+
+      const approximateBarSlotWidth = 60;
       let calculatedMonths = Math.floor(chartWidth / approximateBarSlotWidth);
-      calculatedMonths = Math.max(3, calculatedMonths); 
-      calculatedMonths = Math.min(5, calculatedMonths); 
-      // setNumberOfMonthsToShow(calculatedMonths); // Não é mais um estado, usado localmente
+      calculatedMonths = Math.max(3, calculatedMonths); // Show at least 3 months
+      calculatedMonths = Math.min(5, calculatedMonths); // Show at most 5 months
 
       const monthlyCounts: { [key: string]: number } = {};
       const monthLabels: { key: string; label: string }[] = [];
 
-      for (let i = 0; i < calculatedMonths; i++) { 
+      // Initialize monthlyCounts and monthLabels for the last `calculatedMonths`
+      for (let i = 0; i < calculatedMonths; i++) {
         const dateIterator = new Date(now);
-        dateIterator.setMonth(now.getMonth() - i); 
+        dateIterator.setMonth(now.getMonth() - i); // Go back i months
         const year = dateIterator.getFullYear();
-        const month = dateIterator.getMonth();
-        const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+        const month = dateIterator.getMonth(); // 0-indexed
+        const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`; // YYYY-MM
         monthlyCounts[monthKey] = 0;
         monthLabels.push({ key: monthKey, label: getMonthAbbreviation(month) });
       }
-      monthLabels.reverse();
+      monthLabels.reverse(); // Order from oldest to newest
 
+      // Determine the date range for filtering cavities
       const earliestMonthDate = new Date(now);
-      earliestMonthDate.setMonth(now.getMonth() - (calculatedMonths - 1)); 
+      earliestMonthDate.setMonth(now.getMonth() - (calculatedMonths - 1)); // Start of the oldest month in range
       earliestMonthDate.setDate(1);
       earliestMonthDate.setHours(0, 0, 0, 0);
 
-      const latestMonthDate = new Date(now);
-      const tempDateForEndOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0); 
+      const latestMonthDate = new Date(now); // End of the current month
+      const tempDateForEndOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of current month
       latestMonthDate.setDate(tempDateForEndOfMonth.getDate());
-      latestMonthDate.setHours(23,59,59,999);
+      latestMonthDate.setHours(23, 59, 59, 999);
 
       allCavities.forEach((cavity) => {
         try {
-          const dataString = String(cavity.data);
-          const cavityDate = new Date(dataString);
-          if (!isNaN(cavityDate.getTime())) {
-            if (cavityDate >= earliestMonthDate && cavityDate <= latestMonthDate) {
-              const cavityYear = cavityDate.getFullYear();
-              const cavityMonth = cavityDate.getMonth();
-              const monthKey = `${cavityYear}-${String(cavityMonth + 1).padStart(2, "0")}`;
-              if (monthlyCounts.hasOwnProperty(monthKey)) {
-                monthlyCounts[monthKey]++;
+          const dataString = String(cavity.data); // e.g., "05/06/2025"
+          const parts = dataString.split('/');
+
+          if (parts.length === 3) {
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10); // 1-indexed month from string
+            const year = parseInt(parts[2], 10);
+
+            // Validate parsed components before creating a Date object
+            if (!isNaN(day) && !isNaN(month) && !isNaN(year) &&
+                month >= 1 && month <= 12 && day >= 1 && day <= 31) { // Basic validation
+
+              // Create Date object (month is 0-indexed here)
+              const cavityDate = new Date(year, month - 1, day);
+
+              // Further validation: ensure the Date object correctly represents the parsed components
+              // This catches cases like "31/02/2025" which new Date() might roll over.
+              if (!isNaN(cavityDate.getTime()) &&
+                  cavityDate.getFullYear() === year &&
+                  cavityDate.getMonth() === month - 1 && // Compare with 0-indexed month
+                  cavityDate.getDate() === day) {
+
+                // Check if the valid cavityDate falls within our chart's date range
+                if (cavityDate >= earliestMonthDate && cavityDate <= latestMonthDate) {
+                  const cavityYear = cavityDate.getFullYear();
+                  const cavityMonth = cavityDate.getMonth(); // 0-indexed
+                  const monthKey = `${cavityYear}-${String(cavityMonth + 1).padStart(2, "0")}`; // YYYY-MM
+                  if (monthlyCounts.hasOwnProperty(monthKey)) {
+                    monthlyCounts[monthKey]++;
+                  }
+                }
+              } else {
+                console.warn(`Invalid calendar date constructed for cavity ${cavity.id}: ${dataString} (parsed as ${day}/${month}/${year})`);
               }
+            } else {
+              console.warn(`Invalid date components parsed for cavity ${cavity.id}: ${dataString}`);
             }
+          } else {
+            console.warn(`Unexpected date format for cavity ${cavity.id}: ${dataString}`);
           }
         } catch (dateError) {
-          console.warn(`Could not parse date for cavity ${cavity.id}: ${cavity.data}`, dateError);
+          // Catch any other errors during date processing for a specific cavity
+          console.warn(`Error processing date for cavity ${cavity.id}: ${cavity.data}`, dateError);
         }
       });
 
@@ -138,25 +168,24 @@ export const CavityScreen: FC<RouterProps> = ({ navigation }) => {
           onPress: () => handleBarPress({ label: String(monthInfo.label), value: count }),
         };
       });
-      
-      // Lógica para labels do eixo Y e maxValue
-      const numSections = 5; // Número desejado de seções/intervalos no eixo Y
-      let stepForYLabels = 1; // Valor padrão do passo
-      let displayMaxValue = numSections; // Valor máximo padrão para o eixo Y
+
+      const numSections = 5;
+      let stepForYLabels = 1;
+      let displayMaxValue = numSections;
 
       if (maxCount > 0) {
-        stepForYLabels = Math.ceil(maxCount / numSections) || 1; // Garante que o passo seja pelo menos 1
+        stepForYLabels = Math.ceil(maxCount / numSections) || 1;
         displayMaxValue = stepForYLabels * numSections;
-      } else { // Se maxCount é 0, define um displayMaxValue razoável
-        displayMaxValue = numSections; // Ex: 0, 1, 2, 3, 4, 5
+        if (displayMaxValue < maxCount) { // Ensure maxValue is at least maxCount
+            displayMaxValue = Math.ceil(maxCount / stepForYLabels) * stepForYLabels;
+        }
+      } else { // If maxCount is 0
+        displayMaxValue = numSections; // e.g., 0, 1, 2, 3, 4, 5
         stepForYLabels = 1;
       }
-       // Garante que displayMaxValue seja pelo menos `numSections` para ter um gráfico visível se maxCount for muito baixo
-      if (maxCount > 0 && displayMaxValue < maxCount) {
-        displayMaxValue = Math.ceil(maxCount / stepForYLabels) * stepForYLabels;
-      }
-      if (displayMaxValue === 0 && numSections > 0) { // Caso especial onde maxCount é 0
-          displayMaxValue = numSections * stepForYLabels; // Ex: 5 se stepForYLabels for 1
+      // Ensure displayMaxValue is not 0 if there are sections
+      if (displayMaxValue === 0 && numSections > 0) {
+         displayMaxValue = numSections * stepForYLabels;
       }
 
 
@@ -164,21 +193,20 @@ export const CavityScreen: FC<RouterProps> = ({ navigation }) => {
       for (let i = 0; i <= numSections; i++) {
         yLabels.push(String(i * stepForYLabels));
       }
-      
+
       setCustomYAxisLabels(yLabels);
       setChartDisplayMaxValue(displayMaxValue);
       setNumberOfChartSections(numSections);
 
-
       if (calculatedMonths > 0) {
-        const totalSpacingForBars = (calculatedMonths + 1) * 5; // Um pouco mais de espaçamento geral
+        const totalSpacingForBars = (calculatedMonths + 1) * 5;
         const availableWidthForBars = chartWidth - totalSpacingForBars - yAxisLabelWidth;
         let newBarWidth = Math.floor(availableWidthForBars / calculatedMonths);
-        newBarWidth = Math.max(15, newBarWidth); 
-        newBarWidth = Math.min(35, newBarWidth); 
-        
+        newBarWidth = Math.max(15, newBarWidth);
+        newBarWidth = Math.min(35, newBarWidth);
+
         let newSpacing = Math.floor((chartWidth - (newBarWidth * calculatedMonths) - yAxisLabelWidth) / Math.max(1, calculatedMonths + 1));
-        newSpacing = Math.max(5, newSpacing); 
+        newSpacing = Math.max(5, newSpacing);
         newSpacing = Math.min(20, newSpacing);
 
         setDynamicBarWidth(newBarWidth);
@@ -189,11 +217,11 @@ export const CavityScreen: FC<RouterProps> = ({ navigation }) => {
     } catch (error) {
       console.error("Error processing chart data:", error);
       setChartData([]);
-      setChartDisplayMaxValue(5); // Reset para default em caso de erro
-      setCustomYAxisLabels(["0","1","2","3","4","5"]); // Reset para default
+      setChartDisplayMaxValue(5);
+      setCustomYAxisLabels(["0", "1", "2", "3", "4", "5"]);
       setNumberOfChartSections(5);
     }
-  }, [chartWidth, yAxisLabelWidth]); // Adicionado yAxisLabelWidth
+  }, [chartWidth, yAxisLabelWidth]); 
 
   useEffect(() => {
     const cavityCollection = database.get<CavityRegister>("cavity_register");
