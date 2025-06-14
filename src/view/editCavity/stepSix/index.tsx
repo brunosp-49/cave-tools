@@ -21,16 +21,12 @@ type HidrologiaTipoValue = NonNullable<
 >;
 
 const isFieldFilled = (value: any): boolean => {
-  if (value === null || typeof value === "undefined") return false;
-  if (typeof value === "string" && value.trim() === "") return false;
-  return true;
+    if (value === null || typeof value === "undefined") return false;
+    if (typeof value === "string" && value.trim() === "") return false;
+    return true;
 };
 
-export const StepSix: FC<StepSixProps> = ({
-  navigation,
-  route,
-  validationAttempted,
-}) => {
+export const StepSix: FC<StepSixProps> = ({ navigation, route, validationAttempted }) => {
   const dispatch = useDispatch<AppDispatch>();
   const cavidade = useSelector((state: RootState) => state.cavity.cavidade);
 
@@ -42,13 +38,6 @@ export const StepSix: FC<StepSixProps> = ({
     const errors: { [key: string]: string } = {};
     const errorMsgRequired = "Selecione um tipo.";
     const errorMsgOutroRequired = "Este campo é obrigatório.";
-
-    const checkError = (featureName: HidrologiaFeatureKey) => {
-      const feature = hidrologia[featureName];
-      if (!feature) {
-        errors[featureName] = errorMsgRequired;
-      }
-    };
 
     const checkFeatureError = (featureName: HidrologiaFeatureKey) => {
       const feature = hidrologia[featureName];
@@ -66,17 +55,8 @@ export const StepSix: FC<StepSixProps> = ({
     checkFeatureError("empossamento");
     checkFeatureError("exudacao");
 
-    checkError("curso_agua");
-    checkError("lago");
-    checkError("sumidouro");
-    checkError("surgencia");
-    checkError("gotejamento");
-    checkError("condensacao");
-    checkError("empossamento");
-    checkError("exudacao");
-
     if (hidrologia.outro !== undefined && !isFieldFilled(hidrologia.outro)) {
-      errors.hidrologia_outro = errorMsgOutroRequired;
+        errors.hidrologia_outro = errorMsgOutroRequired;
     }
     return errors;
   }, [validationAttempted, hidrologia]);
@@ -95,10 +75,8 @@ export const StepSix: FC<StepSixProps> = ({
       const currentlyPossui = currentFeatureState?.possui || false;
 
       if (currentlyPossui) {
-        // Ao desmarcar "Possui", limpa o objeto inteiro da feature
         handleUpdate(featurePath, undefined);
       } else {
-        // Ao marcar "Possui", inicializa com 'tipo' undefined para forçar seleção
         handleUpdate(featurePath, { possui: true, tipo: undefined });
       }
     },
@@ -143,28 +121,15 @@ export const StepSix: FC<StepSixProps> = ({
           checked={possui}
           onChange={() => handleMainFeatureToggle(featureKey)}
         />
-        {hasErrorForFeature && (
-          <TextInter
-            color={colors.error[100]}
-            fontSize={12}
-            style={styles.errorText}
-          >
-            {stepSixErrors[featureKey]}
-          </TextInter>
-        )}
         {possui && (
           <View style={styles.secondLayer}>
             <TextInter color={colors.white[100]} weight="medium">
               Selecione o tipo de {label.toLowerCase()}
             </TextInter>
             {hasErrorForFeature && (
-              <TextInter
-                color={colors.error[100]}
-                fontSize={12}
-                style={styles.errorText}
-              >
-                {stepSixErrors[featureKey]}
-              </TextInter>
+                <TextInter color={colors.error[100]} fontSize={12} style={styles.errorText}>
+                    {stepSixErrors[featureKey]}
+                </TextInter>
             )}
             <Divider height={12} />
             <Checkbox
@@ -182,9 +147,7 @@ export const StepSix: FC<StepSixProps> = ({
             <Checkbox
               label="Não soube informar"
               checked={currentType === "nao_soube_informar"}
-              onChange={() =>
-                handleTypeChange(featureKey, "nao_soube_informar")
-              }
+              onChange={() => handleTypeChange(featureKey, "nao_soube_informar")}
             />
           </View>
         )}
@@ -197,7 +160,7 @@ export const StepSix: FC<StepSixProps> = ({
     <View style={styles.container}>
       <Divider />
       <TextInter color={colors.white[100]} fontSize={19} weight="medium">
-        Hidrologia *
+        Hidrologia
       </TextInter>
       <Divider />
       {renderFeatureSection("curso_agua", "Curso d’água")}
@@ -244,7 +207,6 @@ const styles = StyleSheet.create({
     color: colors.error[100],
     fontSize: 12,
     marginTop: 2,
-    // marginBottom: 6,
   },
   inputSpacing: {
     marginBottom: 12,

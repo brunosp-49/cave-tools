@@ -2,26 +2,77 @@ import { project } from "./../schemas/project";
 import { Q } from "@nozbe/watermelondb";
 import {
   Cavidade,
-  CavityRegisterData, // Type for data passed to create/update (stringified JSON for complex fields)
+  CavityRegisterData,
   ProjectModel,
   ProjectPayload,
   UserModel,
   TopographyData,
-  UploadProjectPayload, // Type for backend sync payload
+  UploadProjectPayload,
 } from "../../types";
 import { database } from "../index";
-import CavityRegister from "../model/cavityRegister"; // WatermelonDB Model
-import Project from "../model/project"; // WatermelonDB Model
-import User from "../model/user"; // WatermelonDB Model
+import CavityRegister from "../model/cavityRegister";
+import Project from "../model/project";
+import User from "../model/user";
 import { api } from "../../api";
 import store from "../../redux/store";
 import { showError } from "../../redux/loadingSlice";
 import { setUserName } from "../../redux/userSlice";
 import type Topography from "../model/topography";
+import { convertDdMmYyyyToYyyyMmDd } from "../../util"; // Assuming this is defined in your util.ts
+
+export interface FailedCavity {
+  registro_id: string;
+  nome_cavidade: string;
+  error: string;
+}
+
+const parseJsonField = (
+  jsonString: string | null | undefined,
+  fieldName: string,
+  defaultVal: any = {}
+) => {
+  if (typeof jsonString === "string") {
+    try {
+      // Check if it's an empty object string, return undefined to match backend expectation for null/empty
+      if(jsonString === "{}") return undefined;
+      return JSON.parse(jsonString);
+    } catch (e) {
+      console.warn(`Error parsing ${fieldName}:`, e);
+      return defaultVal;
+    }
+  }
+  return defaultVal;
+};
+
+/**
+ * Recursively removes 'outroEnabled' properties from an object.
+ * @param obj The object to clean.
+ * @returns The cleaned object.
+ */
+function cleanObjectForUpload(obj: any): any {
+    if (obj === null || typeof obj !== 'object') {
+        return obj;
+    }
+
+    if (Array.isArray(obj)) {
+        return obj.map(item => cleanObjectForUpload(item));
+    }
+
+    const newObj: { [key: string]: any } = {};
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            if (key === 'outroEnabled') {
+                continue; // Skip this key
+            }
+            newObj[key] = cleanObjectForUpload(obj[key]);
+        }
+    }
+    return newObj;
+}
+
 
 // POST
 export const createCavityRegister = async (
-  // CavityRegisterData expects stringified JSON for complex fields
   cavityData: CavityRegisterData
 ): Promise<boolean> => {
   try {
@@ -30,7 +81,7 @@ export const createCavityRegister = async (
 
     await database.write(async () => {
       await cavityCollection.create((cavity) => {
-        cavity._raw.id = cavityData.registro_id; // WatermelonDB ID
+        cavity._raw.id = cavityData.registro_id;
         cavity.registro_id = cavityData.registro_id;
         cavity.projeto_id = cavityData.projeto_id;
         cavity.responsavel = cavityData.responsavel;
@@ -94,18 +145,30 @@ export const createProjects = async (
     const projectCollection = database.collections.get<Project>("project");
     await database.write(async () => {
       for (const projectData of projects) {
-        await projectCollection.create((project) => {
-          project._raw.id = String(projectData.id);
-          project.nome_projeto = projectData.nome_projeto;
-          project.inicio = projectData.inicio;
-          project.descricao_projeto = projectData.descricao_projeto;
-          project.uploaded = true; // Assuming these are synced from server
-        });
+        const existingProject = await projectCollection.find(String(projectData.id)).catch(() => null);
+
+        if (existingProject) {
+          await existingProject.update((project) => {
+            project.nome_projeto = projectData.nome_projeto;
+            project.inicio = projectData.inicio;
+            project.descricao_projeto = projectData.descricao_projeto;
+            project.uploaded = true;
+          });
+          console.log(`Project ${projectData.nome_projeto} (ID: ${projectData.id}) updated successfully.`);
+        } else {
+          await projectCollection.create((project) => {
+            project._raw.id = String(projectData.id);
+            project.nome_projeto = projectData.nome_projeto;
+            project.inicio = projectData.inicio;
+            project.descricao_projeto = projectData.descricao_projeto;
+            project.uploaded = true;
+          });
+          console.log(`Project ${projectData.nome_projeto} (ID: ${projectData.id}) created successfully.`);
+        }
       }
     });
-    console.log("Projects created successfully!");
   } catch (error) {
-    console.error("Error creating projects:", error);
+    console.error("Error creating/updating projects:", error);
   }
 };
 
@@ -120,7 +183,7 @@ export const createProject = async (
         project.nome_projeto = projectData.nome_projeto;
         project.inicio = projectData.inicio || new Date().toISOString();
         project.descricao_projeto = projectData.descricao_projeto;
-        project.uploaded = false; // Newly created locally
+        project.uploaded = false;
       });
     });
     console.log("Project created successfully!");
@@ -129,25 +192,30 @@ export const createProject = async (
   }
 };
 
-export const createTopography = async (toposData: TopographyData[]): Promise<void> => {
+export const createTopography = async (
+  toposData: TopographyData[]
+): Promise<void> => {
   try {
-    const topographyCollection = database.collections.get<Topography>("topography");
+    const topographyCollection =
+      database.collections.get<Topography>("topography");
 
-    const operations = toposData.map(topoMap => topographyCollection.prepareCreate(topo => {
-      topo._raw.id = topoMap.registro_id;
-      topo.registro_id = topoMap.registro_id;
-      topo.cavity_id = topoMap.cavity_id;
-      topo.data = topoMap.data;
-      topo.azimuth = topoMap.azimuth;
-      topo.distance = topoMap.distance;
-      topo.from = topoMap.from;
-      topo.incline = topoMap.incline;
-      topo.to = topoMap.to;
-      topo.turnDown = topoMap.turnDown;
-      topo.turnLeft = topoMap.turnLeft;
-      topo.turnRight = topoMap.turnRight;
-      topo.turnUp = topoMap.turnUp;
-    }))
+    const operations = toposData.map((topoMap) =>
+      topographyCollection.prepareCreate((topo) => {
+        topo._raw.id = topoMap.registro_id;
+        topo.registro_id = topoMap.registro_id;
+        topo.cavity_id = topoMap.cavity_id;
+        topo.data = topoMap.data;
+        topo.azimuth = topoMap.azimuth;
+        topo.distance = topoMap.distance;
+        topo.from = topoMap.from;
+        topo.incline = topoMap.incline;
+        topo.to = topoMap.to;
+        topo.turnDown = topoMap.turnDown;
+        topo.turnLeft = topoMap.turnLeft;
+        topo.turnRight = topoMap.turnRight;
+        topo.turnUp = topoMap.turnUp;
+      })
+    );
 
     await database.write(async () => {
       await database.batch(...operations);
@@ -156,10 +224,98 @@ export const createTopography = async (toposData: TopographyData[]): Promise<voi
   } catch (error) {
     console.error("Error creating topography:", error);
   }
-}
+};
+
+export const createCavitiesFromServer = async (
+  cavities: any[]
+): Promise<void> => {
+  try {
+    const cavityCollection = database.collections.get<CavityRegister>("cavity_register");
+
+    await database.write(async () => {
+      for (const cavityData of cavities) {
+        const existingCavity = await cavityCollection.find(String(cavityData.id)).catch(() => null);
+
+        const entradasString = JSON.stringify(cavityData.entradas || []);
+        const dificuldadesExternasString = JSON.stringify(cavityData.dificuldades_externas || {});
+        const aspectosSocioambientaisString = JSON.stringify(cavityData.aspectos_socioambientais || {});
+        const caracterizacaoInternaString = JSON.stringify(cavityData.caracterizacao_interna || {});
+        const topografiaString = JSON.stringify(cavityData.topografia || {});
+        const morfologiaString = JSON.stringify(cavityData.morfologia || {});
+        const hidrologiaString = JSON.stringify(cavityData.hidrologia || {});
+        const sedimentosString = JSON.stringify(cavityData.sedimentos || {});
+        const espeleotemasString = JSON.stringify(cavityData.espeleotemas || {});
+        const biotaString = JSON.stringify(cavityData.biota || {});
+        const arqueologiaString = JSON.stringify(cavityData.arqueologia || {});
+        const paleontologiaString = JSON.stringify(cavityData.paleontologia || {});
+
+
+        if (existingCavity) {
+          await existingCavity.update((cav) => {
+            cav.registro_id = cavityData.registro_id;
+            cav.projeto_id = String(cavityData.projeto);
+            cav.responsavel = cavityData.responsavel;
+            cav.nome_cavidade = cavityData.nome_cavidade;
+            cav.nome_sistema = cavityData.nome_sistema;
+            cav.data = cavityData.data;
+            cav.municipio = cavityData.municipio;
+            cav.uf = cavityData.uf;
+            cav.localidade = cavityData.localidade || undefined;
+            cav.desenvolvimento_linear = cavityData.desenvolvimento_linear;
+            cav.entradas = entradasString;
+            cav.dificuldades_externas = dificuldadesExternasString;
+            cav.aspectos_socioambientais = aspectosSocioambientaisString;
+            cav.caracterizacao_interna = caracterizacaoInternaString;
+            cav.topografia = topografiaString;
+            cav.morfologia = morfologiaString;
+            cav.hidrologia = hidrologiaString;
+            cav.sedimentos = sedimentosString;
+            cav.espeleotemas = espeleotemasString;
+            cav.biota = biotaString;
+            cav.arqueologia = arqueologiaString;
+            cav.paleontologia = paleontologiaString;
+            cav.uploaded = true;
+          });
+          console.log(`Cavity ${cavityData.nome_cavidade} (ID: ${cavityData.id}) updated successfully.`);
+        } else {
+          await cavityCollection.create((cav) => {
+            cav._raw.id = String(cavityData.id);
+            cav.registro_id = cavityData.registro_id;
+            cav.projeto_id = String(cavityData.projeto);
+            cav.responsavel = cavityData.responsavel;
+            cav.nome_cavidade = cavityData.nome_cavidade;
+            cav.nome_sistema = cavityData.nome_sistema;
+            cav.data = cavityData.data;
+            cav.municipio = cavityData.municipio;
+            cav.uf = cavityData.uf;
+            cav.localidade = cavityData.localidade || undefined;
+            cav.desenvolvimento_linear = cavityData.desenvolvimento_linear;
+            cav.entradas = entradasString;
+            cav.dificuldades_externas = dificuldadesExternasString;
+            cav.aspectos_socioambientais = aspectosSocioambientaisString;
+            cav.caracterizacao_interna = caracterizacaoInternaString;
+            cav.topografia = topografiaString;
+            cav.morfologia = morfologiaString;
+            cav.hidrologia = hidrologiaString;
+            cav.sedimentos = sedimentosString;
+            cav.espeleotemas = espeleotemasString;
+            cav.biota = biotaString;
+            cav.arqueologia = arqueologiaString;
+            cav.paleontologia = paleontologiaString;
+            cav.uploaded = true;
+          });
+          console.log(`Cavity ${cavityData.nome_cavidade} (ID: ${cavityData.id}) created successfully.`);
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error creating/updating cavities from server:", error);
+    throw error;
+  }
+};
+
 
 // GET
-// This function returns fully parsed Cavidade objects for the frontend
 export const fetchAllCavities = async (): Promise<Cavidade[]> => {
   try {
     const cavityCollection =
@@ -167,21 +323,6 @@ export const fetchAllCavities = async (): Promise<Cavidade[]> => {
     const cavitiesModels = await cavityCollection.query().fetch();
 
     return cavitiesModels.map((cm: CavityRegister): Cavidade => {
-      const parse = (
-        jsonString: string | null | undefined,
-        fieldName: string,
-        defaultVal: any = {}
-      ) => {
-        if (typeof jsonString === "string") {
-          try {
-            return JSON.parse(jsonString);
-          } catch (e) {
-            console.warn(`Error parsing ${fieldName} for ${cm.registro_id}`, e);
-            return defaultVal;
-          }
-        }
-        return defaultVal;
-      };
       return {
         registro_id: cm.registro_id,
         projeto_id: cm.projeto_id,
@@ -196,27 +337,27 @@ export const fetchAllCavities = async (): Promise<Cavidade[]> => {
           cm.desenvolvimento_linear === null
             ? undefined
             : cm.desenvolvimento_linear,
-        entradas: parse(cm.entradas, "entradas", []),
-        dificuldades_externas: parse(
+        entradas: parseJsonField(cm.entradas, "entradas", []),
+        dificuldades_externas: parseJsonField(
           cm.dificuldades_externas,
           "dificuldades_externas"
         ),
-        aspectos_socioambientais: parse(
+        aspectos_socioambientais: parseJsonField(
           cm.aspectos_socioambientais,
           "aspectos_socioambientais"
         ),
-        caracterizacao_interna: parse(
+        caracterizacao_interna: parseJsonField(
           cm.caracterizacao_interna,
           "caracterizacao_interna"
         ),
-        topografia: parse(cm.topografia, "topografia"),
-        morfologia: parse(cm.morfologia, "morfologia"),
-        hidrologia: parse(cm.hidrologia, "hidrologia"),
-        sedimentos: parse(cm.sedimentos, "sedimentos"),
-        espeleotemas: parse(cm.espeleotemas, "espeleotemas"),
-        biota: parse(cm.biota, "biota"),
-        arqueologia: parse(cm.arqueologia, "arqueologia"),
-        paleontologia: parse(cm.paleontologia, "paleontologia"),
+        topografia: parseJsonField(cm.topografia, "topografia"),
+        morfologia: parseJsonField(cm.morfologia, "morfologia"),
+        hidrologia: parseJsonField(cm.hidrologia, "hidrologia"),
+        sedimentos: parseJsonField(cm.sedimentos, "sedimentos"),
+        espeleotemas: parseJsonField(cm.espeleotemas, "espeleotemas"),
+        biota: parseJsonField(cm.biota, "biota"),
+        arqueologia: parseJsonField(cm.arqueologia, "arqueologia"),
+        paleontologia: parseJsonField(cm.paleontologia, "paleontologia"),
       };
     });
   } catch (error) {
@@ -255,7 +396,6 @@ export const fetchAllUsers = async (): Promise<UserModel[]> => {
   try {
     const users = await database.collections.get<User>("user").query().fetch();
     return users.map((user: User) => ({
-      // Map to UserModel
       user_id: user.user_id,
       token: user.token,
       refresh_token: user.refresh_token,
@@ -277,7 +417,7 @@ export const fetchAllProjects = async (): Promise<ProjectModel[]> => {
     return projects.map((p: Project) => ({
       _id: p.id,
       id: p.id,
-      status: 'Aberta',
+      status: "Aberta",
       nome_projeto: p.nome_projeto,
       inicio: p.inicio,
       descricao_projeto: p.descricao_projeto,
@@ -291,7 +431,8 @@ export const fetchAllProjects = async (): Promise<ProjectModel[]> => {
 
 export const fetchAllTopographies = async (): Promise<TopographyData[]> => {
   try {
-    const topographyCollection = database.collections.get<Topography>("topography");
+    const topographyCollection =
+      database.collections.get<Topography>("topography");
     const topographies = await topographyCollection.query().fetch();
 
     return topographies.map((topography: any) => topography._raw);
@@ -310,11 +451,10 @@ export const getProjectsWithPendingCavitiesCount =
         .fetch();
       let projectsWithPendingItems = 0;
       for (const project of allProjects) {
-        // IMPORTANT: Assumes CavityRegister model has 'projeto_id' field for this query
         const pendingCavitiesForThisProject = await database
           .get<CavityRegister>("cavity_register")
           .query(
-            Q.where("projeto_id", project.id), // This 'projeto_id' is the DB column name
+            Q.where("projeto_id", project.id),
             Q.where("uploaded", false)
           )
           .fetchCount();
@@ -329,7 +469,6 @@ export const getProjectsWithPendingCavitiesCount =
     }
   };
 
-// This function prepares data for the backend sync, using the UploadProjectPayload structure
 export const fetchProjectsWithPendingCavities = async (
   projectIdToSync?: string
 ): Promise<UploadProjectPayload[]> => {
@@ -350,6 +489,7 @@ export const fetchProjectsWithPendingCavities = async (
     ) => {
       if (typeof jsonString === "string") {
         try {
+          if(jsonString === "{}") return undefined;
           return JSON.parse(jsonString);
         } catch (e) {
           console.warn(`Error parsing ${fieldName}`, e);
@@ -360,25 +500,25 @@ export const fetchProjectsWithPendingCavities = async (
     };
 
     for (const project of projectsToQuery) {
-      // IMPORTANT: Assumes CavityRegister model has 'projeto_id' field
       const pendingCavitiesModels = await database
         .get<CavityRegister>("cavity_register")
         .query(
-          Q.where("projeto_id", project.id), // DB column name
+          Q.where("projeto_id", project.id),
           Q.where("uploaded", false)
         )
         .fetch();
 
       if (project.uploaded === false || pendingCavitiesModels.length > 0) {
+        console.log({pendingCavitiesModels})
         const cavitiesPayload: Cavidade[] = pendingCavitiesModels.map(
           (cm: CavityRegister): Cavidade => {
-            let project = {
+            let cavityData = {
               registro_id: cm.registro_id,
               projeto_id: cm.projeto_id,
               responsavel: cm.responsavel,
               nome_cavidade: cm.nome_cavidade,
               nome_sistema: cm.nome_sistema,
-              data: cm.data,
+              data: convertDdMmYyyyToYyyyMmDd(cm.data), // Date format conversion
               municipio: cm.municipio,
               uf: cm.uf,
               localidade: cm.localidade || undefined,
@@ -386,75 +526,36 @@ export const fetchProjectsWithPendingCavities = async (
                 cm.desenvolvimento_linear === null
                   ? undefined
                   : cm.desenvolvimento_linear,
-              entradas: parse(
-                cm.entradas,
-                `entradas for ${cm.registro_id}`,
-                []
-              ),
-              dificuldades_externas: parse(
-                cm.dificuldades_externas,
-                `dificuldades_externas for ${cm.registro_id}`
-              ),
-              aspectos_socioambientais: parse(
-                cm.aspectos_socioambientais,
-                `asp_socio for ${cm.registro_id}`
-              ),
-              caracterizacao_interna: parse(
-                cm.caracterizacao_interna,
-                `carac_interna for ${cm.registro_id}`
-              ),
-              topografia: parse(
-                cm.topografia,
-                `topografia for ${cm.registro_id}`
-              ),
-              morfologia: parse(
-                cm.morfologia,
-                `morfologia for ${cm.registro_id}`
-              ),
-              hidrologia: parse(
-                cm.hidrologia,
-                `hidrologia for ${cm.registro_id}`
-              ),
-              sedimentos: parse(
-                cm.sedimentos,
-                `sedimentos for ${cm.registro_id}`
-              ),
-              espeleotemas: parse(
-                cm.espeleotemas,
-                `espeleotemas for ${cm.registro_id}`
-              ),
+              // Parse all nested JSON fields back into objects
+              entradas: parse(cm.entradas, `entradas for ${cm.registro_id}`, []),
+              dificuldades_externas: parse(cm.dificuldades_externas, `dificuldades_externas for ${cm.registro_id}`),
+              aspectos_socioambientais: parse(cm.aspectos_socioambientais, `asp_socio for ${cm.registro_id}`),
+              caracterizacao_interna: parse(cm.caracterizacao_interna, `carac_interna for ${cm.registro_id}`),
+              topografia: parse(cm.topografia, `topografia for ${cm.registro_id}`),
+              morfologia: parse(cm.morfologia, `morfologia for ${cm.registro_id}`),
+              hidrologia: parse(cm.hidrologia, `hidrologia for ${cm.registro_id}`),
+              sedimentos: parse(cm.sedimentos, `sedimentos for ${cm.registro_id}`),
+              espeleotemas: parse(cm.espeleotemas, `espeleotemas for ${cm.registro_id}`),
               biota: parse(cm.biota, `biota for ${cm.registro_id}`),
-              arqueologia: parse(
-                cm.arqueologia,
-                `arqueologia for ${cm.registro_id}`
-              ),
-              paleontologia: parse(
-                cm.paleontologia,
-                `paleontologia for ${cm.registro_id}`
-              ),
+              arqueologia: parse(cm.arqueologia, `arqueologia for ${cm.registro_id}`),
+              paleontologia: parse(cm.paleontologia, `paleontologia for ${cm.registro_id}`),
+              status: "ativo" // Assuming a default status for upload
             };
 
-            return {
-              ...project,
-              caracterizacao_interna: {
-                ...project.caracterizacao_interna,
-                estado_conservacao: project.caracterizacao_interna
-                  .depredacao_localizada
-                  ? "Depredação localizada"
-                  : project.caracterizacao_interna
-                  .depredacao_intensa ? 'Depredação intensa'
-                  : "Conservada",
-              },
-            };
+            // This is where you would traditionally clean `outroEnabled`
+            // and adjust structures before re-stringifying for the final payload.
+            // But we're now doing this in `syncConsolidatedUpload` with `cleanObjectForUpload`.
+
+            return cavityData; // Return as Cavidade (unstringified)
           }
         );
-
+        console.log({cavitiesPayload})
         projectsToSyncAggregated.push({
           _id: project.id,
           nome_projeto: project.nome_projeto,
           inicio: project.inicio,
           descricao_projeto: project.descricao_projeto,
-          cavities: cavitiesPayload,
+          cavities: cavitiesPayload, // This is an array of Cavidade
           status: "Ativo",
         });
       }
@@ -563,7 +664,7 @@ export const updateProject = async (
 export const syncConsolidatedUpload = async (
   projectsToSync: UploadProjectPayload[],
   onProgress?: (progress: number) => void
-): Promise<{ success: boolean; error?: string }> => {
+): Promise<{ success: boolean; error?: string; failedCavities?: FailedCavity[] }> => {
   if (!projectsToSync || projectsToSync.length === 0) {
     onProgress?.(100);
     console.log("[DB Controller] No project packages to sync.");
@@ -572,7 +673,8 @@ export const syncConsolidatedUpload = async (
 
   const totalItemsToUpload = projectsToSync.length;
   let successfullyUploadedPackages = 0;
-  const errors: string[] = [];
+  const projectErrors: string[] = [];
+  const failedCavityDetails: FailedCavity[] = [];
 
   for (let i = 0; i < projectsToSync.length; i++) {
     const projectPackage = projectsToSync[i];
@@ -582,17 +684,27 @@ export const syncConsolidatedUpload = async (
       );
       const users = await fetchAllUsers();
       const user = users[0];
-      console.log({ projectPackage });
-      // O payload enviado para a API é o projectPackage inteiro
-      const response = await api.post("/projetos/app_upload/", projectPackage, {
+
+      // Deep copy and clean the projectPackage before sending
+      const cleanedProjectPackage = cleanObjectForUpload(projectPackage);
+
+      const response = await api.post("/projetos/app_upload/", cleanedProjectPackage, { // Send the cleaned object
         headers: { Authorization: `Bearer ${user.token}` },
-      }); // Adapte o endpoint
-      console.log({ response });
+      });
+      console.log({response})
+      const responseData = response.data;
+
       if (
-        response.status === 200 ||
-        response.status === 201 ||
-        response.status === 204
+        (response.status === 200 ||
+          response.status === 201 ||
+          response.status === 204)
       ) {
+        if (responseData.detail || responseData.message) {
+            const overallError = typeof responseData.detail === 'string' ? responseData.detail : JSON.stringify(responseData.detail || responseData.message);
+            projectErrors.push(`Projeto ${projectPackage.nome_projeto}: ${overallError}`);
+            console.error(`[DB Controller] Project ${projectPackage.nome_projeto} returned overall error:`, overallError);
+        }
+
         await database.write(async () => {
           const localProject = await database
             .get<Project>("project")
@@ -606,77 +718,107 @@ export const syncConsolidatedUpload = async (
             );
           }
 
-          for (const syncedCavity of projectPackage.cavities) {
-            // Usa projectPackage.projects
+          for (const backendCavity of responseData.cavities || []) {
             const localCavities = await database
               .get<CavityRegister>("cavity_register")
-              .query(Q.where("registro_id", syncedCavity.registro_id))
+              .query(Q.where("registro_id", backendCavity.registro_id))
               .fetch();
+
             if (localCavities.length > 0) {
               const localCavity = localCavities[0];
-              if (!localCavity.uploaded) {
-                await localCavity.update((c) => {
-                  c.uploaded = true;
-                });
-                console.log(
-                  `[DB Controller] Cavity ${localCavity.nome_cavidade} (Reg ID: ${localCavity.registro_id}) marked as uploaded.`
-                );
-              }
+              await localCavity.update((c) => {
+                c._raw.id = String(backendCavity.id);
+                c.registro_id = String(backendCavity.id);
+                c.uploaded = true;
+              });
+              console.log(
+                `[DB Controller] Cavity ${localCavity.nome_cavidade} (Old Reg ID: ${backendCavity.registro_id}) updated to New ID: ${backendCavity.id} and marked as uploaded.`
+              );
             } else {
               console.warn(
-                `[DB Controller] Local cavity with registro_id ${syncedCavity.registro_id} not found after sync for project ${projectPackage.nome_projeto}.`
+                `[DB Controller] Local cavity with registro_id ${backendCavity.registro_id} not found for update after successful sync. Project: ${projectPackage.nome_projeto}. This cavity was uploaded but local record cannot be updated.`
               );
             }
           }
         });
         successfullyUploadedPackages++;
+
+        if (responseData.cavities_errors && responseData.cavities_errors.length > 0) {
+            responseData.cavities_errors.forEach((errorItem: { registro_id: string; error: any }) => {
+                const originalCavity = projectPackage.cavities.find(c => c.registro_id === errorItem.registro_id);
+                const cavErrorMsg = typeof errorItem.error === 'string' ? errorItem.error : JSON.stringify(errorItem.error);
+                failedCavityDetails.push({
+                    registro_id: errorItem.registro_id,
+                    nome_cavidade: originalCavity?.nome_cavidade || "Nome Desconhecido",
+                    error: cavErrorMsg
+                });
+            });
+            console.warn(`[DB Controller] Project ${projectPackage.nome_projeto} reported ${responseData.cavities_errors.length} failed cavities.`);
+        }
       } else {
-        const errorMsg = `Projeto ${
-          projectPackage.nome_projeto
-        }: Falha no envio (status ${response.status} - ${
-          response.data?.detail ||
-          response.data?.message ||
-          "Erro desconhecido da API"
-        })`;
-        errors.push(errorMsg);
+        const errorDetails = typeof responseData.detail === 'string' ? responseData.detail : JSON.stringify(responseData.detail || responseData.message || "Erro desconhecido da API");
+        projectErrors.push(`Projeto ${projectPackage.nome_projeto}: Falha no envio (status ${response.status} - ${errorDetails})`);
         console.error(
-          `[DB Controller] Failed to sync project package ${projectPackage.nome_projeto}:`,
-          response.status,
-          response.data
+          `[DB Controller] Failed to sync project package ${projectPackage.nome_projeto}: HTTP Status ${response.status}, Data:`,
+          responseData
         );
+        projectPackage.cavities.forEach(cav => {
+            failedCavityDetails.push({
+                registro_id: cav.registro_id,
+                nome_cavidade: cav.nome_cavidade,
+                error: `Falha no envio do projeto: ${errorDetails}`
+            });
+        });
       }
     } catch (error: any) {
-      console.log({ error: error.message });
-      const errorMsg = `Projeto ${projectPackage.nome_projeto}: ${
-        error.response?.data?.detail ||
-        error.response?.data?.message ||
-        error.message ||
-        "Erro de rede ou desconhecido"
-      }`;
-      errors.push(errorMsg);
+      let detailedErrorMessage = error.response?.data?.detail || error.response?.data?.message;
+      if (!detailedErrorMessage) {
+          detailedErrorMessage = typeof error.message === 'string' ? error.message : JSON.stringify(error.message || error);
+      }
+
+      const errorMsg = `Projeto ${projectPackage.nome_projeto}: ${detailedErrorMessage || "Erro desconhecido"}`;
+      projectErrors.push(errorMsg);
       console.error(
         `[DB Controller] Error syncing project package ${projectPackage.nome_projeto}:`,
         error
       );
+      projectPackage.cavities.forEach(cav => {
+          failedCavityDetails.push({
+              registro_id: cav.registro_id,
+              nome_cavidade: cav.nome_cavidade,
+              error: errorMsg
+          });
+      });
     }
     onProgress?.(Math.round(((i + 1) / totalItemsToUpload) * 100));
   }
 
-  if (errors.length === 0) {
+  if (projectErrors.length === 0 && failedCavityDetails.length === 0) {
     console.log("[DB Controller] Consolidated upload fully successful.");
     return { success: true };
   } else {
+    const overallErrorMessage = projectErrors.length > 0
+      ? `Erros a nível de projeto: ${projectErrors.join("; \n")}`
+      : `Algumas cavidades falharam no envio.`;
     console.error(
-      "[DB Controller] Consolidated upload finished with errors:",
-      errors
+      "[DB Controller] Consolidated upload finished with errors.",
+      { projectErrors, failedCavityDetails }
     );
-    return { success: false, error: errors.join("; \n") };
+    return {
+      success: false,
+      error: overallErrorMessage,
+      failedCavities: failedCavityDetails,
+    };
   }
 };
 
-export const updateTopography = async (registro_id: string, updatedData: Partial<TopographyData>): Promise<void> => {
+export const updateTopography = async (
+  registro_id: string,
+  updatedData: Partial<TopographyData>
+): Promise<void> => {
   try {
-    const topographyCollection = database.collections.get<Topography>("topography");
+    const topographyCollection =
+      database.collections.get<Topography>("topography");
     const topography = await topographyCollection.find(registro_id);
 
     await database.write(async () => {
@@ -735,7 +877,6 @@ export const deleteAllCavities = async (): Promise<void> => {
 };
 
 export const deleteUser = async (user_id: string): Promise<void> => {
-  // Assumes user_id is WDB ID
   try {
     const user = await database.collections.get<User>("user").find(user_id);
     await database.write(async () => {
@@ -749,16 +890,14 @@ export const deleteUser = async (user_id: string): Promise<void> => {
 };
 
 export const deleteProject = async (_id: string): Promise<void> => {
-  // Assumes _id is WDB ID
   try {
     const project = await database.collections
       .get<Project>("project")
       .find(_id);
-    // Also delete associated cavities
     const associatedCavities = await database.collections
       .get<CavityRegister>("cavity_register")
       .query(Q.where("projeto_id", _id))
-      .fetch(); // Assumes DB model has projeto_id
+      .fetch();
 
     await database.write(async () => {
       for (const cavity of associatedCavities) {
@@ -785,7 +924,7 @@ export const deleteAllProjects = async (): Promise<void> => {
         const associatedCavities = await database.collections
           .get<CavityRegister>("cavity_register")
           .query(Q.where("projeto_id", project.id))
-          .fetch(); // Assumes DB model has projeto_id
+          .fetch();
         for (const cavity of associatedCavities) {
           await cavity.markAsDeleted();
           await cavity.destroyPermanently();
@@ -794,7 +933,6 @@ export const deleteAllProjects = async (): Promise<void> => {
         await project.destroyPermanently();
       }
     });
-    // Also delete all cavities that might not be associated with any project (orphaned)
     await deleteAllCavities();
     console.log("All projects and cavities deleted successfully!");
   } catch (error) {
@@ -804,7 +942,8 @@ export const deleteAllProjects = async (): Promise<void> => {
 
 export const deleteTopography = async (registro_id: string): Promise<void> => {
   try {
-    const topographyCollection = database.collections.get<Topography>("topography");
+    const topographyCollection =
+      database.collections.get<Topography>("topography");
     const topography = await topographyCollection.find(registro_id);
 
     await database.write(async () => {
@@ -816,4 +955,4 @@ export const deleteTopography = async (registro_id: string): Promise<void> => {
   } catch (error) {
     console.error("Error deleting topography:", error);
   }
-}
+};

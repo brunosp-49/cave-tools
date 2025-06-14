@@ -83,9 +83,6 @@ export const StepOne: FC<StepComponentProps> = ({ navigation, validationAttempte
     if (!isFieldFilled(cavidade.projeto_id)) {
       errors.projeto_id = errorMsgRequired;
     }
-    if (!isFieldFilled(cavidade.responsavel)) {
-      errors.responsavel = errorMsgRequired;
-    }
     if (!isFieldFilled(cavidade.municipio)) {
       errors.municipio = errorMsgRequired;
     }
@@ -197,15 +194,6 @@ export const StepOne: FC<StepComponentProps> = ({ navigation, validationAttempte
         hasError={!!stepOneErrors.projeto_id}
         errorMessage={stepOneErrors.projeto_id}
         disabled={isLoadingProjects}
-      />
-      <Input
-        placeholder="Digite o nome do responsável"
-        label="Responsável pelo registro"
-        required
-        value={cavidade.responsavel || ""}
-        onChangeText={(text) => handleInputChange(["responsavel"], text)}
-        hasError={!!stepOneErrors.responsavel}
-        errorMessage={stepOneErrors.responsavel}
       />
       <Input
         label="Nome da cavidade"

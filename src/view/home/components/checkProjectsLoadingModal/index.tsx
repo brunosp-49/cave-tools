@@ -1,5 +1,5 @@
-import { Modal, View, StyleSheet, ActivityIndicator } from "react-native";
-import React, { FC, useEffect, useCallback, useState, useRef } from "react"; 
+import { Modal, View, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
+import React, { FC, useEffect, useCallback, useState, useRef } from "react";
 import TextInter from "../../../../components/textInter";
 import { colors } from "../../../../assets/colors";
 import { Divider } from "../../../../components/divider";
@@ -12,15 +12,17 @@ import {
   fetchAllProjects,
   fetchAllUsers,
   updateUser,
-  getProjectsWithPendingCavitiesCount, 
-  fetchProjectsWithPendingCavities,    
+  getProjectsWithPendingCavitiesCount,
+  fetchProjectsWithPendingCavities,
   syncConsolidatedUpload,
-  createProjects,              
+  createProjects,
+  createCavitiesFromServer, // Import the new function
+  FailedCavity,
 } from "../../../../db/controller";
 import { Ionicons } from "@expo/vector-icons";
-import { api } from "../../../../api"; 
+import { api } from "../../../../api";
 import JumpingIcon from "./jumpingIcon";
-import ProgressBar from "../../../../components/progressBar"; 
+import ProgressBar from "../../../../components/progressBar";
 import {
   getDaysUntilExpiration,
   isTokenAlmostExpired,
@@ -41,7 +43,7 @@ import {
   setModalUserHasNotProjects,
 } from "../../../../redux/userSlice";
 import { ThunkDispatch } from "@reduxjs/toolkit";
-import { resetLoadingState } from "../../../../redux/loadingSlice";
+import { resetLoadingState, showError } from "../../../../redux/loadingSlice";
 import UploadProgressBar from "../../../../components/progressBar/uploadProgressBar";
 
 type InitialCheckOutcome =
@@ -55,7 +57,7 @@ type AutoUploadStatus = "idle" | "uploading" | "success" | "error";
 interface CheckProjectsModalProps {
   visible: boolean;
   onClose: () => void;
-  navigation: any; 
+  navigation: any;
 }
 
 export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
@@ -69,17 +71,18 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
   const [autoUploadStatus, setAutoUploadStatus] =
     useState<AutoUploadStatus>("idle");
   const [autoUploadError, setAutoUploadError] = useState<string | null>(null);
-  const [autoUploadProgress, setAutoUploadProgress] = useState(0); 
-  const autoUploadStatusRef = useRef(autoUploadStatus); 
+  const [autoUploadFailedCavities, setAutoUploadFailedCavities] = useState<FailedCavity[]>([]);
+  const [autoUploadProgress, setAutoUploadProgress] = useState(0);
+  const autoUploadStatusRef = useRef(autoUploadStatus);
 
   useEffect(() => {
     autoUploadStatusRef.current = autoUploadStatus;
   }, [autoUploadStatus]);
 
-  const dispatch: ThunkDispatch<RootState, unknown, any> = 
+  const dispatch: ThunkDispatch<RootState, unknown, any> =
     useDispatch<AppDispatch>();
   const {
-    isLoading, 
+    isLoading,
     hasProjects,
     checked,
     networkOff,
@@ -93,7 +96,7 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
       checked &&
       (hasProjects || userHasNotProjects) &&
       !isLoading &&
-      autoUploadStatus === "idle" 
+      autoUploadStatus === "idle"
   );
 
   const testConnection = useCallback(async () => {
@@ -115,16 +118,16 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
       await deleteAllProjects();
       await deleteAllCavities();
       const users = await fetchAllUsers();
-      if (users.length > 0 && users[0].user_id) { 
+      if (users.length > 0 && users[0].user_id) {
         await deleteUser(String(users[0].user_id));
       }
       dispatch(resetModalState());
       dispatch(resetLoadingState());
       navigation.navigate("Login");
-      onClose(); 
+      onClose();
     } catch (error) {
       console.error("Error during logoff:", error);
-      dispatch(resetModalState()); 
+      dispatch(resetModalState());
     } finally {
       setIsLoginOff(false);
     }
@@ -134,18 +137,20 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
     const isConnected = await testConnection();
     if (!isConnected) return;
 
-    dispatch(setModalLoading(true)); 
+    dispatch(setModalLoading(true));
     try {
       const users = await fetchAllUsers();
       if (!users || users.length === 0 || !users[0]?.token) {
-        dispatch(setModalNetworkOff(true)); 
+        dispatch(setModalNetworkOff(true));
         throw new Error("User or token not available for project download.");
       }
       const user = users[0];
-      const response = await api.get("/projetos/usuario/", { 
+
+      // 1. Download Projects
+      const projectsResponse = await api.get("/projetos/usuario/", {
         headers: { Authorization: `Bearer ${user.token}` },
       });
-      const projectsFromServer = response.data.results; 
+      const projectsFromServer = projectsResponse.data.results;
 
       if (!projectsFromServer || !Array.isArray(projectsFromServer)) {
         throw new Error("Invalid project data format from server.");
@@ -155,27 +160,39 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
         dispatch(setModalUserHasNotProjects(true));
       } else {
         const projectsToCreate = projectsFromServer.map((project: any) => ({
-          id: String(project.id), 
-          fk_cliente: String(project.cliente.id), 
+          id: String(project.id),
+          fk_cliente: String(project.cliente.id),
           nome_projeto: project.nome_projeto,
-          inicio: project.inicio, 
+          inicio: project.inicio,
           descricao_projeto: project.descricao_projeto,
-          responsavel: project.cliente.nome, 
-          status: 'Ativo',
-          
+          responsavel: project.cliente.nome,
+          status: 'Ativo', // Assuming default status
         }));
-        await createProjects(projectsToCreate); 
+        await createProjects(projectsToCreate); // This function now handles create/update
         dispatch(setModalHasProjects(true));
+
+        // 2. Download Cavities associated with these projects
+        const cavitiesResponse = await api.get("/cavidades/cavidades-usuario", { // NEW API CALL
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
+        const cavitiesFromServer = cavitiesResponse.data.results;
+
+        if (!cavitiesFromServer || !Array.isArray(cavitiesFromServer)) {
+            console.warn("No cavities or invalid cavities data format from server.");
+        } else {
+            await createCavitiesFromServer(cavitiesFromServer); // NEW FUNCTION CALL
+            console.log(`Downloaded and saved ${cavitiesFromServer.length} cavities.`);
+        }
       }
-      dispatch(setModalChecked(true)); 
+      dispatch(setModalChecked(true));
     } catch (error: any) {
-      console.error("Error downloading projects:", error);
+      console.error("Error downloading projects/cavities:", error);
       if (error.response && error.response.status === 401) {
-        await logoff(); 
+        logoff();
       } else {
-        dispatch(setModalNetworkOff(true)); 
+        dispatch(setModalNetworkOff(true));
       }
-      dispatch(setModalChecked(true)); 
+      dispatch(setModalChecked(true));
     } finally {
       dispatch(setModalLoading(false));
     }
@@ -185,9 +202,10 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
     async (): Promise<boolean> => {
       setAutoUploadStatus("uploading");
       setAutoUploadError(null);
-      setAutoUploadProgress(1); 
+      setAutoUploadFailedCavities([]);
+      setAutoUploadProgress(1);
       let overallSuccess = true;
-      
+
       try {
         const projectsToSync = await fetchProjectsWithPendingCavities();
         if (projectsToSync.length > 0) {
@@ -197,13 +215,15 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
           if (!result.success) {
             overallSuccess = false;
             setAutoUploadError(result.error || "Falha no envio automático.");
+            setAutoUploadFailedCavities(result.failedCavities || []);
           }
         } else {
-           setAutoUploadProgress(100); // Se não há nada para enviar, considera 100%
+           setAutoUploadProgress(100);
         }
       } catch (error: any) {
         overallSuccess = false;
-        setAutoUploadError(error.message || "Erro ao preparar dados para envio automático.");
+        const msgToDisplay = typeof error.message === 'string' ? error.message : JSON.stringify(error);
+        setAutoUploadError(`Erro ao preparar dados para envio automático: ${msgToDisplay}`);
         console.error("Error in performAutoUpload preparation:", error);
       }
 
@@ -213,27 +233,27 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
           if (visible && autoUploadStatusRef.current === "success") {
             onClose();
           }
-        }, 1500); 
+        }, 1500);
         return true;
       } else {
         setAutoUploadStatus("error");
         return false;
       }
     },
-    [onClose, visible] 
+    [onClose, visible]
   );
 
   const initialCheck = useCallback(async (): Promise<InitialCheckOutcome> => {
-    let currentOutcomeStatus: InitialCheckOutcome = "STAY_OPEN"; 
-    dispatch(setModalLoading(true)); 
-    
+    let currentOutcomeStatus: InitialCheckOutcome = "STAY_OPEN";
+    dispatch(setModalLoading(true));
+
     try {
       const users = await fetchAllUsers();
       let currentUser = users.length > 0 ? users[0] : null;
-      
+
       if (!currentUser || !currentUser.user_id) {
-        await logoff();
-        currentOutcomeStatus = "LOGGED_OFF"; 
+        logoff();
+        currentOutcomeStatus = "LOGGED_OFF";
       }
 
       if (currentOutcomeStatus !== "LOGGED_OFF") {
@@ -244,15 +264,14 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
           if (isTokenExpired(currentUser.last_login_date)) {
             try {
               const refreshed = await refreshUserToken(currentUser.refresh_token);
-              await updateUser(String(currentUser.user_id)!, { 
+              await updateUser(String(currentUser.user_id)!, {
                 token: refreshed.access,
                 refresh_token: refreshed.refresh,
                 last_login_date: new Date().toISOString(),
               });
             } catch (refreshError) {
               console.error("Token refresh failed, logging off:", refreshError);
-              // await logoff();
-              currentOutcomeStatus = "ERROR_IN_CHECK"; 
+              currentOutcomeStatus = "ERROR_IN_CHECK";
             }
           } else if (isTokenAlmostExpired(currentUser.last_login_date)) {
             const daysLeft = getDaysUntilExpiration(currentUser.last_login_date);
@@ -260,49 +279,51 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
           }
         }
       }
-      
+
       if (currentOutcomeStatus !== "LOGGED_OFF") {
         const localProjectsResult = await fetchAllProjects();
         const localProjectsExist = localProjectsResult.length > 0;
         dispatch(setModalHasProjects(localProjectsExist));
-        
-        const isCurrentlyOnlineAfterTokenCheck = store.getState().user.networkOff === false; 
-        if (!localProjectsExist && isCurrentlyOnlineAfterTokenCheck) { // Verifica online novamente
+
+        const isCurrentlyOnlineAfterTokenCheck = store.getState().user.networkOff === false;
+        // Only download projects AND cavities if no local projects exist AND online
+        if (!localProjectsExist && isCurrentlyOnlineAfterTokenCheck) {
             await downloadProjects();
         }
         dispatch(setModalChecked(true));
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error during initial check:", error);
-      dispatch(setModalNetworkOff(true)); 
+      const msgToDisplay = typeof error.message === 'string' ? error.message : JSON.stringify(error);
+      dispatch(showError({
+        title: "Erro de Sincronização Inicial",
+        message: msgToDisplay
+      }));
+      dispatch(setModalNetworkOff(true));
       dispatch(setModalChecked(true));
       currentOutcomeStatus = "ERROR_IN_CHECK";
     } finally {
-      dispatch(setModalLoading(false)); 
+      dispatch(setModalLoading(false));
     }
 
-    // Lógica de decisão movida para fora do finally
     if (currentOutcomeStatus === "LOGGED_OFF") {
-      return "LOGGED_OFF"; 
+      return "LOGGED_OFF";
     }
 
     const isCurrentlyOnlineForPostCheck = store.getState().user.networkOff === false;
     if (isCurrentlyOnlineForPostCheck && autoUploadStatusRef.current === "idle" && currentOutcomeStatus !== "ERROR_IN_CHECK") {
       const itemCount = await getProjectsWithPendingCavitiesCount();
       if (itemCount > 0) {
-        await performAutoUpload(); 
-        // Não retorna aqui, deixa o performAutoUpload controlar o estado e o fechamento.
-        // Apenas marca o outcome para a lógica de fechamento silencioso abaixo.
-        currentOutcomeStatus = "AUTO_UPLOAD_INITIATED"; 
+        performAutoUpload();
+        currentOutcomeStatus = "AUTO_UPLOAD_INITIATED";
       }
     }
-    
-    // Só tenta fechar silenciosamente se o auto-upload não foi iniciado OU se o auto-upload já terminou (não está 'uploading')
+
     if (currentOutcomeStatus !== "AUTO_UPLOAD_INITIATED" || autoUploadStatusRef.current !== 'uploading') {
-        if (currentOutcomeStatus !== "ERROR_IN_CHECK") { // E não houve erro no check inicial
+        if (currentOutcomeStatus !== "ERROR_IN_CHECK") {
             const currentReduxUserState = store.getState().user;
-            const canCloseSilently = 
+            const canCloseSilently =
                 (isCurrentlyOnlineForPostCheck && (currentReduxUserState.hasProjects || currentReduxUserState.userHasNotProjects)) ||
                 (!isCurrentlyOnlineForPostCheck && currentReduxUserState.hasProjects);
 
@@ -312,17 +333,16 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
             }
         }
     }
-    
-    return currentOutcomeStatus; // Retorna "STAY_OPEN", "ERROR_IN_CHECK", ou "AUTO_UPLOAD_INITIATED" (se o upload não fechar o modal)
+
+    return currentOutcomeStatus;
   }, [dispatch, logoff, downloadProjects, performAutoUpload, onClose]);
 
   useEffect(() => {
     if (visible) {
-      requestLocationPermissions(); 
+      requestLocationPermissions();
       if (!initialCheckInvoked) {
         setInitialCheckInvoked(true);
         initialCheck().then((outcomeFromCheck) => {
-          // console.log("[CheckProjectsModal] Initial check final outcome:", outcomeFromCheck);
         });
       }
     } else {
@@ -330,13 +350,13 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
       setAutoUploadStatus("idle");
       setAutoUploadProgress(0);
       setAutoUploadError(null);
+      setAutoUploadFailedCavities([]);
     }
   }, [visible, initialCheck, dispatch]);
 
-  // --- RENDER LOGIC ---
   if (autoUploadStatus === "uploading") {
     return (
-      <Modal visible={true} transparent animationType="fade" onRequestClose={() => { /* Noop */ }}>
+      <Modal visible={true} transparent animationType="fade" onRequestClose={() => {}}>
         <View style={styles.overlay}>
           <View style={styles.modalContainer}>
             <TextInter color={colors.white[90]} fontSize={23} style={styles.title}>
@@ -355,7 +375,7 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
   }
   if (autoUploadStatus === "success") {
     return (
-      <Modal visible={true} transparent animationType="fade" onRequestClose={() => { /* Noop, closes via timeout */ }}>
+      <Modal visible={true} transparent animationType="fade" onRequestClose={() => {}}>
         <View style={styles.overlay}>
           <View style={styles.modalContainer}>
             <Ionicons name="checkmark-circle-outline" size={70} color={colors.accent[100]} />
@@ -386,6 +406,22 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
             <TextInter color={colors.dark[20]} style={styles.message}>
               {autoUploadError || "Falha no envio automático."}
             </TextInter>
+            {autoUploadFailedCavities.length > 0 && (
+                <View style={styles.failedCavitiesContainer}>
+                    <TextInter color={colors.white[90]} weight="bold" style={styles.failedCavitiesHeader}>
+                        Cavidades com Erro:
+                    </TextInter>
+                    <ScrollView style={styles.failedCavitiesList} nestedScrollEnabled>
+                        {autoUploadFailedCavities.map((cav, index) => (
+                            <View key={index} style={styles.failedCavityItem}>
+                                <TextInter color={colors.dark[20]} fontSize={13} style={styles.failedCavityText}>
+                                    <TextInter color={colors.warning[100]} weight="bold">{cav.nome_cavidade}</TextInter> (ID: {cav.registro_id}): {cav.error}
+                                </TextInter>
+                            </View>
+                        ))}
+                    </ScrollView>
+                </View>
+            )}
             <Divider />
             <LongButton title="Fechar" onPress={onClose} mode="cancel" />
           </View>
@@ -396,7 +432,7 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
 
   return (
     <Modal
-      visible={visible} 
+      visible={visible}
       transparent
       animationType="fade"
       onRequestClose={() => {
@@ -405,7 +441,7 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
     >
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
-          {isLoading ? ( 
+          {isLoading ? (
             <>
               <TextInter color={colors.white[90]} fontSize={23} style={styles.title}>
                 {checked ? "Verificação Concluída" : "Verificando dados..."}
@@ -432,8 +468,8 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
               <Divider />
               <LongButton title="Sair" onPress={logoff} isLoading={isLoginOff} />
             </>
-          ) : hasProjects && checked && !networkOff && !showExpirationWarning ? ( 
-            showExpirationWarning ? ( 
+          ) : hasProjects && checked && !networkOff && !showExpirationWarning ? (
+            showExpirationWarning ? (
                 <>
                     <TextInter color={colors.white[90]} fontSize={23} style={styles.title}>Atenção!</TextInter>
                     <Divider height={16} /><Ionicons name="warning-outline" color={colors.warning[100]} size={70} /><Divider height={16} />
@@ -443,7 +479,7 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
                     <Divider />
                     <LongButton title="Ok, Entendi" onPress={onClose} />
                 </>
-            ) : ( 
+            ) : (
                 <>
                     <TextInter color={colors.white[90]} fontSize={23} style={styles.title}>Projetos Disponíveis</TextInter>
                     <Divider height={16} /><Ionicons name="checkmark-circle-outline" color={colors.accent[100]} size={70} /><Divider height={16} />
@@ -452,7 +488,7 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
                 </>
             )
 
-          ) : checked && !hasProjects && !networkOff && !userHasNotProjects ? ( 
+          ) : checked && !hasProjects && !networkOff && !userHasNotProjects ? (
             <>
               <TextInter color={colors.white[90]} fontSize={23} style={styles.title}>
                 Projetos não encontrados localmente
@@ -466,7 +502,7 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
               <Divider height={8} />
               <LongButton disabled={isLoginOff || isLoading} isLoading={isLoginOff} title="Sair" onPress={logoff} />
             </>
-          ) : checked && networkOff ? ( 
+          ) : checked && networkOff ? (
             <>
               <TextInter color={colors.white[90]} fontSize={23} style={styles.title}>
                 Você está sem internet
@@ -492,7 +528,7 @@ export const CheckProjectsModal: FC<CheckProjectsModalProps> = ({
       </View>
 
       <DefaultModal
-        isOpen={showExpirationWarning && visible} 
+        isOpen={showExpirationWarning && visible}
         onClose={() => dispatch(setModalExpirationWarning({ show: false, days: 0 }))}
         title={`Atenção! Sua sessão expira em ${daysToExpire} ${daysToExpire === 1 ? "dia" : "dias"}`}
         message="Recomendamos sincronizar seus dados. Se a sessão expirar, precisará fazer login novamente."
@@ -534,5 +570,30 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 10,
     lineHeight: 20,
+  },
+  failedCavitiesContainer: {
+    marginTop: 15,
+    width: '100%',
+    maxHeight: 150,
+    borderColor: colors.dark[40],
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+  },
+  failedCavitiesHeader: {
+    marginBottom: 5,
+    textAlign: 'left',
+  },
+  failedCavitiesList: {
+    flexGrow: 0,
+  },
+  failedCavityItem: {
+    backgroundColor: colors.dark[50],
+    borderRadius: 5,
+    padding: 8,
+    marginBottom: 5,
+  },
+  failedCavityText: {
+    textAlign: 'left',
   },
 });

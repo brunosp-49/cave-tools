@@ -73,7 +73,6 @@ const validateStep = (
     case 0: // Step One: Basic Info
       return (
         // isFieldFilled(data.projeto_id) && // Removed
-        isFieldFilled(data.responsavel) &&
         isFieldFilled(data.nome_cavidade) &&
         Array.isArray(data.entradas) &&
         data.entradas.length > 0 &&
@@ -216,46 +215,18 @@ const validateStep = (
       return true;
 
     case 3: // Step Four: Caracterização Interna
-      const caracterizacao = data.caracterizacao_interna as
+    const caracterizacao = data.caracterizacao_interna as
         | CaracterizacaoInterna
         | undefined;
-      if (!caracterizacao) return true; // If optional and not filled
+      if (!caracterizacao) return true;
 
-      if (caracterizacao.grupo_litologico) {
-        const gl = caracterizacao.grupo_litologico;
-        const hasSpecificLithology =
-          gl.rochas_carbonaticas ||
-          gl.rochas_ferriferas_ferruginosas ||
-          gl.rochas_siliciclasticas ||
-          gl.rochas_peliticas ||
-          gl.rochas_granito_gnaissicas;
-        const outroLithologyFilled = isFieldFilled(gl.outro);
-        if (!hasSpecificLithology && !outroLithologyFilled) return false; // Must select a type or fill outro
-        if (
-          gl.outro !== undefined &&
-          gl.outro.trim() !== "" &&
-          !isFieldFilled(gl.outro) &&
-          !hasSpecificLithology
-        ) {
-          // If 'outro' has content but is only spaces and no specific chosen
-          // This logic is a bit tricky: if 'outro' is defined (not just empty string after trim), it should be valid IF specific types are not chosen.
-          // If 'outro' is intended as the sole choice, it must be filled.
-        } else if (
-          gl.hasOwnProperty("outro") &&
-          !isFieldFilled(gl.outro) &&
-          !hasSpecificLithology
-        ) {
-          // If 'outro' field exists but is empty, and no specific type is chosen, it's invalid.
-          // This implies if 'outro' text input is shown, it needs filling if no checkboxes are ticked.
-          // The UI should ideally manage enabling/disabling 'outro' or making it required based on checkboxes.
-          // For now, if 'outro' is the only way to validate this section and it's not filled, then false.
-          // The check `!hasSpecificLithology && !outroLithologyFilled` already covers this.
-        }
-      } else {
-        return false; // grupo_litologico object itself is mandatory if caracterizacao_interna is present
+      const gl = caracterizacao.grupo_litologico;
+      if (gl?.outro !== undefined && !isFieldFilled(gl.outro)) {
+        return false;
       }
 
-      if (!caracterizacao.desenvolvimento_predominante) return false; // desenvolvimento_predominante is mandatory
+      // "Desenvolvimento predominante" is now optional.
+      // if (!caracterizacao.desenvolvimento_predominante) return false;
 
       if (
         (caracterizacao.depredacao_localizada === true &&
@@ -269,7 +240,6 @@ const validateStep = (
       const infraInterna = caracterizacao.infraestrutura_interna;
       if (infraInterna) {
         if (infraInterna.nenhuma === true) {
-          // If 'nenhuma' is true, no other infraestrutura_interna should be true/filled
           if (
             infraInterna.passarela ||
             infraInterna.corrimao?.ferro ||
@@ -286,7 +256,6 @@ const validateStep = (
             return false;
           }
         } else {
-          // If 'nenhuma' is false, at least one other option must be selected/filled
           const corrimaoSelected =
             infraInterna.corrimao &&
             (infraInterna.corrimao.ferro ||
@@ -305,24 +274,6 @@ const validateStep = (
 
           if (!corrimaoSelected && !otherInfraSelected && !outroInfraFilled)
             return false;
-
-          if (
-            infraInterna.corrimao &&
-            !infraInterna.corrimao.ferro &&
-            !infraInterna.corrimao.madeira &&
-            !infraInterna.corrimao.corda &&
-            !isFieldFilled(infraInterna.corrimao.outro) &&
-            (infraInterna.corrimao.hasOwnProperty("ferro") ||
-              infraInterna.corrimao.hasOwnProperty("madeira") ||
-              infraInterna.corrimao.hasOwnProperty("corda") ||
-              infraInterna.corrimao.hasOwnProperty("outro"))
-          ) {
-            // If corrimao object exists but no option within it is selected/filled
-            // This implies user interacted with corrimao but didn't complete it.
-            // This might be too strict depending on UI. If corrimao itself is optional, this is fine.
-            // Assuming if corrimao object is present, something inside must be true/filled.
-            // This is already covered by !corrimaoSelected if we consider corrimao selection mandatory if an option is shown.
-          }
           if (
             infraInterna.outroEnabled === true &&
             !isFieldFilled(infraInterna.outros)
@@ -330,7 +281,7 @@ const validateStep = (
             return false;
         }
       } else {
-        return false; // infraestrutura_interna object is mandatory
+        return false;
       }
 
       const difProg = caracterizacao.dificuldades_progressao_interna;
@@ -361,15 +312,11 @@ const validateStep = (
             difProg.quebra_corpo ||
             difProg.sifao ||
             difProg.cachoeira;
-          const outroDifProgFilled = isFieldFilled(difProg.outro); // Assuming 'outro' can be filled even if specific are selected
-          if (!anySpecificDifProg && !outroDifProgFilled) return false; // Must select a type or fill outro if 'nenhuma' is false
-          // If 'outro' is intended to be exclusive of the booleans when filled, this needs adjustment.
-          // The current Type structure allows 'outro' and booleans to co-exist.
-          // If the UI implies 'outro' is only active if no booleans, that's a UI logic concern.
-          // For data validation, if 'outro' is present and filled, it's valid contribution.
+          const outroDifProgFilled = isFieldFilled(difProg.outro);
+          if (!anySpecificDifProg && !outroDifProgFilled) return false;
         }
       } else {
-        return false; // dificuldades_progressao_interna object is mandatory
+        return false;
       }
       return true;
 
@@ -448,34 +395,34 @@ const validateStep = (
 
       return true;
 
-    case 5:
-      const hydro = data.hidrologia;
-      if (!hydro) return false;
+    case 5: // Step Six: Hidrologia
+    const hydro = data.hidrologia;
+    if (!hydro) return true;
 
-      const checkWaterFeature = (feature?: {
-        possui?: boolean;
-        tipo?: string;
-      }) => feature?.possui && isFieldFilled(feature.tipo);
-
-      const features = [
-        hydro.curso_agua,
-        hydro.lago,
-        hydro.sumidouro,
-        hydro.surgencia,
-        hydro.gotejamento,
-        hydro.condensacao,
-        hydro.empossamento,
-        hydro.exudacao,
-      ];
-
-      // Ensure all features are filled if 'possui' is true
-      if (!features.every(checkWaterFeature)) return false;
-
-      // Ensure 'outro' is filled if enabled
-      if (hydro.hasOwnProperty("outro") && !isFieldFilled(hydro.outro))
-        return false;
-
+    const checkWaterFeature = (feature?: {
+      possui?: boolean;
+      tipo?: string;
+    }) => {
+      if (feature?.possui && !isFieldFilled(feature.tipo)) {
+          return false;
+      }
       return true;
+    };
+
+    if (!checkWaterFeature(hydro.curso_agua)) return false;
+    if (!checkWaterFeature(hydro.lago)) return false;
+    if (!checkWaterFeature(hydro.sumidouro)) return false;
+    if (!checkWaterFeature(hydro.surgencia)) return false;
+    if (!checkWaterFeature(hydro.gotejamento)) return false;
+    if (!checkWaterFeature(hydro.condensacao)) return false;
+    if (!checkWaterFeature(hydro.empossamento)) return false;
+    if (!checkWaterFeature(hydro.exudacao)) return false;
+
+    if (hydro.outro !== undefined && !isFieldFilled(hydro.outro)) {
+      return false;
+    }
+
+    return true;
 
     case 6: // Step Seven: Sedimentos
       const sed = data.sedimentos;
@@ -597,23 +544,24 @@ const validateStep = (
       return isClasticaValid && isOrganicaValid; // Will be true if both 'possui' are false.
 
     case 7: // Step Eight: Espeleotemas
-      const esp = data.espeleotemas;
-      if (!esp || typeof esp.possui === "undefined" || esp.possui === false) {
-        return false; // Valid if not present, or 'possui' is false
-      }
-      // If 'possui' is true:
-      if (!Array.isArray(esp.tipos) || esp.tipos.length === 0) {
-        return false; // Must have at least one item
-      }
-      const todosItensValidos = esp.tipos.every(
-        (item) =>
-          isFieldFilled(item.tipo) &&
-          isFieldFilled(item.porte) &&
-          isFieldFilled(item.frequencia) &&
-          isFieldFilled(item.estado_conservacao)
-      );
-      if (!todosItensValidos) return false; // All items must be fully filled
+    const esp = data.espeleotemas;
+    // If espeleotemas object doesn't exist or 'possui' is explicitly false, it's valid
+    if (!esp || esp.possui === false) {
       return true;
+    }
+    // If 'possui' is true, then validation applies
+    if (!Array.isArray(esp.tipos) || esp.tipos.length === 0) {
+      return false;
+    }
+    const todosItensValidos = esp.tipos.every(
+      (item) =>
+        isFieldFilled(item.tipo) &&
+        isFieldFilled(item.porte) &&
+        isFieldFilled(item.frequencia) &&
+        isFieldFilled(item.estado_conservacao)
+    );
+    if (!todosItensValidos) return false;
+    return true;
 
     case 8: // Step Nine: Biota
       const biota = data.biota;

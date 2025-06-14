@@ -1,22 +1,21 @@
 import React, { FC, useState, useEffect, useCallback, useRef } from "react";
-import { Modal, View, StyleSheet, ActivityIndicator } from "react-native";
+import { Modal, View, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
-  // Placeholder para as novas funções do controller
-  getProjectsWithPendingCavitiesCount, // Nova função para contar projetos com cavidades pendentes
-  fetchProjectsWithPendingCavities,    // Nova função para buscar os dados consolidados
-  syncConsolidatedUpload,              // Nova função para sincronizar os dados consolidados
-} from "../../../../db/controller"; // Ajuste o caminho se necessário
+  getProjectsWithPendingCavitiesCount,
+  fetchProjectsWithPendingCavities,
+  syncConsolidatedUpload,
+  FailedCavity,
+} from "../../../../db/controller";
 import { colors } from "../../../../assets/colors";
 import { Divider } from "../../../../components/divider";
 import TextInter from "../../../../components/textInter";
 import { LongButton } from "../../../../components/longButton";
 import UploadProgressBar from "../../../../components/progressBar/uploadProgressBar";
-import { Cavidade, ProjectModel } from "../../../../types"; // Importar Cavidade e ProjectModel
+import { Cavidade, ProjectModel } from "../../../../types";
 
-// Nova interface para a estrutura de dados consolidada
-export interface ProjectWithPendingCavities extends ProjectModel { // Estende seu ProjectModel
-  cavities_payload: Cavidade[]; // Array de cavidades pendentes para este projeto
+export interface ProjectWithPendingCavities extends ProjectModel {
+  cavities_payload: Cavidade[];
 }
 
 type UploadStatus =
@@ -42,6 +41,7 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
   const [pendingItemCount, setPendingItemCount] = useState<number>(0);
   const [progress, setProgress] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [failedCavities, setFailedCavities] = useState<FailedCavity[]>([]);
   const [uploadSessionSuccess, setUploadSessionSuccess] = useState<boolean>(false);
   const isMounted = useRef(true);
 
@@ -58,6 +58,7 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
       setPendingItemCount(0);
       setProgress(0);
       setErrorMessage(null);
+      setFailedCavities([]);
       setUploadSessionSuccess(false);
     }
   }, []);
@@ -68,13 +69,14 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
         if (!isMounted.current) return;
         setStatus("fetchingCounts");
         setUploadSessionSuccess(false);
+        setFailedCavities([]);
         try {
-          const itemCount = await getProjectsWithPendingCavitiesCount(); 
+          const itemCount = await getProjectsWithPendingCavitiesCount();
           if (!isMounted.current) return;
           setPendingItemCount(itemCount);
 
           if (itemCount === 0) {
-            setStatus("success"); 
+            setStatus("success");
             setUploadSessionSuccess(true);
           } else {
             setStatus("confirming");
@@ -82,14 +84,15 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
         } catch (err) {
           console.error("Failed to fetch pending item counts:", err);
           if (isMounted.current) {
-            setErrorMessage("Erro ao buscar registros pendentes para envio.");
+            const msgToDisplay = typeof (err as Error).message === 'string' ? (err as Error).message : JSON.stringify(err);
+            setErrorMessage(`Erro ao buscar registros pendentes para envio: ${msgToDisplay}`);
             setStatus("error");
           }
         }
       };
       getCounts();
     } else {
-      resetState(); 
+      resetState();
     }
   }, [visible, resetState]);
 
@@ -97,8 +100,9 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
     if (pendingItemCount === 0) return;
 
     setStatus("uploading");
-    setProgress(1); 
+    setProgress(1);
     setErrorMessage(null);
+    setFailedCavities([]);
     setUploadSessionSuccess(false);
 
     try {
@@ -115,20 +119,23 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
       const result = await syncConsolidatedUpload(projectsToSync, (p) => {
           if(isMounted.current) setProgress(p);
       });
-      
+
       if (!isMounted.current) return;
 
       if (result.success) {
         setStatus("success");
         setUploadSessionSuccess(true);
       } else {
-        setErrorMessage(result.error || "Falha ao enviar alguns dados.");
+        const msgToDisplay = result.error || "Falha ao enviar alguns dados.";
+        setErrorMessage(msgToDisplay);
+        setFailedCavities(result.failedCavities || []);
         setStatus("error");
       }
     } catch (err: any) {
       console.error("Upload process failed:", err);
       if (isMounted.current) {
-        setErrorMessage(err.message || "Ocorreu um erro durante o envio.");
+        const msgToDisplay = typeof err.message === 'string' ? err.message : JSON.stringify(err);
+        setErrorMessage(`Ocorreu um erro durante o envio: ${msgToDisplay}`);
         setStatus("error");
       }
     } finally {
@@ -138,16 +145,16 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
   };
 
   const handleDismissModal = useCallback(() => {
-    if (status === "uploading") return; 
+    if (status === "uploading") return;
 
-    if (uploadSessionSuccess && pendingItemCount > 0) {
+    if (uploadSessionSuccess && pendingItemCount > 0 && failedCavities.length === 0) {
       onUploadSuccess();
     }
     onClose();
-  }, [status, uploadSessionSuccess, onClose, onUploadSuccess, pendingItemCount]);
+  }, [status, uploadSessionSuccess, onClose, onUploadSuccess, pendingItemCount, failedCavities]);
 
   const renderContent = () => {
-    if (status === "fetchingCounts" || status === "idle" && visible) {
+    if (status === "fetchingCounts" || (status === "idle" && visible)) {
       return (
         <>
           <ActivityIndicator size={70} color={colors.accent[100]} />
@@ -228,6 +235,22 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
             <TextInter color={colors.dark[20]} style={styles.message}>
               {errorMessage || "Ocorreu um erro inesperado."}
             </TextInter>
+            {failedCavities.length > 0 && (
+                <View style={styles.failedCavitiesContainer}>
+                    <TextInter color={colors.white[90]} weight="bold" style={styles.failedCavitiesHeader}>
+                        Cavidades com Erro:
+                    </TextInter>
+                    <ScrollView style={styles.failedCavitiesList} nestedScrollEnabled>
+                        {failedCavities.map((cav, index) => (
+                            <View key={index} style={styles.failedCavityItem}>
+                                <TextInter color={colors.dark[20]} fontSize={13} style={styles.failedCavityText}>
+                                    <TextInter color={colors.warning[100]} weight="bold">{cav.nome_cavidade}</TextInter> (ID: {cav.registro_id}): {cav.error}
+                                </TextInter>
+                            </View>
+                        ))}
+                    </ScrollView>
+                </View>
+            )}
             <Divider />
             {pendingItemCount > 0 && (
                  <LongButton title="Tentar Novamente" onPress={handleUploadConfirm} />
@@ -263,7 +286,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   modalContainer: {
-    backgroundColor: colors.dark[30], 
+    backgroundColor: colors.dark[30],
     width: "90%",
     maxWidth: 400,
     minHeight: 280,
@@ -286,5 +309,30 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 10,
     lineHeight: 20,
+  },
+  failedCavitiesContainer: {
+    marginTop: 15,
+    width: '100%',
+    maxHeight: 150,
+    borderColor: colors.dark[40],
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+  },
+  failedCavitiesHeader: {
+    marginBottom: 5,
+    textAlign: 'left',
+  },
+  failedCavitiesList: {
+    flexGrow: 0,
+  },
+  failedCavityItem: {
+    backgroundColor: colors.dark[50],
+    borderRadius: 5,
+    padding: 8,
+    marginBottom: 5,
+  },
+  failedCavityText: {
+    textAlign: 'left',
   },
 });

@@ -1,5 +1,5 @@
 // navigation/DrawerNavigator.tsx
-import React, { useCallback, useEffect } from "react";
+import React, { FC, useCallback, useEffect } from "react";
 import BottomTabNavigator from "./bottomTab";
 import { Login } from "../view/login";
 import { Register } from "../view/register";
@@ -10,7 +10,7 @@ import {
   createDrawerNavigator,
 } from "@react-navigation/drawer";
 import { colors } from "../assets/colors";
-import { BackHandler, View } from "react-native";
+import { BackHandler, Modal, StyleSheet, View } from "react-native";
 import TextInter from "../components/textInter";
 import { Divider } from "../components/divider";
 import { LongButton } from "../components/longButton";
@@ -43,6 +43,7 @@ import { HomeScreen } from "../view/home";
 import Dashboard from "../view/dashboard";
 import TopographyCreateScreen from "../view/TopographyCreate";
 import { TopographyDetailScreen } from "../view/topographyDetails";
+import AttentionIcon from "../components/icons/attentionIcon";
 
 const Drawer = createDrawerNavigator();
 
@@ -302,7 +303,7 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
         onPress={() => setConfirmModalVisible(true)}
         disabled={!isConnected}
       />
-      <DefaultModal
+      <LogoffModal
         isOpen={confirmModalVisible}
         onClose={() => setConfirmModalVisible(false)}
         onConfirm={logoff}
@@ -312,3 +313,98 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
     </DrawerContentScrollView>
   );
 };
+
+interface DefaultModalProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onClose: () => void;
+  onConfirm: () => void;
+  titleButtonConfirm?: string;
+  onCustomCancel?: () => void;
+  titleButtonCancel?: string;
+}
+
+const LogoffModal: FC<DefaultModalProps> = ({
+  isOpen,
+  message,
+  onClose,
+  onConfirm,
+  title,
+  titleButtonCancel,
+  titleButtonConfirm,
+  onCustomCancel,
+}) => {
+  return (
+    <Modal visible={isOpen} transparent>
+      <View style={styles.overlay}>
+        <View style={styles.modalContainer}>
+          <TextInter
+            color={colors.white[100]}
+            fontSize={23}
+            style={styles.title}
+          >
+            {title}
+          </TextInter>
+          <Divider height={16} />
+          <AttentionIcon />
+          <Divider height={16} />
+          <TextInter
+            color={colors.warning[100]}
+            weight="bold"
+            fontSize={16}
+            style={styles.message}
+          >
+            {message}
+          </TextInter>
+          <Divider />
+          <View style={styles.buttonContainer}>
+            <LongButton
+              mode="cancel"
+              numberOfButtons={2}
+              title={titleButtonCancel ? titleButtonCancel : "Cancelar"}
+              onPress={() => (onCustomCancel ? onCustomCancel() : onClose())}
+            />
+            <LongButton
+              numberOfButtons={2}
+              title={titleButtonConfirm ? titleButtonConfirm : "Confirmar"}
+              onPress={() => onConfirm()}
+            />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: {
+    backgroundColor: "rgba(0,0,0,0.5)",
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalContainer: {
+    backgroundColor: colors.dark[30],
+    width: "90%",
+    height: "auto",
+    minHeight: 250,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 30,
+  },
+  title: {
+    textAlign: "center",
+  },
+  message: {
+    textAlign: "center",
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+  },
+});
+

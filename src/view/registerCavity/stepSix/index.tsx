@@ -6,7 +6,7 @@ import TextInter from "../../../components/textInter";
 import { colors } from "../../../assets/colors";
 import { Checkbox } from "../../../components/checkbox";
 import { Input } from "../../../components/input";
-import { Hidrologia, RouterProps } from "../../../types"; 
+import { Hidrologia, RouterProps } from "../../../types";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "../../../redux/store";
 import { updateCavidadeData } from "../../../redux/cavitySlice";
@@ -75,10 +75,8 @@ export const StepSix: FC<StepSixProps> = ({ navigation, route, validationAttempt
       const currentlyPossui = currentFeatureState?.possui || false;
 
       if (currentlyPossui) {
-        // Ao desmarcar "Possui", limpa o objeto inteiro da feature
-        handleUpdate(featurePath, undefined); 
+        handleUpdate(featurePath, undefined);
       } else {
-        // Ao marcar "Possui", inicializa com 'tipo' undefined para forçar seleção
         handleUpdate(featurePath, { possui: true, tipo: undefined });
       }
     },
@@ -103,7 +101,7 @@ export const StepSix: FC<StepSixProps> = ({ navigation, route, validationAttempt
 
   const handleFinalOutroToggle = useCallback(() => {
     const outroPath = ["hidrologia", "outro"];
-    const isCurrentlyActive = hidrologia.outro !== undefined; 
+    const isCurrentlyActive = hidrologia.outro !== undefined;
     handleUpdate(outroPath, isCurrentlyActive ? undefined : "");
   }, [handleUpdate, hidrologia.outro]);
 
@@ -162,7 +160,7 @@ export const StepSix: FC<StepSixProps> = ({ navigation, route, validationAttempt
     <View style={styles.container}>
       <Divider />
       <TextInter color={colors.white[100]} fontSize={19} weight="medium">
-        Hidrologia *
+        Hidrologia
       </TextInter>
       <Divider />
       {renderFeatureSection("curso_agua", "Curso d’água")}
@@ -173,7 +171,7 @@ export const StepSix: FC<StepSixProps> = ({ navigation, route, validationAttempt
       {renderFeatureSection("condensacao", "Condensação")}
       {renderFeatureSection("empossamento", "Empoçamento")}
       {renderFeatureSection("exudacao", "Exudação")}
-      
+
       <Checkbox
         label="Outro (Fenômeno Hidrológico)"
         checked={hidrologia.outro !== undefined}
@@ -209,9 +207,8 @@ const styles = StyleSheet.create({
     color: colors.error[100],
     fontSize: 12,
     marginTop: 2,
-    // marginBottom: 6, 
   },
-  inputSpacing: { 
+  inputSpacing: {
     marginBottom: 12,
   },
 });
