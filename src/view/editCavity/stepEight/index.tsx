@@ -24,7 +24,6 @@ interface StepEightProps extends RouterProps {
   validationAttempted: boolean;
 }
 
-// Consider moving to a shared utils file
 const isFieldFilled = (value: any): boolean => {
     if (value === null || typeof value === "undefined") return false;
     if (typeof value === "string" && value.trim() === "") return false;
@@ -56,12 +55,12 @@ export const StepEight: FC<StepEightProps> = ({ navigation, route, validationAtt
   const [itemFormErrors, setItemFormErrors] = useState<ItemFormErrors>({});
 
   const stepEightGlobalErrors = useMemo(() => {
-    if (!globalValidationAttempted) return {};
+    if (!globalValidationAttempted || !possuiEspeleotemasRedux) return {};
     const errors: { [key: string]: string } = {};
-    if (possuiEspeleotemasRedux && itemList.length === 0) {
+    if (itemList.length === 0) {
       errors.espeleotemas_tipos = "Pelo menos um espeleotema deve ser adicionado se 'Possui Espeleotemas' estiver marcado.";
     }
-    if (possuiEspeleotemasRedux && itemList.length > 0) {
+    if (itemList.length > 0) {
         const algumItemIncompleto = itemList.some(item =>
             !isFieldFilled(item.tipo) ||
             !isFieldFilled(item.porte) ||
@@ -111,7 +110,7 @@ export const StepEight: FC<StepEightProps> = ({ navigation, route, validationAtt
     }
     const newItemPayload: Omit<EspeleotemaItem, "id"> = {
       tipo: currentTipo.trim(),
-      porte: currentPorte!, // Assert non-null as validateItemForm checks it
+      porte: currentPorte!,
       frequencia: currentFreq.trim(),
       estado_conservacao: currentConservacao.trim(),
     };
@@ -137,15 +136,17 @@ export const StepEight: FC<StepEightProps> = ({ navigation, route, validationAtt
   return (
     <View style={styles.container}>
       <Divider />
-      <TextInter color={colors.white[100]} fontSize={19} weight="medium">Espeleotemas</TextInter>
+      <TextInter color={colors.white[100]} fontSize={19} weight="medium">Espeleotemas *</TextInter>
       <Divider />
       <Checkbox label="Possui Espeleotemas?" checked={possuiEspeleotemasRedux} onChange={handlePossuiToggle} />
-      {!!stepEightGlobalErrors.espeleotemas_tipos && (
+      {globalValidationAttempted && !possuiEspeleotemasRedux && itemList.length === 0 &&
+        !!stepEightGlobalErrors.espeleotemas_tipos && (
         <TextInter color={colors.error[100]} fontSize={12} style={styles.errorText}>
           {stepEightGlobalErrors.espeleotemas_tipos}
         </TextInter>
       )}
-       {!!stepEightGlobalErrors.espeleotemas_tipos_itens && (
+       {globalValidationAttempted && possuiEspeleotemasRedux && itemList.length > 0 &&
+        !!stepEightGlobalErrors.espeleotemas_tipos_itens && (
         <TextInter color={colors.error[100]} fontSize={12} style={styles.errorText}>
           {stepEightGlobalErrors.espeleotemas_tipos_itens}
         </TextInter>

@@ -99,6 +99,7 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
         id: uuid.v4().toString(),
         descricao_projeto: description,
         nome_projeto: name,
+        status: "ativo",
         inicio: date
         ? (() => {
             try {

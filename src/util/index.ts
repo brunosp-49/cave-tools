@@ -253,3 +253,18 @@ export const requestLocationPermissions = async () => {
     const result = await request(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
   }
 };
+
+export function convertDdMmYyyyToYyyyMmDd(dateString: string): string {
+  const dateParts = dateString.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+
+  if (!dateParts) {
+    console.error("Invalid date format. Expected dd/mm/yyyy.");
+    return "";
+  }
+
+  const day = dateParts[1];
+  const month = dateParts[2];
+  const year = dateParts[3];
+
+  return `${year}-${month}-${day}`;
+}

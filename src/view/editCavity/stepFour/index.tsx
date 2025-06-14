@@ -6,9 +6,9 @@ import { Divider } from "../../../components/divider";
 import TextInter from "../../../components/textInter";
 import { Checkbox } from "../../../components/checkbox";
 import { Input } from "../../../components/input";
-import RadioButtonGroup from "../../../components/radio"; // Still used for Desenvolvimento Predominante
+import RadioButtonGroup from "../../../components/radio";
 import {
-  CaracterizacaoInterna, // Import this for correct typing
+  CaracterizacaoInterna,
   Dificuldades_progressao_interna,
   Grupo_litologico,
   Infraestrutura_interna,
@@ -26,15 +26,14 @@ interface StepFourProps extends RouterProps {
   validationAttempted: boolean;
 }
 
-type GrupoLitologicoKeys = keyof Omit<Grupo_litologico, "outro">; // Exclude 'outro' for boolean toggles
+type GrupoLitologicoKeys = keyof Omit<Grupo_litologico, "outro">;
 type InfraInternaSpecificKeys = Exclude<
   keyof Infraestrutura_interna,
   "outroEnabled" | "outros" | "corrimao"
 >;
 type CorrimaoKeys = keyof NonNullable<Infraestrutura_interna["corrimao"]>;
-type DificuldadeProgKeys = keyof Omit<Dificuldades_progressao_interna, "outro">; // Exclude 'outro' for boolean toggles
+type DificuldadeProgKeys = keyof Omit<Dificuldades_progressao_interna, "outro">;
 
-// This function is defined locally. Consider moving to a shared utils file.
 const isFieldFilled = (value: any): boolean => {
   if (value === null || typeof value === "undefined") return false;
   if (typeof value === "string" && value.trim() === "") return false;
@@ -49,15 +48,14 @@ export const StepFour: FC<StepFourProps> = ({
   const dispatch = useDispatch<AppDispatch>();
   const cavidade = useSelector((state: RootState) => state.cavity.cavidade);
 
-  // Ensure caracterizacao_interna and its sub-properties are initialized or have defaults
   const caracterizacao = cavidade.caracterizacao_interna ?? {};
   const grupoLitologico = caracterizacao.grupo_litologico ?? {};
   const infraInterna = caracterizacao.infraestrutura_interna ?? {
     nenhuma: true,
-  }; // Default if undefined
+  };
   const dificuldadeProg = caracterizacao.dificuldades_progressao_interna ?? {
     nenhuma: true,
-  }; // Default if undefined
+  };
   const corrimao = infraInterna.corrimao ?? {};
 
   const infraOutroEnabled = infraInterna.outroEnabled || false;
@@ -68,30 +66,16 @@ export const StepFour: FC<StepFourProps> = ({
     const errors: { [key: string]: string } = {};
     const errorMsgRequired = "Este campo é obrigatório.";
 
-    // Validação Grupo Litológico
     const gl = grupoLitologico;
-    const hasSpecificLithology =
-      gl.rochas_carbonaticas ||
-      gl.rochas_ferriferas_ferruginosas ||
-      gl.rochas_siliciclasticas ||
-      gl.rochas_peliticas ||
-      gl.rochas_granito_gnaissicas;
-    const outroLithologyFilled = isFieldFilled(gl.outro);
-    if (!hasSpecificLithology && !outroLithologyFilled) {
-      errors.grupo_litologico_geral = "Selecione um tipo ou preencha 'Outro'.";
-    } else if (
-      gl.hasOwnProperty("outro") &&
-      gl.outro !== undefined &&
-      !isFieldFilled(gl.outro) &&
-      !hasSpecificLithology
-    ) {
-      // If 'outro' is the intended selection method and it's empty after being "activated" (not undefined)
+    if (gl.outro !== undefined && !isFieldFilled(gl.outro)) {
       errors.grupo_litologico_outro = errorMsgRequired;
     }
-    if (!caracterizacao.desenvolvimento_predominante) {
-      errors.desenvolvimento_predominante = errorMsgRequired;
-    }
-    // Validação Estado de Conservação (New Fields)
+
+    // "Desenvolvimento predominante" is now optional, so no error here
+    // if (!caracterizacao.desenvolvimento_predominante) {
+    //   errors.desenvolvimento_predominante = errorMsgRequired;
+    // }
+
     if (
       caracterizacao.depredacao_localizada &&
       !isFieldFilled(caracterizacao.descricao_depredacao_localizada)
@@ -104,10 +88,7 @@ export const StepFour: FC<StepFourProps> = ({
     ) {
       errors.descricao_depredacao_intensa = errorMsgRequired;
     }
-    // If neither depredacao_localizada nor depredacao_intensa is true, it implies "Conservada"
-    // No specific error for "Conservada" needing to be selected, as it's the default state.
 
-    // Validação Corrimão (remains similar, ensure infraInterna.corrimao is checked)
     if (infraInterna.corrimao) {
       const corrimaoData = infraInterna.corrimao;
       const algumaOpcaoCorrimaoSelecionada =
@@ -127,11 +108,9 @@ export const StepFour: FC<StepFourProps> = ({
       }
     }
 
-    // Validação Infraestrutura Interna "Outro"
     if (infraInterna.outroEnabled && !isFieldFilled(infraInterna.outros)) {
       errors.infraestrutura_outro_texto = errorMsgRequired;
     }
-    // Validação geral para Infraestrutura Interna
     if (!infraInterna.nenhuma) {
       const corrimaoSelected =
         infraInterna.corrimao &&
@@ -154,12 +133,10 @@ export const StepFour: FC<StepFourProps> = ({
       }
     }
 
-    // Validação Dificuldade de Progressão Interna "Outro"
     const dp = dificuldadeProg;
     if (dp.outro !== undefined && !isFieldFilled(dp.outro)) {
       errors.dificuldade_prog_outro_texto = errorMsgRequired;
     }
-    // Validação geral para Dificuldade de Progressão Interna
     if (!dp.nenhuma) {
       const anySpecificDifProg =
         dp.teto_baixo ||
@@ -205,7 +182,7 @@ export const StepFour: FC<StepFourProps> = ({
 
   const handleGrupoLitologicoOutroToggle = useCallback(() => {
     const path = ["caracterizacao_interna", "grupo_litologico", "outro"];
-    const newValue = grupoLitologico.outro === undefined ? "" : undefined; // Toggle between empty string and undefined
+    const newValue = grupoLitologico.outro === undefined ? "" : undefined;
     handleUpdate(path, newValue);
   }, [grupoLitologico, handleUpdate]);
 
@@ -219,52 +196,36 @@ export const StepFour: FC<StepFourProps> = ({
     [handleUpdate]
   );
 
-  // Handler for "Depredação localizada" checkbox
   const handleDepredacaoLocalizadaToggle = useCallback(() => {
     const newValue = !caracterizacao.depredacao_localizada;
     handleUpdate(["caracterizacao_interna", "depredacao_localizada"], newValue);
     if (!newValue) {
-      // If turning off, clear its description
       handleUpdate(
         ["caracterizacao_interna", "descricao_depredacao_localizada"],
         undefined
       );
     } else if (caracterizacao.descricao_depredacao_localizada === undefined) {
-      // If turning on and description is undefined, init to empty string
       handleUpdate(
         ["caracterizacao_interna", "descricao_depredacao_localizada"],
         ""
       );
     }
-    // Optional: If depredacoes are mutually exclusive
-    // if (newValue && caracterizacao.depredacao_intensa) {
-    //   handleUpdate(["caracterizacao_interna", "depredacao_intensa"], false);
-    //   handleUpdate(["caracterizacao_interna", "descricao_depredacao_intensa"], undefined);
-    // }
   }, [caracterizacao, handleUpdate]);
 
-  // Handler for "Depredação intensa" checkbox
   const handleDepredacaoIntensaToggle = useCallback(() => {
     const newValue = !caracterizacao.depredacao_intensa;
     handleUpdate(["caracterizacao_interna", "depredacao_intensa"], newValue);
     if (!newValue) {
-      // If turning off, clear its description
       handleUpdate(
         ["caracterizacao_interna", "descricao_depredacao_intensa"],
         undefined
       );
     } else if (caracterizacao.descricao_depredacao_intensa === undefined) {
-      // If turning on and description is undefined, init to empty string
       handleUpdate(
         ["caracterizacao_interna", "descricao_depredacao_intensa"],
         ""
       );
     }
-    // Optional: If depredacoes are mutually exclusive
-    // if (newValue && caracterizacao.depredacao_localizada) {
-    //   handleUpdate(["caracterizacao_interna", "depredacao_localizada"], false);
-    //   handleUpdate(["caracterizacao_interna", "descricao_depredacao_localizada"], undefined);
-    // }
   }, [caracterizacao, handleUpdate]);
 
   const handleInfraInternaChange = useCallback(
@@ -284,7 +245,6 @@ export const StepFour: FC<StepFourProps> = ({
       handleUpdate(path, newValue);
 
       if (fieldName === "nenhuma" && newValue === true) {
-        // If "Nenhuma" is checked
         Object.keys(infraInterna).forEach((key) => {
           if (key !== "nenhuma") {
             if (key === "corrimao") handleUpdate([...basePath, key], undefined);
@@ -301,17 +261,15 @@ export const StepFour: FC<StepFourProps> = ({
         newValue === true &&
         infraInterna.nenhuma
       ) {
-        // If other option is checked, uncheck "Nenhuma"
         handleUpdate([...basePath, "nenhuma"], false);
       }
     },
-    [infraInterna, handleUpdate, dispatch] // dispatch might not be needed if toggleInfraestruturaInternaOutrosEnabled handles 'nenhuma'
+    [infraInterna, handleUpdate, dispatch]
   );
 
   const handleToggleInfraOutrosCheckbox = useCallback(() => {
     dispatch(toggleInfraestruturaInternaOutrosEnabled());
     if (!infraInterna.outroEnabled && infraInterna.nenhuma) {
-      // If turning "Outro" ON and "Nenhuma" is checked
       handleUpdate(
         ["caracterizacao_interna", "infraestrutura_interna", "nenhuma"],
         false
@@ -341,7 +299,6 @@ export const StepFour: FC<StepFourProps> = ({
       handleUpdate(path, newValue);
 
       if (fieldName === "nenhuma" && newValue === true) {
-        // If "Nenhuma" is checked
         Object.keys(dificuldadeProg).forEach((key) => {
           if (key !== "nenhuma") {
             if (key === "outro") handleUpdate([...basePath, key], undefined);
@@ -354,7 +311,6 @@ export const StepFour: FC<StepFourProps> = ({
         newValue === true &&
         dificuldadeProg.nenhuma
       ) {
-        // If other option is checked
         handleUpdate([...basePath, "nenhuma"], false);
       }
     },
@@ -377,9 +333,7 @@ export const StepFour: FC<StepFourProps> = ({
       } else {
         handleUpdate(path, !currentCorrimaoSubValue);
       }
-      // If any corrimao option is turned on, ensure "Nenhuma" (for infraestrutura_interna) is off
       if (!currentCorrimaoSubValue && infraInterna.nenhuma) {
-        // !currentCorrimaoSubValue means it's about to be turned ON
         handleUpdate(
           ["caracterizacao_interna", "infraestrutura_interna", "nenhuma"],
           false
@@ -399,11 +353,6 @@ export const StepFour: FC<StepFourProps> = ({
       <TextInter color={colors.white[100]} weight="medium">
         Grupo litológico
       </TextInter>
-      {!!stepFourErrors.grupo_litologico_geral && (
-        <TextInter style={[styles.errorText, { marginTop: 2 }]}>
-          {stepFourErrors.grupo_litologico_geral}
-        </TextInter>
-      )}
       <Divider height={12} />
       <Checkbox
         label="Rochas carbonáticas"
@@ -478,18 +427,18 @@ export const StepFour: FC<StepFourProps> = ({
           { id: "3", value: "Misto", label: "Misto" },
         ]}
       />
-      {!!stepFourErrors.desenvolvimento_predominante && (
+      {/* Removed mandatory error for desenvolvimento_predominante */}
+      {/* {!!stepFourErrors.desenvolvimento_predominante && (
         <TextInter style={[styles.errorText, { marginTop: 2 }]}>
           {stepFourErrors.desenvolvimento_predominante}
         </TextInter>
-      )}
+      )} */}
       <Divider height={18} />
 
       <TextInter color={colors.white[100]} weight="medium">
         Estado de conservação
       </TextInter>
       <Divider height={12} />
-      {/* New Checkboxes for Depredacao */}
       <Checkbox
         label="Conservada"
         checked={
@@ -497,7 +446,6 @@ export const StepFour: FC<StepFourProps> = ({
           !caracterizacao.depredacao_intensa
         }
         onChange={() => {
-          // Clicking "Conservada" unchecks both depredacoes
           if (caracterizacao.depredacao_localizada)
             handleDepredacaoLocalizadaToggle();
           if (caracterizacao.depredacao_intensa)
