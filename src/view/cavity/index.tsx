@@ -62,7 +62,8 @@ export const CavityScreen: FC<RouterProps> = ({ navigation }) => {
     }
     try {
       const cavityCollection = database.get<CavityRegister>("cavity_register");
-      const fetchedCavities = await cavityCollection.query(Q.sortBy("data", Q.desc), Q.take(5)).fetch(); 
+      const fetchedCavities = await cavityCollection.query(Q.sortBy("data", Q.desc)).fetch(); 
+      console.log({fetchLatestCavities});
       setLatestCavities(fetchedCavities);
     } catch (error) {
       console.error("Error fetching cavities:", error);
@@ -230,6 +231,7 @@ export const CavityScreen: FC<RouterProps> = ({ navigation }) => {
       .observeWithColumns(["data", "nome_cavidade", "registro_id"])
       .subscribe({
         next: (updatedCavities) => {
+          console.log({updatedCavities})
           setLatestCavities(updatedCavities);
           processChartData(); 
         },
@@ -339,7 +341,7 @@ export const CavityScreen: FC<RouterProps> = ({ navigation }) => {
                   renderItem={({ item }) => (
                     <CavityCard
                       cavity={item}
-                      onPress={() => handleOpenDetail(item.id)}
+                      onPress={() => handleOpenDetail(item.cavidade_id)}
                     />
                   )}
                   ItemSeparatorComponent={() => <Divider height={12} />}

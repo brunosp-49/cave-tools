@@ -44,9 +44,10 @@ export const DetailScreenProject: FC<RouterProps> = ({ navigation, route }) => {
       setError(null);
       try {
         const projectCollection = database.collections.get<Project>("project");
-        const foundProject = await projectCollection.find(
-          route.params.projectId
-        ); // Find by ID
+        const projects = await projectCollection
+          .query(Q.where("projeto_id", route.params.projectId))
+          .fetch();
+        const foundProject = projects[0];
         console.log({ foundProject });
         setProject(foundProject);
       } catch (err) {
@@ -65,30 +66,34 @@ export const DetailScreenProject: FC<RouterProps> = ({ navigation, route }) => {
     navigation.navigate("DetailScreenCavity", { cavityId });
   }, []);
 
-  const fetchLatestCavities = useCallback(async (showLoading = true) => {
-    if (showLoading) {
-      setIsLoadingCavities(true);
-    }
-    console.log("Fetching latest cavities...");
-    console.log(route.params.projectId);
-    try {
-      const cavityCollection = database.get<CavityRegister>("cavity_register");
-      const fetchedCavities = await cavityCollection
-        .query(
-          Q.where("projeto_id", route.params.projectId),
-          Q.sortBy("data", Q.desc)
-        )
-        .fetch();
-      console.log("Fetched cavities:", fetchedCavities);
-      setLatestCavities(fetchedCavities);
-    } catch (error) {
-      console.error("Error fetching cavities:", error);
-    } finally {
+  const fetchLatestCavities = useCallback(
+    async (showLoading = true) => {
       if (showLoading) {
-        setIsLoadingCavities(false);
+        setIsLoadingCavities(true);
       }
-    }
-  }, [navigation, route.params.projectId]);
+      console.log("Fetching latest cavities...");
+      console.log(route.params.projectId);
+      try {
+        const cavityCollection =
+          database.get<CavityRegister>("cavity_register");
+        const fetchedCavities = await cavityCollection
+          .query(
+            Q.where("projeto_id", route.params.projectId),
+            Q.sortBy("data", Q.desc)
+          )
+          .fetch();
+        console.log("Fetched cavities:", fetchedCavities);
+        setLatestCavities(fetchedCavities);
+      } catch (error) {
+        console.error("Error fetching cavities:", error);
+      } finally {
+        if (showLoading) {
+          setIsLoadingCavities(false);
+        }
+      }
+    },
+    [navigation, route.params.projectId]
+  );
 
   useFocusEffect(
     useCallback(() => {

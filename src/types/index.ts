@@ -416,8 +416,8 @@ export interface Entrada {
   coordenadas: {
     datum: string;
     coleta_automatica: boolean;
-    graus_e: number;
-    graus_n: number;
+    graus_e: string;
+    graus_n: string;
     erro_gps: number;
     satelites: number;
     utm: {
@@ -448,6 +448,7 @@ export interface AspectosSocioambientais {
 }
 
 export interface Cavidade {
+  cavidade_id: string;
   registro_id: string;
   projeto_id: string; // Removed as per instruction 3
   responsavel: string;
@@ -491,6 +492,8 @@ export interface Cavidade {
   biota?: Biota;
   arqueologia?: Arqueologia;
   paleontologia?: Paleontologia;
+  status: string; // Status of the cavity
+  uploaded?: boolean; // Indicates if the cavity has been uploaded
 }
 
 export interface Espeleometria {
@@ -564,10 +567,13 @@ export const batQuantidadeOptions: SelectOption<BatQuantidadeType | "">[] = [
 export interface ProjectPayload {
   // For creating/updating project info
   id: string | number;
+  register_id: string;
+  projeto_id: string;
   nome_projeto: string;
   inicio: string; // ISO date string
   descricao_projeto: string;
   status: string;
+  uploaded?: boolean;
 }
 
 export interface ProjectModel extends ProjectPayload {
@@ -579,6 +585,7 @@ export interface ProjectModel extends ProjectPayload {
 // For the controller function createCavityRegister (data passed from frontend to controller)
 // And for fetchAllCavities's return type item (parsed from DB)
 export interface CavityRegisterData {
+  cavidade_id: string;
   registro_id: string;
   projeto_id: string; // Removed
   responsavel: string;
@@ -602,16 +609,20 @@ export interface CavityRegisterData {
   biota?: string; // stringified Biota
   arqueologia?: string; // stringified Arqueologia
   paleontologia?: string; // stringified Paleontologia
+  uploaded?: boolean; // Indicates if the cavity has been uploaded
+  id?: string; // Optional ID for the cavity, used in some contexts
 }
 
 // For the controller function syncConsolidatedUpload (payload to backend API)
 export interface UploadProjectPayload {
   _id: string;
+  projeto_id: string;
+  register_id: string;
   nome_projeto: string;
   inicio: string; // ISO date string
   descricao_projeto: string;
   status: string;
-  cavities: Cavidade[]; // Array of fully-formed Cavidade objects
+  cavities: Omit<Cavidade, "projeto_id">[];
 }
 
 // The following are likely auxiliary types for specific form sections.
@@ -624,45 +635,93 @@ export interface Espeleotemas {
   tipos?: EspeleotemaItem[];
 }
 
-// Redundant if CaracterizacaoInterna above is used as the single source of truth.
-// export interface CaracterizacaoInternaForm {
-//   grupo_litologico?: Grupo_litologico;
-//   desenvolvimento_predominante?: string;
-//   depredacao_localizada?: boolean;
-//   descricao_depredacao_localizada?: string;
-//   depredacao_intensa?: boolean;
-//   descricao_depredacao_intensa?: string;
-//   infraestrutura_interna?: Infraestrutura_interna;
-//   dificuldades_progressao_interna?: Dificuldades_progressao_interna;
-// }
+export interface BackendProjectResponse {
+  id: number; // New backend ID for the project
+  register_id: string; // The original UUID provided by the app
+  cliente: {
+    id: number;
+    nome: string;
+    formacao: string | null;
+    vinculo_institucional_nome: string | null;
+    vinculo_institucional_cnpj: string | null;
+    usuario: {
+      id: number;
+      username: string;
+      email: string;
+    };
+  };
+  nome_projeto: string;
+  inicio: string;
+  descricao_projeto: string;
+  status: string;
+}
 
-// Redundant
-// export interface Dificuldades_externas { ... }
-// export interface Uso_cavidade { ... }
-// export interface Area_protegida { ... }
+export interface BackendCavityResponse {
+  id: number; // New backend ID for the cavity
+  registro_id: string; // The original UUID provided by the app
+  projeto: number; // The new backend ID of the associated project
+  responsavel: string;
+  nome_cavidade: string;
+  nome_sistema: string;
+  data: string;
+  municipio: string;
+  uf: string;
+  localidade: string | null;
+  desenvolvimento_linear: number | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  entradas: any[];
+  dificuldades_externas: any;
+  aspectos_socioambientais: any;
+  caracterizacao_interna: any;
+  hidrologia: any;
+  sedimentos: any;
+  espeleotemas: any[];
+  biota: any;
+  arqueologia: any;
+  paleontologia: any;
+  medicao: any[];
+  topografia: any;
+  morfologia: any;
+}
 
-// Redundant if AspectosSocioambientais above is the single source of truth.
-// export interface AspectosSocioambientaisForm {
-//   uso_cavidade?: Uso_cavidade;
-//   comunidade_envolvida?: {
-//     envolvida?: boolean;
-//     descricao?: string;
-//   };
-//   area_protegida?: Area_protegida;
-//   infraestrutura_acesso?: Infraestrutura_acesso;
-// }
+export interface BackendUploadResponse {
+  projeto: BackendProjectResponse;
+  cavities: BackendCavityResponse[];
+  cavities_errors: Array<{ registro_id: string; error: any }>;
+  detail?: string;
+  message?: string;
+}
 
-// Redundant
-// export interface PadraoPlanimetrico { ... }
-// export interface FormaSecoes { ... }
-// export interface MorfologiaData { ... }
-// export interface HidrologiaFeature { ... }
-// export interface HidrologiaData { ... }
-// export interface SedimentoDetalhe { ... }
-// export interface GuanoTipo { ... } // Renamed to GuanoTipoDetalhe
-// export interface SedimentacaoClasticaTipo { ... }
-// export interface SedimentacaoClastica { ... }
-// export interface Guano { ... } // Renamed to GuanoDetalhe
-// export interface SedimentacaoOrganicaTipo { ... }
-// export interface SedimentacaoOrganica { ... }
-// export interface SedimentosData { ... }
+export interface ServerCavityData {
+  id: number; // Backend's numeric ID
+  registro_id: string; // Backend's record of the original client UUID (or its own ID if not provided)
+  projeto: number; // Backend's numeric project ID
+  // ... all other fields as returned by the backend for a single cavity
+  responsavel: string;
+  nome_cavidade: string;
+  nome_sistema: string;
+  data: string;
+  municipio: string;
+  uf: string;
+  localidade?: string | null;
+  desenvolvimento_linear?: number | null;
+  entradas: any; // Can be array if already parsed, or string if JSON string
+  dificuldades_externas: any;
+  aspectos_socioambientais: any;
+  caracterizacao_interna: any;
+  topografia: any;
+  morfologia: any;
+  hidrologia: any;
+  sedimentos: any;
+  espeleotemas: any;
+  biota: any;
+  arqueologia: any;
+  paleontologia: any;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+  deleted_at?: string | null;
+}

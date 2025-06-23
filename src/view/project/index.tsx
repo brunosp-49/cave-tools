@@ -85,7 +85,7 @@ console.log({latestCavities})
   );
 
   const handleOpenDetail = useCallback((projectId: string) => {
-    console.log(projectId)
+    console.log({projectId})
     navigation.navigate("DetailScreenProject", { projectId });
   }, []);
 
@@ -128,7 +128,7 @@ console.log({latestCavities})
               <ProjectCard
                 key={item.id}
                 project={item}
-                onPress={() => handleOpenDetail(item.id)}
+                onPress={() => handleOpenDetail(item.projeto_id)}
               />
             )}
             ItemSeparatorComponent={() => <Divider height={12} />}

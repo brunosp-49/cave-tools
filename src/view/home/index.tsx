@@ -5,6 +5,7 @@ import {
   FlatList,
   SafeAreaView,
   StyleSheet,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { Header } from "../../components/header";
@@ -28,6 +29,7 @@ import { useAppSelector } from "../../hook";
 import PapersIcon from "../../components/icons/papersIcon";
 import { FakeBottomTab } from "../../components/fakeBottomTab";
 import { StatusBar } from "expo-status-bar";
+import { fetchAllCavities, fetchAllProjects } from "../../db/controller";
 
 export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -65,18 +67,24 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
     return () => clearTimeout(timer); // Cleanup timer if component unmounts
   }, [successOpacity]);
 
+  const getUsers = async()=>{
+    const cavities = await fetchAllCavities();
+    const projects = await fetchAllProjects();
+    console.log({cavities, projects});
+  }
+
   return (
     <SafeAreaView style={styles.main}>
       <View style={styles.container}>
         <Header
           disableReturn
           helloLeftComponent={
-            <View>
+            <TouchableOpacity onPress={()=>getUsers()}>
               <TextInter color={colors.dark[60]}>👋 Olá!</TextInter>
               <TextInter fontSize={23} weight="medium" color={colors.white[90]}>
                 {userName.split(" ")[0]}
               </TextInter>
-            </View>
+            </TouchableOpacity>
           }
           navigation={navigation}
         />

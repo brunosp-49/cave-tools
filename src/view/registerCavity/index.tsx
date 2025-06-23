@@ -72,7 +72,7 @@ const validateStep = (
   switch (stepIndex) {
     case 0: // Step One: Basic Info
       return (
-        // isFieldFilled(data.projeto_id) && // Removed
+        isFieldFilled(data.projeto_id) && // Re-added validation for projeto_id
         isFieldFilled(data.nome_cavidade) &&
         Array.isArray(data.entradas) &&
         data.entradas.length > 0 &&
@@ -168,12 +168,6 @@ const validateStep = (
           !municipalSelected &&
           !naoDeterminadoSelected
         ) {
-          // This condition means something needs to be chosen if area_protegida object exists.
-          // Or, if it's okay for area_protegida to exist but be "empty" (other than nao_determinado false), adjust this.
-          // Assuming if 'ap' exists, one state must be valid or nao_determinado is true.
-          // If the UI ensures that if one is picked, 'nao_determinado' is false, this covers it.
-          // The typical case: if user interacts with federal/state/municipal, then one of them OR nao_determinado should be valid.
-          // if no options (federal, estadual, municipal) are even partially filled, and nao_determinado is not true, then it is invalid.
           const anyPartial =
             ap.federal?.nome ||
             ap.federal?.zona ||
@@ -242,10 +236,7 @@ const validateStep = (
         if (infraInterna.nenhuma === true) {
           if (
             infraInterna.passarela ||
-            infraInterna.corrimao?.ferro ||
-            infraInterna.corrimao?.madeira ||
-            infraInterna.corrimao?.corda ||
-            isFieldFilled(infraInterna.corrimao?.outro) ||
+            infraInterna.corrimao || // Simplified check if corrimao object exists
             infraInterna.portao ||
             infraInterna.escada ||
             infraInterna.corda ||
@@ -281,7 +272,7 @@ const validateStep = (
             return false;
         }
       } else {
-        return false;
+        return false; // If infraestrutura_interna is required if caracterizacao exists
       }
 
       const difProg = caracterizacao.dificuldades_progressao_interna;
@@ -316,7 +307,7 @@ const validateStep = (
           if (!anySpecificDifProg && !outroDifProgFilled) return false;
         }
       } else {
-        return false;
+        return false; // If dificuldades_progressao_interna is required if caracterizacao exists
       }
       return true;
 
@@ -363,8 +354,6 @@ const validateStep = (
         }
       } else {
         return true; // Morfologia itself is optional in Cavidade type. If present, its children are mandatory.
-        // If morfologia must be filled if topografia is filled, this needs cross-field validation.
-        // Assuming morfologia can be independently optional.
       }
 
       // Topografia validation (if it's mandatory or has internal requirements)
@@ -379,20 +368,13 @@ const validateStep = (
             esp.volume === undefined)
         ) {
           // If espeleometria object exists but all fields are undefined, consider it unfilled.
-          // Or, if any one is enough, this is fine.
-          // Assuming if topografia object exists, espeleometria should have at least one value or be absent.
-          // If espeleometria is mandatory within topografia:
-          // if (!esp) return false;
-          // if (Object.values(esp).every(v => v === undefined || v === null || v === '' || (typeof v === 'number' && isNaN(v)))) return false;
+          // This logic may need to be adjusted based on exact requirements for partial fills.
         }
         const prev = topografia.previsao;
         if (prev && prev.bcra === undefined && prev.uis === undefined) {
           // similar logic for previsao if it's mandatory to have one
         }
       }
-      // Assuming topografia itself is optional. If present, its children might have mandatory aspects.
-      // For now, just checking morfologia as per original structure.
-
       return true;
 
     case 5: // Step Six: Hidrologia
@@ -519,8 +501,6 @@ const validateStep = (
           }
         }
       }
-      // If 'sedimentos' object exists, at least one of its main sections must be 'possui: true' and valid,
-      // or it means the user opened the section but didn't fill anything.
       if (
         sed.sedimentacao_clastica?.possui === false &&
         sed.sedimentacao_organica?.possui === false
@@ -535,9 +515,6 @@ const validateStep = (
         !sed.sedimentacao_organica?.possui
       ) {
         // This implies the 'sedimentos' object exists but nothing is selected.
-        // This could be an invalid state if user interaction is expected.
-        // If the 'sedimentos' section itself is optional, then this is fine if no 'possui' is true.
-        // However, if 'sedimentos' object exists AT ALL, it implies user intended to fill it.
         // For now, if neither 'possui' is true, treat as valid (empty section).
       }
 
@@ -622,10 +599,6 @@ const validateStep = (
       const peixesValido =
         biota.peixes === undefined || typeof biota.peixes === "boolean"; // True if not selected or explicitly true/false
 
-      // If biota object exists, assume user intended to fill something or explicitly mark 'possui: false' for subsections.
-      // This means if any subsection has 'possui: true' it must be valid.
-      // If all subsections have 'possui: false' (or are undefined), then it's valid.
-
       if (
         !checkBiotaCategoryWithBooleans(biota.invertebrado) ||
         !checkBiotaCategoryWithBooleans(biota.invertebrado_aquatico) ||
@@ -633,7 +606,7 @@ const validateStep = (
         !checkBiotaStandardCategory(biota.repteis) ||
         !checkBiotaStandardCategory(biota.aves) ||
         !checkMorcegos(biota.morcegos) ||
-        !peixesValido // This just checks if it's a boolean, not if it's true and needs more data.
+        !peixesValido
       ) {
         return false;
       }
@@ -647,13 +620,12 @@ const validateStep = (
           outroEnabled?: boolean;
         };
       }): boolean => {
-        if (!sectionData || sectionData.possui === false) return true; // Valid if not present or 'possui' is false
-        // If 'possui' is true:
-        if (!sectionData.tipos) return false; // 'tipos' object must exist
+        if (!sectionData || sectionData.possui === false) return true;
+        if (!sectionData.tipos) return false;
 
         const tipos = sectionData.tipos;
         if (tipos.outroEnabled === true && !isFieldFilled(tipos.outro)) {
-          return false; // If 'outro' enabled, it must be filled
+          return false;
         }
 
         const hasSpecificTypeBoolean = Object.keys(tipos).some(
@@ -667,14 +639,12 @@ const validateStep = (
         const outroPreenchidoCorretamente =
           tipos.outroEnabled === true && isFieldFilled(tipos.outro);
 
-        // If 'outro' is not enabled, at least one specific type must be true
         if (
           tipos.outroEnabled === false ||
           typeof tipos.outroEnabled === "undefined"
         ) {
           return hasSpecificTypeBoolean;
         }
-        // If 'outro' is enabled, then either a specific type OR 'outro' itself must be valid
         return hasSpecificTypeBoolean || outroPreenchidoCorretamente;
       };
 
@@ -694,16 +664,13 @@ const validateStep = (
 const RegisterCavity: FC<RouterProps> = ({ navigation, route }) => {
   const dispatch = useDispatch();
   const [successSuccessModal, setSuccessModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { currentStep, formData } = useSelector((state: RootState) => ({
     currentStep: state.cavity.currentStep,
     formData: state.cavity.cavidade,
   }));
 
   const [validationAttempted, setValidationAttempted] = useState(false);
-
-  useEffect(() => {
-    // console.log(`Step ${currentStep} FormData:`, JSON.stringify(formData, null, 2));
-  }, [formData, currentStep]);
 
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -728,6 +695,9 @@ const RegisterCavity: FC<RouterProps> = ({ navigation, route }) => {
   );
 
   const handleNext = async () => {
+    if (isSubmitting) {
+      return;
+    }
     setValidationAttempted(true);
     const isValidOnClick = validateStep(currentStep, formData);
     console.log(formData.data);
@@ -746,14 +716,16 @@ const RegisterCavity: FC<RouterProps> = ({ navigation, route }) => {
 
     if (currentStep === steps.length - 1) {
       try {
+        setIsSubmitting(true);
         if (!formData) {
-          // Should not happen if validation passes, but good check
+          setIsSubmitting(false);
           throw new Error("Form data is missing.");
         }
-
+        let id = uuid.v4().toString()
         const cavityPayload: CavityRegisterData = {
-          registro_id: uuid.v4().toString(),
-          projeto_id: formData.projeto_id || "",
+          registro_id: id,
+          cavidade_id: id,
+          projeto_id: formData.projeto_id,
           responsavel: formData.responsavel || "",
           nome_cavidade: formData.nome_cavidade || "",
           nome_sistema: formData.nome_sistema || "",
@@ -782,7 +754,7 @@ const RegisterCavity: FC<RouterProps> = ({ navigation, route }) => {
             : formatDateToInput(new Date().toISOString()),
           municipio: formData.municipio || "",
           uf: formData.uf || "",
-          localidade: formData.localidade, // Already optional
+          localidade: formData.localidade,
           entradas: JSON.stringify(formData.entradas || []),
           desenvolvimento_linear:
             formData.desenvolvimento_linear === undefined
@@ -808,7 +780,9 @@ const RegisterCavity: FC<RouterProps> = ({ navigation, route }) => {
         };
         await createCavityRegister(cavityPayload);
         setSuccessModal(true);
+        setIsSubmitting(false);
       } catch (error) {
+        setIsSubmitting(false);
         console.error("Error creating cavity register:", error);
         dispatch(
           showError({
@@ -857,9 +831,7 @@ const RegisterCavity: FC<RouterProps> = ({ navigation, route }) => {
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
-        // This logic is now primarily handled in handleBack() for the UI back button.
-        // This hardwareBackPress listener can call handleBack or a more generic exit confirmation.
-        handleBack(); // Or a more generic exit confirmation that calls handleBack logic
+        handleBack();
         return true; // Prevent default hardware back button action
       };
       const subscription = BackHandler.addEventListener(
@@ -867,7 +839,7 @@ const RegisterCavity: FC<RouterProps> = ({ navigation, route }) => {
         onBackPress
       );
       return () => subscription.remove();
-    }, [navigation, dispatch, currentStep]) // Added currentStep to dependencies of handleBack
+    }, [navigation, dispatch, currentStep])
   );
 
   const handleSuccessModalClose = () => {
@@ -903,9 +875,13 @@ const RegisterCavity: FC<RouterProps> = ({ navigation, route }) => {
             <ReturnButton onPress={handleBack} />
             <NextButton
               onPress={handleNext}
-              disabled={validationAttempted && !isCurrentStepValid}
+              disabled={(validationAttempted && !isCurrentStepValid) || isSubmitting}
               buttonTitle={
-                currentStep === steps.length - 1 ? "Cadastrar" : "Continuar"
+                isSubmitting
+                  ? "Cadastrando..."
+                  : currentStep === steps.length - 1
+                  ? "Cadastrar"
+                  : "Continuar"
               }
             />
           </View>
