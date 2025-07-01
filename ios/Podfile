@@ -1,15 +1,8 @@
 require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")
 require File.join(File.dirname(`node --print "require.resolve('react-native/package.json')"`), "scripts/react_native_pods")
-
-def node_require(script)
-  # Resolve script with node to allow for hoisting
-  require Pod::Executable.execute_command('node', ['-p',
-    "require.resolve(#{script.inspect}, {paths: [process.argv[1]]})", __dir__]).strip
-end
-
-# Use it to require both react-native's and this package's scripts:
-node_require('react-native/scripts/react_native_pods.rb')
-node_require('react-native-permissions/scripts/setup.rb')
+# @generated begin require - expo prebuild (DO NOT MODIFY) sync-0b3d11245f758d271ec25750612913aa85ad0f45
+require File.join(File.dirname(`node --print "require.resolve('react-native-permissions/package.json')"`), "scripts/setup")
+# @generated end require
 
 require 'json'
 podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties.json'))) rescue {}
@@ -22,12 +15,9 @@ install! 'cocoapods',
   :deterministic_uuids => false
 
 prepare_react_native_project!
-# ⬇️ uncomment the permissions you need
+# @generated begin setup - expo prebuild (DO NOT MODIFY) sync-8d300e13b2d5cd7456c8afe3235abf7ca91cb609
 setup_permissions([
-  # 'AppTrackingTransparency',
   'Bluetooth',
-  # 'Calendars',
-  # 'CalendarsWriteOnly',
   'Camera',
   'Contacts',
   'FaceID',
@@ -35,16 +25,10 @@ setup_permissions([
   'LocationAlways',
   'LocationWhenInUse',
   'MediaLibrary',
-  # 'Microphone',
-  # 'Motion',
-  # 'Notifications',
   'PhotoLibrary',
   'PhotoLibraryAddOnly',
-  # 'Reminders',
-  # 'Siri',
-  # 'SpeechRecognition',
-  # 'StoreKit',
 ])
+# @generated end setup
 
 target 'cavetools' do
   use_expo_modules!
@@ -69,12 +53,6 @@ target 'cavetools' do
   use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
   use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
 
-  # Add WatermelonDB dependency (uncomment if needed)
-  # pod 'WatermelonDB', path: '../node_modules/@nozbe/watermelondb'
-
-  # Add simdjson dependency for WatermelonDB
-  pod 'simdjson', path: '../node_modules/@nozbe/simdjson', modular_headers: true
-
   use_react_native!(
     :path => config[:reactNativePath],
     :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
@@ -82,6 +60,10 @@ target 'cavetools' do
     :app_path => "#{Pod::Config.instance.installation_root}/..",
     :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
   )
+
+  
+
+  pod 'simdjson', path: File.join(File.dirname(`node --print "require.resolve('@nozbe/simdjson/package.json')"`)), :modular_headers => true 
 
   post_install do |installer|
     react_native_post_install(

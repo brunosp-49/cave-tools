@@ -1,86 +1,93 @@
 import React, { useState, FC, useCallback } from "react";
-import { View, StyleSheet, SafeAreaView, FlatList, ActivityIndicator } from "react-native";
+import { View, StyleSheet, FlatList, ActivityIndicator } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../../../redux/store";
-import { StepComponentProps } from "../../editCavity";
 import { colors } from "../../../assets/colors";
 import TextInter from "../../../components/textInter";
 import { Divider } from "../../../components/divider";
 import { CavityCard } from "../../cavity/components/cavityCard";
-import type CavityRegister from "../../../db/model/cavityRegister";
 import { database } from "../../../db";
 import { Q } from "@nozbe/watermelondb";
 import { useFocusEffect } from "@react-navigation/native";
 import { DefaultTopographyModal } from "../../../components/modal/defaultTopographyModal";
-import { updateCavityId, updateCurrentStep } from "../../../redux/topographySlice";
+import { updateCavityId } from "../../../redux/topographySlice";
+import { Header } from "../../../components/header";
+import { ReturnButton } from "../../../components/button/returnButton";
+import CavityRegister from "../../../db/model/cavityRegister";
+import TopographyDrawing from "../../../db/model/topography";
+import { StepProps } from "../../../types";
+// Note que NextButton não é usado aqui, então pode ser removido se não for usado em outro lugar no arquivo.
 
-const StepTwo: FC<StepComponentProps> = ({ navigation, validationAttempted }) => {
+const StepTwo: FC<StepProps> = ({ navigation, onNext, onBack }) => {
   const dispatch = useDispatch();
-  const { topography, currentStep, mode, filter } = useSelector((state: RootState) => ({
-    topography: state.topography.cavity_id,
+  const { filter } = useSelector((state: RootState) => ({
     filter: state.topography.projectFilter,
-    currentStep: state.topography.currentStep,
-    mode: state.topography.mode
   }));
-  const [latestCavities, setLatestCavities] = useState<any[]>([]);
+
+  const [latestCavities, setLatestCavities] = useState<CavityRegister[]>([]);
   const [isLoadingCavities, setIsLoadingCavities] = useState(true);
   const [isOpenModal, setIsOpenModal] = useState<boolean>(false);
 
-  const fetchLatestCavities = useCallback(async (showLoading = true) => {
-    if (showLoading) {
-      setIsLoadingCavities(true);
-    }
+  const fetchLatestCavities = useCallback(async () => {
+    setIsLoadingCavities(true);
     try {
-      const cavityCollection = database.get<CavityRegister>("cavity_register");
+      const drawingsCollection = database.get<TopographyDrawing>(
+        "topography_drawings"
+      );
+      const allDrawings = await drawingsCollection.query().fetch();
+      const usedCavityIds = allDrawings.map((d) => d.cavity_id);
 
+      const cavityCollection = database.get<CavityRegister>("cavity_register");
       const filters = [];
 
+      if (usedCavityIds.length > 0) {
+        filters.push(Q.where("id", Q.notIn(usedCavityIds)));
+      }
+
       if (filter.project?.id) {
-        filters.push(Q.where('projeto_id', filter.project.id));
+        filters.push(Q.where("projeto_id", filter.project.id));
       }
       if (filter.cavity_name) {
-        filters.push(Q.where('nome_cavidade', Q.like(`%${filter.cavity_name}%`)));
+        filters.push(
+          Q.where("nome_cavidade", Q.like(`%${filter.cavity_name}%`))
+        );
       }
-      // if (filter.cavity_id) {
-      //   filters.push(Q.where('cavity_id', filter.cavity_id));
-      // }
       if (filter.state) {
-        filters.push(Q.where('uf', filter.state));
+        filters.push(Q.where("uf", filter.state));
       }
       if (filter.city) {
-        filters.push(Q.where('municipio', filter.city));
+        filters.push(Q.where("municipio", Q.like(`%${filter.city}%`)));
       }
 
-      const fetchedCavities = await cavityCollection.query(
-        ...filters,
-      ).fetch();
-      setLatestCavities(fetchedCavities);
+      const availableCavities = await cavityCollection
+        .query(...filters)
+        .fetch();
+      setLatestCavities(availableCavities);
     } catch (error) {
-      console.error("Error fetching cavities:", error);
+      console.error("Error fetching available cavities:", error);
     } finally {
-      if (showLoading) {
-        setIsLoadingCavities(false);
-      }
+      setIsLoadingCavities(false);
     }
-  }, []);
-
-  const handleOpenDetail = useCallback((cavityId: string) => {
-    dispatch(updateCavityId(cavityId));
-
-    if (mode === 'view') {
-      navigation.navigate('TopographyDetailScreen');
-      return;
-    }
-
-    setIsOpenModal(!isOpenModal)
-  }, [navigation]);
+  }, [filter]);
 
   useFocusEffect(
     useCallback(() => {
-      fetchLatestCavities(true);
-      return () => { };
+      fetchLatestCavities();
     }, [fetchLatestCavities])
   );
+
+  const handleCardPress = useCallback(
+    (cavityId: string) => {
+      dispatch(updateCavityId(cavityId));
+      setIsOpenModal(true);
+    },
+    [dispatch]
+  );
+
+  const handleModalConfirm = () => {
+    setIsOpenModal(false);
+    onNext();
+  };
 
   const renderEmptyList = () => (
     <View style={styles.emptyListContainer}>
@@ -88,65 +95,86 @@ const StepTwo: FC<StepComponentProps> = ({ navigation, validationAttempted }) =>
         <ActivityIndicator size="large" color={colors.accent[100]} />
       ) : (
         <TextInter color={colors.dark[60]} style={{ textAlign: "center" }}>
-          Nenhuma cavidade encontrada.
+          Nenhuma cavidade disponível para nova topografia.
         </TextInter>
       )}
     </View>
   );
 
+  const renderItem = ({ item }: { item: CavityRegister }) => (
+    <CavityCard cavity={item} onPress={() => handleCardPress(item.id)} />
+  );
+
   return (
-    <SafeAreaView style={styles.main}>
-      <Divider height={20} />
-      <TextInter fontSize={19} weight="medium" color={colors.white[100]}>
-        Cavidades encontradas
-      </TextInter>
-      <Divider height={10} />
-
-      <View>
-        <FlatList
-          data={latestCavities}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <CavityCard
-              cavity={item}
-              onPress={() => handleOpenDetail(item.id)}
-            />
-          )}
-          ItemSeparatorComponent={() => <Divider height={12} />}
-          ListEmptyComponent={renderEmptyList}
-          scrollEnabled={false}
-        />
+    <View style={styles.main}>
+      <View style={{ paddingHorizontal: 20 }}>
+        <Header title="Selecionar Cavidade" onCustomReturn={onBack} />
       </View>
-      <DefaultTopographyModal
-        title="Inserção de informações topográficas"
-        message="Existe um dispositivo Bluetooth contectado a este celular. Deseja importar os dados para preenchimento das informações topográficas? Caso não deseje inserir por Bluetooth, poderá inserir as informações por meio de planilha .xls ou manualmente."
-        isOpen={isOpenModal}
-        visibleIcon={false}
-        onConfirm={() => {
-          dispatch(updateCurrentStep(currentStep + 1));
-          setIsOpenModal(!isOpenModal)
-        }}
-        onClose={() => setIsOpenModal(!isOpenModal)}
-        titleButtonConfirm="Cadastrar manualmente"
-        titleButtonCancel="Voltar por enquanto"
-        enableLongButton={true}
+      <TextInter
+        style={styles.title}
+        fontSize={19}
+        weight="medium"
+        color={colors.white[100]}
+      >
+        Cavidades Disponíveis
+      </TextInter>
+      <FlatList
+        data={latestCavities}
+        style={styles.list}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 20 }}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        ItemSeparatorComponent={() => <Divider height={12} />}
+        ListEmptyComponent={renderEmptyList}
       />
-    </SafeAreaView>
-  )
-}
 
-export default StepTwo;
+      <View style={styles.buttonContainer}>
+        <ReturnButton onPress={onBack} />
+      </View>
+
+      <DefaultTopographyModal
+        isOpen={isOpenModal}
+        title="Iniciar Topografia"
+        message="Deseja iniciar o desenho topográfico para a cavidade selecionada?"
+        visibleIcon={false}
+        onConfirm={handleModalConfirm}
+        onClose={() => setIsOpenModal(false)}
+        onCancel={() => setIsOpenModal(false)} // Adicionando onCancel para o botão secundário
+        titleButtonConfirm="Sim, iniciar"
+        titleButtonCancel="Cancelar"
+        enableLongButton={true} // <-- PROP ADICIONADA PARA MOSTRAR O BOTÃO DE CONFIRMAR
+        enableBackButton={true} // <-- PROP ADICIONADA PARA MOSTRAR O BOTÃO DE CANCELAR
+      />
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   main: {
     backgroundColor: colors.dark[90],
-    width: '100%',
-    height: 'auto'
+    flex: 1,
+  },
+  title: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  list: {
+    flex: 1,
+    paddingHorizontal: 20,
   },
   emptyListContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 50,
-  }
+    padding: 20,
+  },
+  buttonContainer: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: colors.dark[70],
+    backgroundColor: colors.dark[90],
+  },
 });
+
+export default StepTwo;

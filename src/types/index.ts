@@ -1,3 +1,4 @@
+import { StepComponentProps } from "../view/editCavity";
 import { user } from "./../db/schemas/user"; // Assuming this path is correct
 import { DrawerNavigationProp } from "@react-navigation/drawer";
 
@@ -10,19 +11,6 @@ export interface RouterProps {
   navigation: DrawerNavigationProp<any, any>;
   route?: any;
 }
-
-export type TopographyPoint = {
-  cavity_id: string;
-  from: string;
-  to: string;
-  distance: string;
-  azimuth: string;
-  incline: string;
-  turnUp: string;
-  turnDown: string;
-  turnRight: string;
-  turnLeft: string;
-};
 
 export interface TableTopographyProps {
   topography: TopographyPoint[];
@@ -696,10 +684,9 @@ export interface BackendUploadResponse {
 }
 
 export interface ServerCavityData {
-  id: number; // Backend's numeric ID
-  registro_id: string; // Backend's record of the original client UUID (or its own ID if not provided)
-  projeto: number; // Backend's numeric project ID
-  // ... all other fields as returned by the backend for a single cavity
+  id: number;
+  registro_id: string;
+  projeto: number;
   responsavel: string;
   nome_cavidade: string;
   nome_sistema: string;
@@ -708,7 +695,7 @@ export interface ServerCavityData {
   uf: string;
   localidade?: string | null;
   desenvolvimento_linear?: number | null;
-  entradas: any; // Can be array if already parsed, or string if JSON string
+  entradas: any;
   dificuldades_externas: any;
   aspectos_socioambientais: any;
   caracterizacao_interna: any;
@@ -725,3 +712,87 @@ export interface ServerCavityData {
   updated_at?: string;
   deleted_at?: string | null;
 }
+
+export interface Coordinate {
+  x: number;
+  y: number;
+}
+
+/** Representa um vértice (ponto) no canvas, com ID, coordenadas e um rótulo. */
+export interface PointData {
+  id: string; // Ex: "0", "1", "A", "B2"
+  x: number;
+  y: number;
+  label: string;
+}
+
+/** Representa o viewBox do SVG, controlando o pan e o zoom. */
+export interface ViewBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Layout do container do SVG para cálculos de coordenadas. */
+export interface SvgContainerLayout {
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+}
+
+export interface FreeDrawPath {
+  points: string[]; // Array de comandos de path SVG (ex: "M10,20 L30,40")
+  color: string;
+}
+
+/** Representa uma linha reta gerada por dados topográficos. */
+export interface DataLine {
+  points: string[]; // Comandos de path SVG (ex: "M_start_x,M_start_y L_end_x,L_end_y")
+  color: string;
+  type: 'data_line';
+}
+
+export interface TopoLineFormData {
+  refDe: string;
+  refPara: string;
+  distancia: string;
+  azimute: string;
+  inclinacao: string;
+  paraCima: string;
+  paraBaixo: string;
+  paraDireita: string;
+  paraEsquerda: string;
+}
+
+export interface TopoDataLine extends DataLine {
+  sourceData: TopoLineFormData;
+}
+
+export type TopographyPoint = {
+  cavity_id: string;
+  from: string;
+  to: string;
+  distance: string;
+  azimuth: string;
+  incline: string;
+  turnUp: string;
+  turnDown: string;
+  turnRight: string;
+  turnLeft: string;
+};
+
+export interface StepProps extends StepComponentProps {
+  onNext: () => void;
+  onBack: () => void;
+}
+
+export type ActiveTool = 'pan' | 'draw' | 'erase';
+
+export type UpdatableTopographyData = {
+  topography_id: string;
+  drawing_data: string;
+  is_draft: boolean;
+  uploaded?: boolean; // Opcional, pode ser atualizado por outra função de sincronização
+};

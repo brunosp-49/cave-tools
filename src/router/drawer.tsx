@@ -22,6 +22,7 @@ import { CavityScreen } from "../view/cavity";
 import {
   deleteAllCavities,
   deleteAllProjects,
+  deleteAllTopographies,
   deleteUser,
   fetchAllUsers,
 } from "../db/controller";
@@ -42,8 +43,9 @@ import { DetailScreenProject } from "../view/detailScreenProject";
 import { HomeScreen } from "../view/home";
 import Dashboard from "../view/dashboard";
 import TopographyCreateScreen from "../view/TopographyCreate";
-import { TopographyDetailScreen } from "../view/topographyDetails";
 import AttentionIcon from "../components/icons/attentionIcon";
+import TopographyDetailScreen from "../view/topographyDetails";
+import TopographyListScreen from "../view/topographyListScreen";
 
 const Drawer = createDrawerNavigator();
 
@@ -144,6 +146,11 @@ const DrawerNavigator = () => {
         component={Dashboard}
         options={{ headerShown: false }}
       />
+      <Drawer.Screen
+        name="TopographyListScreen"
+        component={TopographyListScreen}
+        options={{ headerShown: false }}
+      />
     </Drawer.Navigator>
   );
 };
@@ -166,6 +173,7 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
       dispatch(setModalLoading(true));
       await deleteAllProjects();
       await deleteAllCavities();
+      await deleteAllTopographies();
       dispatch(resetModalState());
       await deleteUser("2");
       dispatch(resetLoadingState());
@@ -407,4 +415,3 @@ const styles = StyleSheet.create({
     width: "100%",
   },
 });
-

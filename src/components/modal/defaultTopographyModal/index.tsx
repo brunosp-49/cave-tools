@@ -1,118 +1,147 @@
-import { Modal, View, StyleSheet, type DimensionValue } from "react-native";
+import React, { FC } from "react";
+import {
+  Modal,
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Pressable,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../../assets/colors";
 import TextInter from "../../textInter";
-import { Divider } from "../../divider";
-import ErrorIllustration from "../../icons/errorIllustration";
+import { ReturnButton } from "../../button/returnButton";
 import { LongButton } from "../../longButton";
-import { FC } from "react";
-import AttentionIcon from "../../icons/attentionIcon";
 
+// Interface de props atualizada para aceitar funções async
 interface DefaultModalProps {
   isOpen: boolean;
+  onClose: () => void;
   title: string;
   message: string;
-  onClose: () => void;
-  onConfirm: () => void;
+  children?: React.ReactNode;
+
+  // Callbacks de ação
+  onConfirm?: () => void | Promise<void>;
+  onCancel?: () => void | Promise<void>;
+  onBack?: () => void; // Para o botão 'X' ou de fechar
+
+  // Configuração dos botões
   titleButtonConfirm?: string;
-  onCustomCancel?: () => void;
   titleButtonCancel?: string;
-  visibleIcon?: boolean;
-  height?: DimensionValue | undefined;
-  enableLongButton?: boolean,
-  enableBackButton?: boolean,
-  onBack?: () => void
+  enableLongButton?: boolean;
+  enableBackButton?: boolean; // Para o botão de voltar/cancelar no rodapé
+  visibleIcon?: boolean; // Prop que já existia no seu uso
 }
 
 export const DefaultTopographyModal: FC<DefaultModalProps> = ({
   isOpen,
-  message,
   onClose,
-  onConfirm,
   title,
-  titleButtonCancel,
+  message,
+  children,
+  onConfirm,
+  onCancel,
+  onBack,
   titleButtonConfirm,
-  onCustomCancel,
-  visibleIcon = true,
-  height = 'auto',
-  enableLongButton = false,
+  titleButtonCancel,
+  enableLongButton,
   enableBackButton,
-  onBack
+  visibleIcon = true,
 }) => {
   return (
-    <Modal visible={isOpen} transparent>
-      <View style={styles.overlay}>
-        <View style={[styles.modalContainer, { height: height }]}>
-          <TextInter
-            color={colors.white[100]}
-            fontSize={23}
-            style={styles.title}
-          >
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isOpen}
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable style={styles.modalContent}>
+          {onBack && (
+            <TouchableOpacity style={styles.closeButton} onPress={onBack}>
+              <Ionicons name="close" size={30} color={colors.white[100]} />
+            </TouchableOpacity>
+          )}
+
+          {visibleIcon && (
+            <View style={styles.iconContainer}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={60}
+                color={colors.accent[100]}
+              />
+            </View>
+          )}
+
+          <TextInter weight="bold" style={styles.title}>
             {title}
           </TextInter>
-          <Divider height={16} />
-          {visibleIcon && (<AttentionIcon />)}
-          <Divider height={16} />
-          <TextInter
-            color={colors.dark[20]}
-            weight="regular"
-            style={styles.message}
-          >
-            {message}
-          </TextInter>
-          <Divider />
-          <View style={[styles.buttonContainer, { flexDirection: enableLongButton ? 'column' : 'row' }]}>
-            <LongButton
-              numberOfButtons={enableLongButton ? 1 : 2}
-              title={titleButtonConfirm ? titleButtonConfirm : "Confirmar"}
-              onPress={() => onConfirm()}
-            />
-            <LongButton
-              numberOfButtons={enableLongButton ? 1 : 2}
-              title={titleButtonCancel ? titleButtonCancel : "Não, cadastrar manualmente"}
-              onPress={() => (onCustomCancel ? onCustomCancel() : onClose())}
-            />
-            {enableBackButton && (
-              <LongButton
-                mode="cancel"
-                title="Voltar"
-                onPress={() => onBack?.()}
-              />
+          <TextInter style={styles.message}>{message}</TextInter>
+
+          {children}
+
+          <View style={styles.buttonContainer}>
+            {enableBackButton && titleButtonCancel && onCancel && (
+              <View style={styles.buttonWrapper}>
+                <ReturnButton
+                  buttonTitle={titleButtonCancel}
+                  onPress={onCancel}
+                  customWidth={100}
+                />
+              </View>
+            )}
+            {enableLongButton && titleButtonConfirm && onConfirm && (
+              <View style={styles.buttonWrapper}>
+                <LongButton title={titleButtonConfirm} onPress={onConfirm} />
+              </View>
             )}
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    backgroundColor: "rgba(0,0,0,0.5)",
+  modalOverlay: {
     flex: 1,
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
   },
-  modalContainer: {
-    backgroundColor: colors.dark[30],
+  modalContent: {
     width: "90%",
-    height: "auto",
-    minHeight: 250,
-    borderRadius: 24,
-    justifyContent: "center",
+    backgroundColor: colors.dark[80],
+    borderRadius: 16,
+    padding: 24,
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 30,
+  },
+  closeButton: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+  },
+  iconContainer: {
+    marginBottom: 16,
   },
   title: {
+    fontSize: 20,
+    color: colors.white[100],
     textAlign: "center",
+    marginBottom: 8,
   },
   message: {
+    fontSize: 16,
+    color: colors.white[80],
     textAlign: "center",
+    marginBottom: 24,
   },
   buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     width: "100%",
-    gap: 10
+    marginTop: 10,
+  },
+  buttonWrapper: {
+    width: "100%",
+    marginBottom: 12,
   },
 });

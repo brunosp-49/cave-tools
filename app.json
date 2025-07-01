@@ -75,6 +75,7 @@
         "expo-build-properties",
         {
           "ios": {
+            "newArchEnabled": true,
             "extraPods": [
               {
                 "name": "simdjson",
@@ -86,6 +87,10 @@
                 "modular_headers": true
               }
             ]
+          },
+          "android": {
+            "newArchEnabled": true,
+            "enableProguardInReleaseBuilds": true
           }
         }
       ],

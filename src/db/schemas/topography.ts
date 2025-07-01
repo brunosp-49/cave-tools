@@ -1,20 +1,13 @@
 import { tableSchema } from "@nozbe/watermelondb";
 
 export const topography = tableSchema({
-  name: "topography",
+  name: "topography_drawings",
   columns: [
-    { name: "_id", type: "string" },
-    { name: "cavity_id", type: "string" },
-    { name: "registro_id", type: "string" },
-    { name: "data", type: "string" },
-    { name: "from", type: "string" },
-    { name: "to", type: "string" },
-    { name: "distance", type: "string" },
-    { name: "azimuth", type: "string" },
-    { name: "incline", type: "string" },
-    { name: "turnUp", type: "string" },
-    { name: "turnDown", type: "string" },
-    { name: "turnRight", type: "string" },
-    { name: "turnLeft", type: "string" }
+    { name: "topography_id", type: "string", isIndexed: true },
+    { name: "cavity_id", type: "string", isIndexed: true },
+    { name: "drawing_data", type: "string" },
+    { name: "is_draft", type: "boolean", isIndexed: true },
+    { name: "date", type: "string" },
+    { name: "uploaded", type: "boolean" },  
   ],
 });

@@ -3,7 +3,7 @@ import {
   Platform,
   SafeAreaView,
   StyleSheet,
-  TouchableOpacity,
+  ScrollView,
   View,
 } from "react-native";
 import { colors } from "../../assets/colors";
@@ -13,7 +13,6 @@ import { FC, useState } from "react";
 import { RouterProps } from "../../types";
 import { StepOne } from "./stepOne";
 import { StepTwo } from "./stepTwo";
-import { ScrollView } from "react-native-gesture-handler";
 import { NextButton } from "../../components/button/nextButton";
 import { ReturnButton } from "../../components/button/returnButton";
 

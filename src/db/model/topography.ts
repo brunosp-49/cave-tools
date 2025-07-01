@@ -1,19 +1,13 @@
 import { Model } from "@nozbe/watermelondb";
-import { field } from "@nozbe/watermelondb/decorators";
+import { field, text } from "@nozbe/watermelondb/decorators";
 
-export default class Topography extends Model {
-  static table = "topography"
+export default class TopographyDrawing extends Model {
+  static table = "topography_drawings";
 
-  @field("registro_id") registro_id!: string;
+  @field("topography_id") topographyId!: string;
   @field("cavity_id") cavity_id!: string;
-  @field("data") data!: string;
-  @field("from") from!: string;
-  @field("to") to!: string;
-  @field("distance") distance!: string;
-  @field("azimuth") azimuth!: string;
-  @field("incline") incline!: string;
-  @field("turnUp") turnUp!: string;
-  @field("turnDown") turnDown!: string;
-  @field("turnRight") turnRight!: string;
-  @field("turnLeft") turnLeft!: string;
+  @text("drawing_data") drawing_data!: string;
+  @field("is_draft") is_draft!: boolean;
+  @field("date") date!: string;
+  @field("uploaded") uploaded!: boolean;
 }

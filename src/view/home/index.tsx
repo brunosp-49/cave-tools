@@ -29,7 +29,11 @@ import { useAppSelector } from "../../hook";
 import PapersIcon from "../../components/icons/papersIcon";
 import { FakeBottomTab } from "../../components/fakeBottomTab";
 import { StatusBar } from "expo-status-bar";
-import { fetchAllCavities, fetchAllProjects } from "../../db/controller";
+import {
+  fetchAllCavities,
+  fetchAllProjects,
+  fetchAllTopographyDrawingsWithCavity,
+} from "../../db/controller";
 
 export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -67,11 +71,12 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
     return () => clearTimeout(timer); // Cleanup timer if component unmounts
   }, [successOpacity]);
 
-  const getUsers = async()=>{
+  const getUsers = async () => {
     const cavities = await fetchAllCavities();
     const projects = await fetchAllProjects();
-    console.log({cavities, projects});
-  }
+    const topograpries = await fetchAllTopographyDrawingsWithCavity();
+    console.log({ cavities, projects, topograpries });
+  };
 
   return (
     <SafeAreaView style={styles.main}>
@@ -79,7 +84,7 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
         <Header
           disableReturn
           helloLeftComponent={
-            <TouchableOpacity onPress={()=>getUsers()}>
+            <TouchableOpacity onPress={() => getUsers()}>
               <TextInter color={colors.dark[60]}>👋 Olá!</TextInter>
               <TextInter fontSize={23} weight="medium" color={colors.white[90]}>
                 {userName.split(" ")[0]}

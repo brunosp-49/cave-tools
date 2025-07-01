@@ -10,6 +10,7 @@ import {
   UploadProjectPayload,
   BackendUploadResponse,
   ServerCavityData,
+  UpdatableTopographyData,
 } from "../../types";
 import { database } from "../index";
 import CavityRegister from "../model/cavityRegister";
@@ -17,11 +18,11 @@ import Project from "../model/project";
 import User from "../model/user";
 import { api } from "../../api";
 import store from "../../redux/store";
-import { showError } from "../../redux/loadingSlice";
 import { setUserName } from "../../redux/userSlice";
-import type Topography from "../model/topography";
 import { convertDdMmYyyyToYyyyMmDd } from "../../util";
-import { all } from "axios";
+import uuid from "react-native-uuid";
+import Topography from "../model/topography";
+import TopographyDrawing from "../model/topography";
 
 export interface FailedCavity {
   registro_id: string; // The original UUID or current DB ID
@@ -179,7 +180,6 @@ export const createProjects = async (
 
         if (existingProject) {
           await existingProject.update((project) => {
-            project._raw.id = String(projectData.register_id);
             project.register_id = projectData.register_id;
             project.projeto_id = String(projectData.register_id);
             project.nome_projeto = projectData.nome_projeto;
@@ -192,11 +192,13 @@ export const createProjects = async (
             `Project ${projectData.nome_projeto} (Local ID: ${existingProject.id} -> New Backend ID: ${projectData.id}) UPDATED.`
           );
         } else {
+          console.log({ projectData });
           // If no existing project found, create a new one
           await projectCollection.create((project) => {
             project._raw.id = String(projectData.id);
             project.register_id = projectData.register_id;
             project.nome_projeto = projectData.nome_projeto;
+            project.projeto_id = String(projectData.id);
             project.inicio = projectData.inicio;
             project.descricao_projeto = projectData.descricao_projeto;
             project.status = projectData.status;
@@ -236,37 +238,34 @@ export const createProject = async (
   }
 };
 
-export const createTopography = async (
-  toposData: TopographyData[]
-): Promise<void> => {
+export const createTopographyDrawing = async (
+  drawingState: object,
+  cavityId: string,
+  isDraft: boolean
+) => {
   try {
-    const topographyCollection =
-      database.collections.get<Topography>("topography");
-
-    const operations = toposData.map((topoMap) =>
-      topographyCollection.prepareCreate((topo) => {
-        topo._raw.id = topoMap.registro_id;
-        topo.registro_id = topoMap.registro_id;
-        topo.cavity_id = topoMap.cavity_id;
-        topo.data = topoMap.data;
-        topo.azimuth = topoMap.azimuth;
-        topo.distance = topoMap.distance;
-        topo.from = topoMap.from;
-        topo.incline = topoMap.incline;
-        topo.to = topoMap.to;
-        topo.turnDown = topoMap.turnDown;
-        topo.turnLeft = topoMap.turnLeft;
-        topo.turnRight = topoMap.turnRight;
-        topo.turnUp = topoMap.turnUp;
-      })
+    const drawingsCollection = database.get<TopographyDrawing>(
+      "topography_drawings"
     );
+    const newId = uuid.v4().toString();
 
     await database.write(async () => {
-      await database.batch(...operations);
+      console.log(JSON.stringify({}));
+      const newDrawing = await drawingsCollection.create((drawing) => {
+        drawing._raw.id = newId;
+        drawing.topographyId = newId;
+        drawing.cavity_id = cavityId;
+        drawing.is_draft = isDraft;
+        drawing.date = new Date().toISOString();
+        drawing.drawing_data = JSON.stringify(drawingState);
+        drawing.uploaded = false;
+      });
+      return newDrawing;
     });
-    console.log(`Topography created ${toposData.length} successfully!`);
+    console.log("Desenho topográfico salvo com sucesso!");
   } catch (error) {
-    console.error("Error creating topography:", error);
+    console.error("Erro ao salvar o desenho topográfico:", error);
+    throw error;
   }
 };
 
@@ -518,6 +517,23 @@ export const fetchPendingProjectCount = async (): Promise<number> => {
   }
 };
 
+export const fetchPendingTopographyDrawings = async (): Promise<
+  TopographyDrawing[]
+> => {
+  try {
+    const drawingsCollection = database.get<TopographyDrawing>(
+      "topography_drawings"
+    );
+    const pendingDrawings = await drawingsCollection
+      .query(Q.where("uploaded", false))
+      .fetch();
+    return pendingDrawings;
+  } catch (error) {
+    console.error("Erro ao buscar desenhos de topografia pendentes:", error);
+    return [];
+  }
+};
+
 export const fetchAllUsers = async (): Promise<UserModel[]> => {
   try {
     const users = await database.collections.get<User>("user").query().fetch();
@@ -553,19 +569,6 @@ export const fetchAllProjects = async (): Promise<ProjectModel[]> => {
     }));
   } catch (error) {
     console.error("Error fetching projects:", error);
-    return [];
-  }
-};
-
-export const fetchAllTopographies = async (): Promise<TopographyData[]> => {
-  try {
-    const topographyCollection =
-      database.collections.get<Topography>("topography");
-    const topographies = await topographyCollection.query().fetch();
-
-    return topographies.map((topography: any) => topography._raw);
-  } catch (error) {
-    console.error("Error fetching topographies:", error);
     return [];
   }
 };
@@ -670,7 +673,7 @@ export const fetchProjectsWithPendingCavities = async (
   try {
     const projectCollection = database.get<Project>("project");
     let projectsToProcess = await projectCollection.query().fetch();
-    console.log({projectsToProcess})
+    console.log({ projectsToProcess });
     if (projectIdToSync) {
       projectsToProcess = projectsToProcess.filter(
         (p) => p.projeto_id === projectIdToSync && isNaN(Number(p.projeto_id))
@@ -783,6 +786,70 @@ export const fetchProjectsWithPendingCavities = async (
   } catch (error) {
     console.error("Error fetching projects with pending items data:", error);
     throw error;
+  }
+};
+
+export const fetchTopographyDrawingById = async (
+  drawingId: string
+): Promise<TopographyDrawing | null> => {
+  try {
+    const drawingsCollection = database.get<TopographyDrawing>(
+      "topography_drawings"
+    );
+    const drawing = await drawingsCollection.find(drawingId);
+    return drawing;
+  } catch (error) {
+    console.error("Desenho não encontrado ou erro ao buscar:", error);
+    return null;
+  }
+};
+
+export const fetchAllTopographyDrawingsWithCavity = async (): Promise<
+  { drawing: TopographyDrawing; cavityName: string }[]
+> => {
+  try {
+    const drawingsCollection = database.get<TopographyDrawing>(
+      "topography_drawings"
+    );
+    const allDrawings = await drawingsCollection.query().fetch();
+
+    const enrichedDrawings = await Promise.all(
+      allDrawings.map(async (drawing) => {
+        let cavityName = "Cavidade não encontrada";
+        try {
+          // --- MUDANÇA PRINCIPAL AQUI ---
+          const cavityQuery = database
+            .get<CavityRegister>("cavity_register")
+            .query(Q.where("cavidade_id", drawing.cavity_id));
+          const cavities = await cavityQuery.fetch();
+
+          if (cavities.length > 0) {
+            const cavity = cavities[0]; // Pegamos o primeiro resultado
+            cavityName =
+              cavity.nome_cavidade || `Cavidade ${cavity.id.substring(0, 5)}`;
+          } else {
+            console.warn(
+              `Nenhuma cavidade encontrada com cavidade_id: ${drawing.cavity_id}`
+            );
+          }
+        } catch (error) {
+          console.warn(
+            `Erro ao procurar a cavidade com ID: ${drawing.cavity_id}`,
+            error
+          );
+        }
+        console.log(drawing.drawing_data);
+        return { drawing, cavityName };
+      })
+    );
+
+    return enrichedDrawings;
+  } catch (error) {
+    console.error(
+      "Erro ao buscar todos os desenhos com nomes de cavidades:",
+      error
+    );
+    return [];
   }
 };
 
@@ -901,7 +968,8 @@ export const updateProject = async (
 
     await database.write(async () => {
       await project.update((proj) => {
-        if (updatedData.id !== undefined) proj.projeto_id = String(updatedData.id);
+        if (updatedData.id !== undefined)
+          proj.projeto_id = String(updatedData.id);
         proj.nome_projeto = updatedData.nome_projeto || proj.nome_projeto;
         proj.inicio = updatedData.inicio || proj.inicio;
         proj.descricao_projeto =
@@ -914,6 +982,39 @@ export const updateProject = async (
     console.log("Project updated successfully!");
   } catch (error) {
     console.error("Error updating project:", error);
+  }
+};
+
+export const updateTopographyCavityId = async (
+  oldCavityId: string,
+  newCavityId: string
+): Promise<void> => {
+  try {
+    const drawingsCollection = database.get<TopographyDrawing>(
+      "topography_drawings"
+    );
+
+    const drawingsToUpdate = await drawingsCollection
+      .query(Q.where("cavity_id", oldCavityId))
+      .fetch();
+
+    if (drawingsToUpdate.length > 0) {
+      const drawing = drawingsToUpdate[0];
+
+      await database.write(async () => {
+        await drawing.update((d) => {
+          d.cavity_id = newCavityId;
+        });
+      });
+      console.log(
+        `[Controller] O cavity_id do desenho foi atualizado de ${oldCavityId} para ${newCavityId}`
+      );
+    }
+  } catch (error) {
+    console.error(
+      `Erro ao atualizar o cavity_id da topografia para o ID antigo ${oldCavityId}:`,
+      error
+    );
   }
 };
 
@@ -932,20 +1033,19 @@ export const syncConsolidatedUpload = async (
   }
 
   const totalItemsToUpload = projectsToSync.length;
-  let successfullyProcessedProjects = 0;
   const projectErrors: string[] = [];
   const failedCavityDetails: FailedCavity[] = [];
 
   for (let i = 0; i < projectsToSync.length; i++) {
     const projectPackage = projectsToSync[i];
-    let projectUploadSuccess = false;
     let newProjectBackendId: string | undefined;
 
     try {
       console.log(
-        `[DB Controller] Attempting to sync package for project: ${projectPackage.nome_projeto} (Local ID: ${projectPackage.register_id}) with ${projectPackage.cavities.length} cavities.`
+        `[DB Controller] Attempting to sync package for project: ${projectPackage.nome_projeto} (Local Register ID: ${projectPackage.register_id}) with ${projectPackage.cavities.length} cavities.`
       );
       const users = await fetchAllUsers();
+      if (!users.length) throw new Error("Usuário não autenticado.");
       const user = users[0];
 
       const cleanedProjectPackage = cleanObjectForUpload(projectPackage);
@@ -957,7 +1057,7 @@ export const syncConsolidatedUpload = async (
         status: cleanedProjectPackage.status,
         cavities: cleanedProjectPackage.cavities,
       };
-      console.log("Payload to send:", payloadToSend);
+
       const response = await api.post<BackendUploadResponse>(
         "/projetos/app_upload/",
         payloadToSend,
@@ -965,19 +1065,10 @@ export const syncConsolidatedUpload = async (
           headers: { Authorization: `Bearer ${user.token}` },
         }
       );
-      console.log("API Response:", response.data);
 
-      // Declara responseData AQUI, para que esteja disponível em todo o bloco `if`
-      const responseData = response.data; // <-- LINHA CORRIGIDA/ADICIONADA
+      const responseData = response.data;
 
-      if (
-        response.status === 200 ||
-        response.status === 201 ||
-        response.status === 204
-      ) {
-        projectUploadSuccess = true;
-        // responseData já está declarada acima, não precisa redeclarar aqui
-
+      if (response.status >= 200 && response.status < 300) {
         if (responseData.detail || responseData.message) {
           const overallMessage =
             typeof responseData.detail === "string"
@@ -986,39 +1077,19 @@ export const syncConsolidatedUpload = async (
           projectErrors.push(
             `Projeto ${projectPackage.nome_projeto}: ${overallMessage}`
           );
-          console.warn(
-            `[DB Controller] Project ${projectPackage.nome_projeto} returned messages:`,
-            overallMessage
-          );
         }
 
         // --- ATUALIZAÇÃO DO PROJETO ---
         const localProject = await database
           .get<Project>("project")
           .find(projectPackage._id);
-
         if (localProject) {
-          const projectUpdateData: Partial<ProjectPayload> = {
-            id: responseData.projeto.id,
-            uploaded: true,
-          };
-
+          const projectUpdateData: Partial<ProjectPayload> = { uploaded: true };
           if (responseData.projeto?.id) {
             newProjectBackendId = String(responseData.projeto.id);
             projectUpdateData.id = newProjectBackendId;
-          } else {
-            console.warn(
-              `[DB Controller] Project ${localProject.nome_projeto} marked as uploaded, but no new ID returned. Keeping original ID: ${localProject.id}.`
-            );
           }
           await updateProject(localProject.id, projectUpdateData);
-          console.log(
-            `[DB Controller] Project ${localProject.nome_projeto} (Local ID: ${localProject.id}) updated.`
-          );
-        } else {
-          console.warn(
-            `[DB Controller] Local project ${projectPackage._id} not found for update. This should not happen.`
-          );
         }
 
         // --- ATUALIZAÇÃO DAS CAVIDADES ---
@@ -1030,6 +1101,7 @@ export const syncConsolidatedUpload = async (
 
           if (localCavities.length > 0) {
             const localCavity = localCavities[0];
+            const oldCavityIdForLookup = localCavity.cavidade_id; // Guarda o ID antigo ANTES de atualizar
 
             const backendSuccessCavity = responseData.cavities.find(
               (bc) => bc.registro_id === originalCavityInPayload.registro_id
@@ -1041,7 +1113,6 @@ export const syncConsolidatedUpload = async (
             const cavityUpdateData: Partial<
               Omit<CavityRegisterData, "registro_id">
             > = {};
-
             if (newProjectBackendId) {
               cavityUpdateData.projeto_id = newProjectBackendId;
             }
@@ -1049,13 +1120,7 @@ export const syncConsolidatedUpload = async (
             if (backendSuccessCavity) {
               cavityUpdateData.cavidade_id = String(backendSuccessCavity.id);
               cavityUpdateData.uploaded = true;
-              console.log(
-                `[DB Controller] Cavity ${localCavity.nome_cavidade} (Original Reg ID: ${originalCavityInPayload.registro_id}) found success. New Cavidade ID: ${backendSuccessCavity.id}.`
-              );
             } else if (backendFailedCavity) {
-              console.warn(
-                `[DB Controller] Cavity ${localCavity.nome_cavidade} (Original Reg ID: ${originalCavityInPayload.registro_id}) failed to upload. Status remains 'false'.`
-              );
               if (
                 !failedCavityDetails.some(
                   (f) => f.registro_id === originalCavityInPayload.registro_id
@@ -1071,20 +1136,21 @@ export const syncConsolidatedUpload = async (
                 });
               }
             }
-            await updateCavity(localCavity.cavidade_id, cavityUpdateData);
-            console.log(
-              `[DB Controller] Cavity ${localCavity.nome_cavidade} (Local ID: ${localCavity.cavidade_id}) updated.`
-            );
-          } else {
-            console.warn(
-              `[DB Controller] Local cavity with registro_id ${originalCavityInPayload.registro_id} not found for update. This should not happen if fetched correctly.`
-            );
+
+            // 1. Atualiza a própria cavidade
+            await updateCavity(oldCavityIdForLookup, cavityUpdateData);
+
+            // --- LÓGICA DE ATUALIZAÇÃO DA TOPOGRAFIA ADICIONADA AQUI ---
+            // 2. Se a cavidade foi atualizada com sucesso, atualiza o desenho de topografia correspondente
+            if (backendSuccessCavity) {
+              await updateTopographyCavityId(
+                oldCavityIdForLookup,
+                String(backendSuccessCavity.id)
+              );
+            }
           }
         }
-        successfullyProcessedProjects++;
       } else {
-        projectUploadSuccess = false;
-        // responseData também é usada aqui, precisa estar no escopo correto
         const errorDetails =
           typeof responseData.detail === "string"
             ? responseData.detail
@@ -1096,11 +1162,6 @@ export const syncConsolidatedUpload = async (
         projectErrors.push(
           `Projeto ${projectPackage.nome_projeto}: Falha no envio (status ${response.status} - ${errorDetails})`
         );
-        console.error(
-          `[DB Controller] Failed to sync project package ${projectPackage.nome_projeto}: HTTP Status ${response.status}, Data:`,
-          responseData
-        );
-
         projectPackage.cavities.forEach((cav) => {
           failedCavityDetails.push({
             registro_id: cav.registro_id,
@@ -1110,7 +1171,6 @@ export const syncConsolidatedUpload = async (
         });
       }
     } catch (error: any) {
-      projectUploadSuccess = false;
       let detailedErrorMessage =
         error.response?.data?.detail || error.response?.data?.message;
       if (!detailedErrorMessage) {
@@ -1119,15 +1179,10 @@ export const syncConsolidatedUpload = async (
             ? error.message
             : JSON.stringify(error.message || error);
       }
-
       const errorMsg = `Projeto ${projectPackage.nome_projeto}: ${
         detailedErrorMessage || "Erro desconhecido"
       }`;
       projectErrors.push(errorMsg);
-      console.error(
-        `[DB Controller] Error syncing project package ${projectPackage.nome_projeto}:`,
-        error
-      );
       projectPackage.cavities.forEach((cav) => {
         failedCavityDetails.push({
           registro_id: cav.registro_id,
@@ -1141,49 +1196,103 @@ export const syncConsolidatedUpload = async (
 
   const overallSuccess =
     projectErrors.length === 0 && failedCavityDetails.length === 0;
-
-  const overallErrorMessage =
-    projectErrors.length > 0
-      ? `Erros a nível de projeto: ${projectErrors.join("; \n")}`
-      : `Algumas cavidades falharam no envio.`;
-
-  console.log("[DB Controller] Consolidated upload finished.", {
-    overallSuccess,
-    projectErrors,
-    failedCavityDetails,
-  });
-
   return {
     success: overallSuccess,
-    error: overallSuccess ? undefined : overallErrorMessage,
+    error: overallSuccess
+      ? undefined
+      : `Algumas cavidades e/ou projetos falharam no envio.`,
     failedCavities: failedCavityDetails,
   };
 };
 
+export const syncTopographyDrawings = async (
+  onProgress?: (progress: number) => void
+): Promise<{ success: boolean; error?: string }> => {
+  // 1. Busca os desenhos pendentes
+  const pendingDrawings = await fetchPendingTopographyDrawings();
+
+  if (pendingDrawings.length === 0) {
+    console.log("[Sync Topography] Nenhum desenho para enviar.");
+    onProgress?.(100);
+    return { success: true };
+  }
+
+  // 2. Busca o token do usuário
+  const users = await fetchAllUsers();
+  if (!users.length) {
+    return { success: false, error: "Usuário não autenticado." };
+  }
+  const user = users[0];
+  const headers = { Authorization: `Bearer ${user.token}` };
+
+  const totalItems = pendingDrawings.length;
+  let errors: string[] = [];
+
+  // 3. Itera sobre cada desenho e tenta fazer o upload
+  for (let i = 0; i < totalItems; i++) {
+    const drawing = pendingDrawings[i];
+    try {
+      // Prepara o payload para enviar para a API
+      const payload = {
+        local_id: drawing.id, // ID interno do WatermelonDB
+        topography_id: drawing.topographyId, // ID que pode mudar após o sync
+        cavity_id: drawing.cavity_id,
+        is_draft: drawing.is_draft,
+        date: drawing.date,
+        drawing_data: JSON.parse(drawing.drawing_data), // Envia o JSON como objeto
+      };
+
+      // --- SUBSTITUA O ENDPOINT AQUI ---
+      const YOUR_ENDPOINT = "/topography/app_upload/"; // <-- COLOQUE SEU ENDPOINT AQUI
+
+      const response = await api.post(YOUR_ENDPOINT, payload, { headers });
+
+      // 4. Se o upload for bem-sucedido, atualiza o registro local
+      if (response.status >= 200 && response.status < 300) {
+        const backendResponse = response.data; // ex: { id: 'novo-id-do-servidor', ... }
+
+        await updateTopography(drawing.id, {
+          uploaded: true,
+          topography_id: backendResponse.id, // Atualiza com o ID retornado pelo servidor
+        });
+      } else {
+        throw new Error(`Status ${response.status}: ${response.data}`);
+      }
+    } catch (error: any) {
+      console.error(`Erro ao enviar o desenho ${drawing.id}:`, error);
+      errors.push(`Desenho para cavidade ${drawing.cavity_id} falhou.`);
+    }
+    onProgress?.(Math.round(((i + 1) / totalItems) * 100));
+  }
+
+  if (errors.length > 0) {
+    return { success: false, error: errors.join("\n") };
+  }
+
+  return { success: true };
+};
+
 export const updateTopography = async (
-  registro_id: string,
-  updatedData: Partial<TopographyData>
+  drawingId: string, // Usando o ID do WatermelonDB (_raw.id)
+  updatedData: Partial<UpdatableTopographyData> // Permite passar apenas os campos a serem alterados
 ): Promise<void> => {
   try {
-    const topographyCollection =
-      database.collections.get<Topography>("topography");
-    const topography = await topographyCollection.find(registro_id);
+    const drawingsCollection = database.get<TopographyDrawing>(
+      "topography_drawings"
+    );
+
+    const topographyToUpdate = await drawingsCollection.find(drawingId);
 
     await database.write(async () => {
-      await topography.update((topo) => {
-        topo.from = updatedData.from || topo.from;
-        topo.incline = updatedData.incline || topo.incline;
-        topo.to = updatedData.to || topo.to;
-        topo.turnDown = updatedData.turnDown || topo.turnDown;
-        topo.turnLeft = updatedData.turnLeft || topo.turnLeft;
-        topo.turnRight = updatedData.turnRight || topo.turnRight;
-        topo.turnUp = updatedData.turnUp || topo.turnUp;
+      await topographyToUpdate.update((topo) => {
+        Object.assign(topo, updatedData);
       });
     });
 
-    console.log("Topography updated successfully!");
+    console.log("Topografia atualizada com sucesso!");
   } catch (error) {
-    console.error("Error updating Topography:", error);
+    console.error("Erro ao atualizar a Topografia:", error);
+    throw error;
   }
 };
 
@@ -1320,9 +1429,10 @@ export const deleteAllProjects = async (): Promise<void> => {
 
 export const deleteTopography = async (registro_id: string): Promise<void> => {
   try {
-    const topographyCollection =
-      database.collections.get<Topography>("topography");
-    const topography = await topographyCollection.find(registro_id);
+    const drawingsCollection = database.get<TopographyDrawing>(
+      "topography_drawings"
+    );
+    const topography = await drawingsCollection.find(registro_id);
 
     await database.write(async () => {
       await topography.destroyPermanently();
@@ -1331,5 +1441,33 @@ export const deleteTopography = async (registro_id: string): Promise<void> => {
     console.log("Topography deleted successfully!");
   } catch (error) {
     console.error("Error deleting topography:", error);
+  }
+};
+
+export const deleteAllTopographies = async (): Promise<void> => {
+  try {
+    const allTopographies = await database.collections
+      .get<TopographyDrawing>("topography_drawings")
+      .query()
+      .fetch();
+
+    if (allTopographies.length === 0) {
+      console.log("No topographies to delete.");
+      return;
+    }
+
+    const deletions = allTopographies.map((topography) =>
+      topography.prepareDestroyPermanently()
+    );
+
+    await database.write(async () => {
+      await database.batch(...deletions);
+    });
+
+    console.log(
+      `All ${allTopographies.length} topography deleted successfully!`
+    );
+  } catch (error) {
+    console.error("Error deleting all topography:", error);
   }
 };

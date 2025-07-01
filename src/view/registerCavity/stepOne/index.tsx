@@ -72,7 +72,6 @@ export const StepOne: FC<StepComponentProps> = ({ navigation, validationAttempte
   const selectedProjectOption = useMemo(() => {
     return projectOptions.find(opt => opt.id === cavidade.projeto_id);
   }, [cavidade.projeto_id, projectOptions]);
-console.log(cavidade)
 
   // Lógica de Erros Específicos para StepOne
   const stepOneErrors = useMemo(() => {
@@ -138,6 +137,7 @@ console.log(cavidade)
             id: String(project.projeto_id), // Garante que o ID é string
             value: project.nome_projeto,
           }));
+          console.log({options})
           setProjectOptions(options);
           setIsLoadingProjects(false);
         }

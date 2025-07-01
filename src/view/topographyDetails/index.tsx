@@ -1,96 +1,114 @@
+import React, { FC, useEffect, useState } from "react";
 import {
-  SafeAreaView,
-  StyleSheet,
   View,
+  StyleSheet,
+  ActivityIndicator,
+  SafeAreaView,
 } from "react-native";
+import { useRoute, RouteProp } from "@react-navigation/native";
+import { useDispatch } from "react-redux";
+import { fetchTopographyDrawingById } from "../../db/controller";
+import { TopographyCanvas } from "../../components/topography/topographyCanvas";
 import { Header } from "../../components/header";
 import { colors } from "../../assets/colors";
+import { loadDrawingState, resetDrawingState } from "../../redux/drawingSlice";
 import TextInter from "../../components/textInter";
-import { FC, useEffect, useState } from "react";
-import { RouterProps, type TopographyData, type TopographyPoint } from "../../types";
-import { Divider } from "../../components/divider";
-import { useDispatch, useSelector } from "react-redux";
-import { FakeBottomTab } from "../../components/fakeBottomTab";
-import { fetchAllTopographies } from "../../db/controller";
-import { showError } from "../../redux/loadingSlice";
-import DrawPoints from "../../components/topography/drawPoints";
-import type { RootState } from "../../redux/store";
-import TableTopography from "./components/tableTopography";
+import { RouterProps } from "../../types";
 
-export const TopographyDetailScreen: FC<RouterProps> = ({ navigation }) => {
+// Definindo o tipo para os parâmetros de navegação
+type DetailScreenRouteProp = RouteProp<
+  { params: { drawingId: string } },
+  "params"
+>;
+
+const TopographyDetailScreen: FC<RouterProps> = ({ navigation }) => {
+  const route = useRoute<DetailScreenRouteProp>();
+  const { drawingId } = route.params;
   const dispatch = useDispatch();
-  const [topographyOptions, setTopographyOptions] = useState<TopographyPoint[]>([]);
-  const {
-    cavity_id,
-  } = useSelector((state: RootState) => ({
-    cavity_id: state.topography.cavity_id,
-  }));
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
-    const loadTopographyPoint = async () => {
-      try {
-        const topographies: TopographyData[] = await fetchAllTopographies();
-        console.log(topographies)
-        if (isMounted) {
-          const options: TopographyPoint[] = topographies.filter(topo => topo.cavity_id === cavity_id).map((topo) => ({
-            cavity_id: topo.cavity_id,
-            from: topo.from,
-            to: topo.to,
-            distance: topo.distance,
-            azimuth: topo.azimuth,
-            incline: topo.incline,
-            turnUp: topo.turnUp,
-            turnDown: topo.turnDown,
-            turnRight: topo.turnRight,
-            turnLeft: topo.turnLeft,
-          }));
-          setTopographyOptions(options);
-        }
-      } catch (error) {
-        console.error("Failed to load projects", error);
-        dispatch(showError({ title: "Erro ao Carregar Topografias", message: "Não foi possível buscar a lista de projetos." }))
+    const loadDrawing = async () => {
+      if (!drawingId) {
+        setError("ID do desenho não fornecido.");
+        setIsLoading(false);
+        return;
       }
+
+      const drawingRecord = await fetchTopographyDrawingById(drawingId);
+
+      if (drawingRecord) {
+        try {
+          const savedState = JSON.parse(drawingRecord.drawing_data);
+          dispatch(loadDrawingState(savedState));
+        } catch (e) {
+          setError("Erro ao carregar dados do desenho.");
+        }
+      } else {
+        setError("Desenho não encontrado.");
+      }
+      setIsLoading(false);
     };
 
-    const unsubscribe = navigation.addListener("focus", () => {
-      if (isMounted) loadTopographyPoint();
-    });
+    loadDrawing();
 
-    loadTopographyPoint();
+    // Função de limpeza: reseta o estado do desenho ao sair da tela
     return () => {
-      isMounted = false;
-      unsubscribe();
+      dispatch(resetDrawingState());
     };
-  }, [dispatch, navigation]);
+  }, [drawingId, dispatch]);
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={colors.accent[100]} />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={{ paddingBottom: 12, paddingHorizontal: 20 }}>
+          <Header
+            title="Erro"
+            navigation={navigation}
+            onCustomReturn={() => navigation.navigate("TopographyListScreen")}
+          />
+        </View>
+        <View style={styles.center}>
+          <TextInter color={colors.error[100]}>{error}</TextInter>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.main}>
-      <View style={styles.container}>
-        <Header title="Topografia" navigation={navigation} onCustomReturn={() => navigation.goBack()} />
-        <Divider height={12} />
-        <TextInter fontSize={19} weight="medium" color={colors.white[100]}>
-          Visualizar informação topográfica
-        </TextInter>
-        <Divider height={8} />
-
-        <DrawPoints hiddenButtons={true} topographies={topographyOptions} />
-
-        <TableTopography topography={topographyOptions} />
+    <SafeAreaView style={styles.container}>
+      <View style={{ paddingBottom: 12, paddingHorizontal: 20 }}>
+        <Header
+          title="Detalhes"
+          navigation={navigation}
+          onCustomReturn={() => navigation.navigate("TopographyListScreen")}
+        />
       </View>
-      <FakeBottomTab onPress={() => navigation.navigate("RegisterCavity")} />
+      <TopographyCanvas isReadOnly={true} />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  main: {
-    backgroundColor: colors.dark[90],
-    flex: 1,
-  },
   container: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 15,
+    backgroundColor: colors.dark[90],
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
+
+export default TopographyDetailScreen;
