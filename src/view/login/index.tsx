@@ -247,7 +247,6 @@ export const Login: FC<RouterProps> = ({ navigation }) => {
                 </TextInter>
               </View>
             )}
-
             <View style={styles.body}>
               <Input
                 placeholder="Digite seu email"

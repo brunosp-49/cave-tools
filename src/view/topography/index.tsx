@@ -1,9 +1,4 @@
-import {
-  FlatList,
-  SafeAreaView,
-  StyleSheet,
-  View,
-} from "react-native";
+import { FlatList, SafeAreaView, StyleSheet, View } from "react-native";
 import { Header } from "../../components/header";
 import { colors } from "../../assets/colors";
 import TextInter from "../../components/textInter";
@@ -13,14 +8,18 @@ import { MenuCard } from "../home/components/menuCard";
 import { Divider } from "../../components/divider";
 import { useDispatch } from "react-redux";
 import { FakeBottomTab } from "../../components/fakeBottomTab";
-import { updateMode } from "../../redux/topographySlice";
+import { updateMode, TopographyMode } from "../../redux/topographySlice";
 
 export const TopographyScreen: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch();
 
-  const changeScreen = (mode: string) => {
-    dispatch(updateMode(mode))
-    navigation.navigate('TopographyCreateScreen');
+  const handleInsert = () => {
+    dispatch(updateMode('create'));
+    navigation.navigate('TopographyCreateScreen', { draftId: null });
+  }
+
+  const handleListNavigation = (mode: 'edit' | 'view') => {
+    navigation.navigate('TopographyListScreen', { mode });
   }
 
   return (
@@ -38,22 +37,22 @@ export const TopographyScreen: FC<RouterProps> = ({ navigation }) => {
               title: "Inserir informações topográficas",
               icon: null,
               id: 1,
-              onPress: () => changeScreen('create'),
+              onPress: handleInsert,
               disabled: false,
             },
             {
               title: "Editar informações topográficas",
               icon: null,
               id: 2,
-              onPress: () => changeScreen('edit'),
-              disabled: true,
+              onPress: () => handleListNavigation('edit'),
+              disabled: false,
             },
             {
               title: "Visualizar informações topográficas",
               icon: null,
               id: 3,
-              onPress: () => changeScreen('view'),
-              disabled: false
+              onPress: () => handleListNavigation('view'),
+              disabled: false,
             },
           ]}
           keyExtractor={(item) => String(item.id)}
@@ -62,9 +61,10 @@ export const TopographyScreen: FC<RouterProps> = ({ navigation }) => {
               icon={item.icon}
               title={item.title}
               onPress={item.onPress}
+              disabled={item.disabled}
             />
           )}
-          ItemSeparatorComponent={({ }) => <Divider height={16} />}
+          ItemSeparatorComponent={() => <Divider height={16} />}
         />
       </View>
       <FakeBottomTab onPress={() => navigation.navigate("RegisterCavity")} />

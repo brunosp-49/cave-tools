@@ -43,6 +43,7 @@ import { NextButton } from "../../../../components/button/nextButton";
 import { ReturnButton } from "../../../../components/button/returnButton";
 import Geolocation from "react-native-geolocation-service";
 import { request, PERMISSIONS, RESULTS } from "react-native-permissions";
+import { formatToTwoDecimals } from "../../../../util";
 
 interface Props {
   isOpen: boolean;
@@ -583,17 +584,17 @@ export const CavityModal: React.FC<Props> = ({
       coordenadas: {
         datum,
         coleta_automatica: isAutoGeoInfos,
-        graus_e: utmENum,
-        graus_n: utmNNum,
-        erro_gps: erro_gps_calculado,
+        graus_e: formatToTwoDecimals(longitude),
+        graus_n: formatToTwoDecimals(latitude),
+        erro_gps: Number(formatToTwoDecimals(erro_gps_calculado)),
         satelites: satNum,
         utm: {
           zona: utmZone,
-          utm_e: utmENum,
-          utm_n: utmNNum,
-          erro_gps: erro_gps_calculado,
+          utm_e: Number(formatToTwoDecimals(utmENum)),
+          utm_n: Number(formatToTwoDecimals(utmNNum)),
+          erro_gps: Number(formatToTwoDecimals(erro_gps_calculado)),
           satelites: satNum,
-          elevacao: altNum,
+          elevacao: Number(formatToTwoDecimals(altNum)),
         },
       },
       caracteristicas: {

@@ -6,6 +6,7 @@ import {
   StyleSheet,
   View,
   KeyboardType,
+  KeyboardAvoidingView,
 } from "react-native";
 import { Header } from "../../components/header";
 import { Input } from "../../components/input";
@@ -215,6 +216,7 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.main}>
+      <KeyboardAvoidingView behavior="padding">
       <ScrollView>
         <View style={styles.container}>
           <Header
@@ -309,7 +311,7 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
               hasError={institutionalLinkName.error}
               errorMessage={institutionalLinkName.errorMessage}
               onChangeTextMask={(empty, text) =>
-                handleInputChange("institutionalLinkName", text)
+                handleInputChange("institutionalLinkName", text || "")
               }
             />
             <Input
@@ -320,7 +322,7 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
               hasError={institutionalLinkCNPJ.error}
               errorMessage={institutionalLinkCNPJ.errorMessage}
               onChangeTextMask={(empty, text) =>
-                handleInputChange("institutionalLinkCNPJ", text)
+                handleInputChange("institutionalLinkCNPJ", text || "")
               }
               keyboardType="numeric"
               mask="99.999.999/9999-99"
@@ -360,6 +362,7 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
           <StatusBar style="light" />
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

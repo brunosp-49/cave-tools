@@ -1,3 +1,4 @@
+import { StepComponentProps } from "../view/editCavity";
 import { user } from "./../db/schemas/user"; // Assuming this path is correct
 import { DrawerNavigationProp } from "@react-navigation/drawer";
 
@@ -10,19 +11,6 @@ export interface RouterProps {
   navigation: DrawerNavigationProp<any, any>;
   route?: any;
 }
-
-export type TopographyPoint = {
-  cavity_id: string;
-  from: string;
-  to: string;
-  distance: string;
-  azimuth: string;
-  incline: string;
-  turnUp: string;
-  turnDown: string;
-  turnRight: string;
-  turnLeft: string;
-};
 
 export interface TableTopographyProps {
   topography: TopographyPoint[];
@@ -416,8 +404,8 @@ export interface Entrada {
   coordenadas: {
     datum: string;
     coleta_automatica: boolean;
-    graus_e: number;
-    graus_n: number;
+    graus_e: string;
+    graus_n: string;
     erro_gps: number;
     satelites: number;
     utm: {
@@ -448,6 +436,7 @@ export interface AspectosSocioambientais {
 }
 
 export interface Cavidade {
+  cavidade_id: string;
   registro_id: string;
   projeto_id: string; // Removed as per instruction 3
   responsavel: string;
@@ -491,6 +480,8 @@ export interface Cavidade {
   biota?: Biota;
   arqueologia?: Arqueologia;
   paleontologia?: Paleontologia;
+  status: string; // Status of the cavity
+  uploaded?: boolean; // Indicates if the cavity has been uploaded
 }
 
 export interface Espeleometria {
@@ -564,10 +555,13 @@ export const batQuantidadeOptions: SelectOption<BatQuantidadeType | "">[] = [
 export interface ProjectPayload {
   // For creating/updating project info
   id: string | number;
+  register_id: string;
+  projeto_id: string;
   nome_projeto: string;
   inicio: string; // ISO date string
   descricao_projeto: string;
   status: string;
+  uploaded?: boolean;
 }
 
 export interface ProjectModel extends ProjectPayload {
@@ -579,6 +573,7 @@ export interface ProjectModel extends ProjectPayload {
 // For the controller function createCavityRegister (data passed from frontend to controller)
 // And for fetchAllCavities's return type item (parsed from DB)
 export interface CavityRegisterData {
+  cavidade_id: string;
   registro_id: string;
   projeto_id: string; // Removed
   responsavel: string;
@@ -602,16 +597,20 @@ export interface CavityRegisterData {
   biota?: string; // stringified Biota
   arqueologia?: string; // stringified Arqueologia
   paleontologia?: string; // stringified Paleontologia
+  uploaded?: boolean; // Indicates if the cavity has been uploaded
+  id?: string; // Optional ID for the cavity, used in some contexts
 }
 
 // For the controller function syncConsolidatedUpload (payload to backend API)
 export interface UploadProjectPayload {
   _id: string;
+  projeto_id: string;
+  register_id: string;
   nome_projeto: string;
   inicio: string; // ISO date string
   descricao_projeto: string;
   status: string;
-  cavities: Cavidade[]; // Array of fully-formed Cavidade objects
+  cavities: Omit<Cavidade, "projeto_id">[];
 }
 
 // The following are likely auxiliary types for specific form sections.
@@ -624,45 +623,176 @@ export interface Espeleotemas {
   tipos?: EspeleotemaItem[];
 }
 
-// Redundant if CaracterizacaoInterna above is used as the single source of truth.
-// export interface CaracterizacaoInternaForm {
-//   grupo_litologico?: Grupo_litologico;
-//   desenvolvimento_predominante?: string;
-//   depredacao_localizada?: boolean;
-//   descricao_depredacao_localizada?: string;
-//   depredacao_intensa?: boolean;
-//   descricao_depredacao_intensa?: string;
-//   infraestrutura_interna?: Infraestrutura_interna;
-//   dificuldades_progressao_interna?: Dificuldades_progressao_interna;
-// }
+export interface BackendProjectResponse {
+  id: number; // New backend ID for the project
+  register_id: string; // The original UUID provided by the app
+  cliente: {
+    id: number;
+    nome: string;
+    formacao: string | null;
+    vinculo_institucional_nome: string | null;
+    vinculo_institucional_cnpj: string | null;
+    usuario: {
+      id: number;
+      username: string;
+      email: string;
+    };
+  };
+  nome_projeto: string;
+  inicio: string;
+  descricao_projeto: string;
+  status: string;
+}
 
-// Redundant
-// export interface Dificuldades_externas { ... }
-// export interface Uso_cavidade { ... }
-// export interface Area_protegida { ... }
+export interface BackendCavityResponse {
+  id: number; // New backend ID for the cavity
+  registro_id: string; // The original UUID provided by the app
+  projeto: number; // The new backend ID of the associated project
+  responsavel: string;
+  nome_cavidade: string;
+  nome_sistema: string;
+  data: string;
+  municipio: string;
+  uf: string;
+  localidade: string | null;
+  desenvolvimento_linear: number | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  entradas: any[];
+  dificuldades_externas: any;
+  aspectos_socioambientais: any;
+  caracterizacao_interna: any;
+  hidrologia: any;
+  sedimentos: any;
+  espeleotemas: any[];
+  biota: any;
+  arqueologia: any;
+  paleontologia: any;
+  medicao: any[];
+  topografia: any;
+  morfologia: any;
+}
 
-// Redundant if AspectosSocioambientais above is the single source of truth.
-// export interface AspectosSocioambientaisForm {
-//   uso_cavidade?: Uso_cavidade;
-//   comunidade_envolvida?: {
-//     envolvida?: boolean;
-//     descricao?: string;
-//   };
-//   area_protegida?: Area_protegida;
-//   infraestrutura_acesso?: Infraestrutura_acesso;
-// }
+export interface BackendUploadResponse {
+  projeto: BackendProjectResponse;
+  cavities: BackendCavityResponse[];
+  cavities_errors: Array<{ registro_id: string; error: any }>;
+  detail?: string;
+  message?: string;
+}
 
-// Redundant
-// export interface PadraoPlanimetrico { ... }
-// export interface FormaSecoes { ... }
-// export interface MorfologiaData { ... }
-// export interface HidrologiaFeature { ... }
-// export interface HidrologiaData { ... }
-// export interface SedimentoDetalhe { ... }
-// export interface GuanoTipo { ... } // Renamed to GuanoTipoDetalhe
-// export interface SedimentacaoClasticaTipo { ... }
-// export interface SedimentacaoClastica { ... }
-// export interface Guano { ... } // Renamed to GuanoDetalhe
-// export interface SedimentacaoOrganicaTipo { ... }
-// export interface SedimentacaoOrganica { ... }
-// export interface SedimentosData { ... }
+export interface ServerCavityData {
+  id: number;
+  registro_id: string;
+  projeto: number;
+  responsavel: string;
+  nome_cavidade: string;
+  nome_sistema: string;
+  data: string;
+  municipio: string;
+  uf: string;
+  localidade?: string | null;
+  desenvolvimento_linear?: number | null;
+  entradas: any;
+  dificuldades_externas: any;
+  aspectos_socioambientais: any;
+  caracterizacao_interna: any;
+  topografia: any;
+  morfologia: any;
+  hidrologia: any;
+  sedimentos: any;
+  espeleotemas: any;
+  biota: any;
+  arqueologia: any;
+  paleontologia: any;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+  deleted_at?: string | null;
+}
+
+export interface Coordinate {
+  x: number;
+  y: number;
+}
+
+/** Representa um vértice (ponto) no canvas, com ID, coordenadas e um rótulo. */
+export interface PointData {
+  id: string; // Ex: "0", "1", "A", "B2"
+  x: number;
+  y: number;
+  label: string;
+}
+
+/** Representa o viewBox do SVG, controlando o pan e o zoom. */
+export interface ViewBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Layout do container do SVG para cálculos de coordenadas. */
+export interface SvgContainerLayout {
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+}
+
+export interface FreeDrawPath {
+  points: string[]; // Array de comandos de path SVG (ex: "M10,20 L30,40")
+  color: string;
+}
+
+/** Representa uma linha reta gerada por dados topográficos. */
+export interface DataLine {
+  points: string[]; // Comandos de path SVG (ex: "M_start_x,M_start_y L_end_x,L_end_y")
+  color: string;
+  type: 'data_line';
+}
+
+export interface TopoLineFormData {
+  refDe: string;
+  refPara: string;
+  distancia: string;
+  azimute: string;
+  inclinacao: string;
+  paraCima: string;
+  paraBaixo: string;
+  paraDireita: string;
+  paraEsquerda: string;
+}
+
+export interface TopoDataLine extends DataLine {
+  sourceData: TopoLineFormData;
+}
+
+export type TopographyPoint = {
+  cavity_id: string;
+  from: string;
+  to: string;
+  distance: string;
+  azimuth: string;
+  incline: string;
+  turnUp: string;
+  turnDown: string;
+  turnRight: string;
+  turnLeft: string;
+};
+
+export interface StepProps extends StepComponentProps {
+  onNext: () => void;
+  onBack: () => void;
+}
+
+export type ActiveTool = 'pan' | 'draw' | 'erase';
+
+export type UpdatableTopographyData = {
+  topography_id: string;
+  drawing_data: string;
+  is_draft: boolean;
+  uploaded?: boolean; // Opcional, pode ser atualizado por outra função de sincronização
+};

@@ -830,6 +830,8 @@ const EditCavity: FC<RouterProps> = ({ navigation, route }) => {
           possui: false,
           tipos: { outroEnabled: false, outro: undefined },
         }),
+        cavidade_id: foundCavity.cavidade_id,
+        status: foundCavity.status || "pendente",
       };
 
       dispatch(setFullInfos(formattedData));

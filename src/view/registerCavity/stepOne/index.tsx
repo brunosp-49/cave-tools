@@ -26,6 +26,7 @@ import {
 } from "../../../redux/cavitySlice";
 import { fetchAllProjects } from "../../../db/controller";
 import { StepComponentProps } from "../../editCavity";
+import { useIsFocused } from "@react-navigation/native";
 
 interface SelectOption {
   id: string;
@@ -60,6 +61,7 @@ export const StepOne: FC<StepComponentProps> = ({ navigation, validationAttempte
   const entradas = cavidade.entradas || [];
   const [projectOptions, setProjectOptions] = useState<SelectOption[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const isFocused = useIsFocused();
   // selectedProject não é mais necessário aqui se o value do Select for direto do Redux
   // const [selectedProject, setSelectedProject] = useState<SelectOption | null>(null);
 
@@ -70,7 +72,6 @@ export const StepOne: FC<StepComponentProps> = ({ navigation, validationAttempte
   const selectedProjectOption = useMemo(() => {
     return projectOptions.find(opt => opt.id === cavidade.projeto_id);
   }, [cavidade.projeto_id, projectOptions]);
-
 
   // Lógica de Erros Específicos para StepOne
   const stepOneErrors = useMemo(() => {
@@ -125,7 +126,6 @@ export const StepOne: FC<StepComponentProps> = ({ navigation, validationAttempte
     };
     requestCameraPermission();
   }, [dispatch]);
-
   useEffect(() => {
     let isMounted = true;
     const loadProjects = async () => {
@@ -134,9 +134,10 @@ export const StepOne: FC<StepComponentProps> = ({ navigation, validationAttempte
         const projects: ProjectModel[] = await fetchAllProjects();
         if (isMounted) {
           const options = projects.map((project) => ({
-            id: String(project._id), // Garante que o ID é string
+            id: String(project.projeto_id), // Garante que o ID é string
             value: project.nome_projeto,
           }));
+          console.log({options})
           setProjectOptions(options);
           setIsLoadingProjects(false);
         }
@@ -159,7 +160,7 @@ export const StepOne: FC<StepComponentProps> = ({ navigation, validationAttempte
       isMounted = false;
       unsubscribe(); // Limpar o listener
     };
-  }, [dispatch, navigation]); // Removido cavidade.projeto_id para evitar recargas desnecessárias ao selecionar projeto
+  }, [dispatch, navigation, isFocused]); // Removido cavidade.projeto_id para evitar recargas desnecessárias ao selecionar projeto
 
   const handleInputChange = (path: (string | number)[], value: any) => {
     dispatch(updateCavidadeData({ path, value }));
@@ -187,7 +188,6 @@ export const StepOne: FC<StepComponentProps> = ({ navigation, validationAttempte
         required
         value={selectedProjectOption?.value || ""}
         onChangeText={(obj: SelectOption) => {
-          // setSelectedProject(obj); // Não mais necessário se value vem do Redux
           handleInputChange(["projeto_id"], obj.id);
         }}
         optionsList={projectOptions}

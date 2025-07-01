@@ -1,4 +1,7 @@
 export const colors = {
+  success: {
+    100: "#2ECC71",
+  },
   white: {
     100: "#ffffff",
     90: "#e7e9eb",

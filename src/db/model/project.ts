@@ -1,12 +1,14 @@
 import { Model } from "@nozbe/watermelondb";
-import { field } from "@nozbe/watermelondb/decorators";
+import { field, text } from "@nozbe/watermelondb/decorators";
 
 export default class Project extends Model {
   static table = "project";
 
-  @field("_id") _id!: string;
-  @field("nome_projeto") nome_projeto!: string;
-  @field("inicio") inicio!: string;
-  @field("descricao_projeto") descricao_projeto!: string;
+  @text("projeto_id") projeto_id!: string;
+  @text("register_id") register_id!: string;
+  @text("status") status?: string;
+  @text("nome_projeto") nome_projeto!: string;
+  @text("inicio") inicio!: string;
+  @text("descricao_projeto") descricao_projeto!: string;
   @field("uploaded") uploaded!: boolean;
 }

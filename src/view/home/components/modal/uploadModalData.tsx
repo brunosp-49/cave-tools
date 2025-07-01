@@ -38,7 +38,7 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
   onUploadSuccess,
 }) => {
   const [status, setStatus] = useState<UploadStatus>("idle");
-  const [pendingItemCount, setPendingItemCount] = useState<number>(0);
+  const [pendingItemCount, setPendingItemCount] = useState<number>(0); // Now 0 or 1
   const [progress, setProgress] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [failedCavities, setFailedCavities] = useState<FailedCavity[]>([]);
@@ -71,12 +71,17 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
         setUploadSessionSuccess(false);
         setFailedCavities([]);
         try {
+          // This will now return 1 if anything is pending, 0 otherwise
           const itemCount = await getProjectsWithPendingCavitiesCount();
+          console.log("Pending items for upload:", itemCount > 0 ? "Yes" : "No");
+
           if (!isMounted.current) return;
+          // Set a nominal count (e.g., 1 if there are pending items) for display,
+          // or keep it 0 if there are none.
           setPendingItemCount(itemCount);
 
           if (itemCount === 0) {
-            setStatus("success");
+            setStatus("success"); // Directly go to success if nothing to upload
             setUploadSessionSuccess(true);
           } else {
             setStatus("confirming");
@@ -94,38 +99,42 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
     } else {
       resetState();
     }
-  }, [visible, resetState]);
+  }, [visible, resetState]); // Removed navigator from dependencies as it's not used here
 
   const handleUploadConfirm = async () => {
-    if (pendingItemCount === 0) return;
-
+    // pendingItemCount will be 0 if nothing is found to upload
+    // If we're here, it means it's > 0, so proceed.
     setStatus("uploading");
-    setProgress(1);
+    setProgress(1); // Start progress at 1%
     setErrorMessage(null);
     setFailedCavities([]);
     setUploadSessionSuccess(false);
 
     try {
       const projectsToSync = await fetchProjectsWithPendingCavities();
+      console.log(115)
       if (!isMounted.current) return;
-
+      console.log(117)
+      console.log({projectsToSync})
       if (projectsToSync.length === 0) {
+        // Double-check: if fetchProjectsWithPendingCavities returns empty, it means nothing truly pending
         setStatus("success");
         setUploadSessionSuccess(true);
         setProgress(100);
         return;
       }
-
+      console.log(125)
       const result = await syncConsolidatedUpload(projectsToSync, (p) => {
           if(isMounted.current) setProgress(p);
       });
-
+      console.log(129)
       if (!isMounted.current) return;
 
       if (result.success) {
         setStatus("success");
         setUploadSessionSuccess(true);
       } else {
+        // If result.success is false, it means there were project-level errors or failed cavities
         const msgToDisplay = result.error || "Falha ao enviar alguns dados.";
         setErrorMessage(msgToDisplay);
         setFailedCavities(result.failedCavities || []);
@@ -139,16 +148,16 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
         setStatus("error");
       }
     } finally {
-        if(isMounted.current && status !== 'success') setProgress(0);
-        else if (isMounted.current && status === 'success') setProgress(100);
+        if(isMounted.current && status !== 'success') setProgress(0); // Reset progress if not successful
+        else if (isMounted.current && status === 'success') setProgress(100); // Ensure 100% on success
     }
   };
 
   const handleDismissModal = useCallback(() => {
-    if (status === "uploading") return;
+    if (status === "uploading") return; // Prevent closing during upload
 
     if (uploadSessionSuccess && pendingItemCount > 0 && failedCavities.length === 0) {
-      onUploadSuccess();
+      onUploadSuccess(); // Only call success callback if truly all succeeded
     }
     onClose();
   }, [status, uploadSessionSuccess, onClose, onUploadSuccess, pendingItemCount, failedCavities]);
@@ -177,7 +186,7 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
             </TextInter>
             <Divider height={10} />
             <TextInter color={colors.dark[20]} style={styles.message}>
-              {`Você possui ${pendingItemCount} ${pendingItemCount === 1 ? "projeto com cavidades pendentes" : "projetos com cavidades pendentes"} para envio. Deseja iniciar agora?`}
+              {`Você possui dados pendentes para envio. Deseja iniciar agora?`}
             </TextInter>
             <Divider />
             <LongButton title="Enviar Agora" onPress={handleUploadConfirm} />
@@ -208,15 +217,11 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
             <Ionicons name="checkmark-circle-outline" size={70} color={colors.accent[100]} />
             <Divider height={16} />
             <TextInter color={colors.white[90]} fontSize={20} style={styles.title}>
-              {pendingItemCount === 0 && !uploadSessionSuccess
-                ? "Nenhum Dado Pendente"
-                : "Envio Concluído"}
+              Envio Concluído
             </TextInter>
             <Divider height={10} />
             <TextInter color={colors.dark[20]} style={styles.message}>
-              {pendingItemCount === 0 && !uploadSessionSuccess
-                ? "Todos os seus dados já estão sincronizados."
-                : "Todos os dados pendentes foram enviados com sucesso."}
+              Todos os dados pendentes foram enviados com sucesso.
             </TextInter>
             <Divider />
             <LongButton title="Ok" onPress={handleDismissModal} />
@@ -252,7 +257,7 @@ export const UploadDataModal: FC<UploadDataModalProps> = ({
                 </View>
             )}
             <Divider />
-            {pendingItemCount > 0 && (
+            {pendingItemCount > 0 && ( // Allow retry if there are still pending items
                  <LongButton title="Tentar Novamente" onPress={handleUploadConfirm} />
             )}
             <Divider height={8} />

@@ -1,12 +1,16 @@
 import { tableSchema } from "@nozbe/watermelondb";
 
-export const project = tableSchema({
+const project = tableSchema({
   name: "project",
   columns: [
-    { name: "_id", type: "string" },
+    { name: "projeto_id", type: "string" },
+    { name: "register_id", type: "string"  },
+    { name: "status", type: "string" },
     { name: "nome_projeto", type: "string" },
     { name: "inicio", type: "string" },
     { name: "descricao_projeto", type: "string" },
-    { name: "uploaded", type: "boolean" },
+    { name: "uploaded", type: "boolean" },  
   ],
 });
+
+export default project;

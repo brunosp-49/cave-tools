@@ -3,6 +3,7 @@ import { resetLoadingState, setIsLoading } from "./loadingSlice";
 import {
   deleteAllCavities,
   deleteAllProjects,
+  deleteAllTopographies,
   deleteUser,
 } from "../db/controller";
 
@@ -104,6 +105,7 @@ export const logoffUser = createAsyncThunk(
       dispatch(setModalLoading(true)); // Show loading during logoff
       await deleteAllProjects();
       await deleteAllCavities();
+      await deleteAllTopographies();
       dispatch(resetModalState());
       await deleteUser("2"); // FIXME: Hardcoded user ID '2'
       dispatch(resetLoadingState()); // <<< Reset Redux state for the modal
@@ -131,7 +133,7 @@ export const {
   resetModalState,
   onChangeSearchCharacterization,
   setUserName,
-  onChangeSearchProjects
+  onChangeSearchProjects,
 } = userStateSlice.actions;
 
 // Export the reducer

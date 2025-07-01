@@ -3,13 +3,15 @@ import cavityReducer from "./cavitySlice";
 import loadingReducer from "./loadingSlice";
 import userSlice from "./userSlice";
 import TopographyReducer from './topographySlice';
+import drawingSlice from "./drawingSlice";
 
 const store = configureStore({
   reducer: {
     cavity: cavityReducer,
     loading: loadingReducer,
     user: userSlice,
-    topography: TopographyReducer
+    topography: TopographyReducer,
+    drawing: drawingSlice
   },
 });
 

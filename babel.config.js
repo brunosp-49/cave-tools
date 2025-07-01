@@ -14,7 +14,7 @@ module.exports = function (api) {
         safe: false,
         allowUndefined: true
       }],
-      ["@babel/plugin-proposal-decorators", { legacy: true }],
+      ["@babel/plugin-proposal-decorators", { "legacy": true }],
     ],
   };
 };

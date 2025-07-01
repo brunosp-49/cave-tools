@@ -1,10 +1,11 @@
 import { tableSchema } from "@nozbe/watermelondb";
 
-export const cavityRegister = tableSchema({
+const cavityRegister = tableSchema({
   name: "cavity_register",
   columns: [
-    { name: "registro_id", type: "string", isIndexed: true },
-    { name: "projeto_id", type: "string", isIndexed: true },
+    { name: "cavidade_id", type: "string" },
+    { name: "registro_id", type: "string"},
+    { name: "projeto_id", type: "string"},
     { name: "responsavel", type: "string" },
     { name: "nome_cavidade", type: "string" },
     { name: "nome_sistema", type: "string" },
@@ -25,6 +26,9 @@ export const cavityRegister = tableSchema({
     { name: "biota", type: "string" },
     { name: "arqueologia", type: "string" },
     { name: "paleontologia", type: "string" },
+    { name: "status", type: "string" },
     {name: "uploaded", type: "boolean"},
   ],
 });
+
+export default cavityRegister;

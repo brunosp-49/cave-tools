@@ -47,6 +47,7 @@ import { formatDate } from "../../util";
 import { LongButton } from "../../components/longButton";
 import Project from "../../db/model/project";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
+import { Q } from "@nozbe/watermelondb";
 
 // Helper function
 const isFieldFilled = (value: any): boolean => {
@@ -188,7 +189,7 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
     useState<Paleontologia | null>(null);
   const [topografiaData, setTopografiaData] =
     useState<Cavidade["topografia"]>();
-    const isFocused = useIsFocused();
+  const isFocused = useIsFocused();
 
   useEffect(() => {
     const fetchCavityAndParse = async () => {
@@ -203,18 +204,20 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
       try {
         const cavityCollection =
           database.collections.get<CavityRegister>("cavity_register");
-        const foundCavity = await cavityCollection.find(cavityId);
+        const cavities = await cavityCollection
+          .query(Q.where("cavidade_id", cavityId))
+          .fetch();
+        const foundCavity = cavities[0];
         setCavity(foundCavity);
-        console.log({ foundCavity });
         if (foundCavity.projeto_id) {
           const projectCollection =
             database.collections.get<Project>("project");
           // Ensure project is found before setting, handle potential error
           try {
-            const foundProject = await projectCollection.find(
-              foundCavity.projeto_id
-            );
-            console.log({ foundCavity: JSON.parse(foundCavity.caracterizacao_interna as string), foundProject });
+            const projects = await projectCollection
+              .query(Q.where("projeto_id", foundCavity.projeto_id))
+              .fetch();
+            const foundProject = projects[0];
             setProject(foundProject);
           } catch (projectError) {
             console.warn(
@@ -292,7 +295,6 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
           foundCavity.caracterizacao_interna,
           defaultCaracterizacaoInterna
         );
-        console.log({ciDb})
         const transformedCI: CaracterizacaoInterna = {
           ...ciDb,
         };
@@ -869,6 +871,14 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
                 <LabelText
                   label="Datum"
                   text={entrada.coordenadas?.datum || "N/A"}
+                />
+                <LabelText
+                  label="Longitude"
+                  text={entrada.coordenadas?.graus_e || "N/A"}
+                />
+                <LabelText
+                  label="Latitude"
+                  text={entrada.coordenadas?.graus_n || "N/A"}
                 />
                 <LabelText
                   label="UTM E"

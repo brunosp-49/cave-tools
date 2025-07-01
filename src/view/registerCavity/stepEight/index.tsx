@@ -136,7 +136,7 @@ export const StepEight: FC<StepEightProps> = ({ navigation, route, validationAtt
   return (
     <View style={styles.container}>
       <Divider />
-      <TextInter color={colors.white[100]} fontSize={19} weight="medium">Espeleotemas *</TextInter>
+      <TextInter color={colors.white[100]} fontSize={19} weight="medium">Espeleotemas</TextInter>
       <Divider />
       <Checkbox label="Possui Espeleotemas?" checked={possuiEspeleotemasRedux} onChange={handlePossuiToggle} />
       {globalValidationAttempted && !possuiEspeleotemasRedux && itemList.length === 0 &&

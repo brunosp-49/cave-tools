@@ -1,241 +1,274 @@
-import { FC, useCallback, useMemo, useRef, useState } from "react";
-import { RouterProps, TopographyPoint } from "../../types";
-import { SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, BackHandler, Alert } from "react-native";
+import { FC, useCallback, useEffect, useState } from "react";
+import {
+  SafeAreaView,
+  StyleSheet,
+  View,
+  BackHandler,
+  Alert,
+  TextInput,
+  ActivityIndicator,
+} from "react-native";
 import { useDispatch, useSelector } from "react-redux";
-import { colors } from "../../assets/colors";
-import { Header } from "../../components/header";
+import { useRoute, RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootState } from "../../redux/store";
-import { resetTopographyState, updateCurrentStep } from "../../redux/topographySlice";
-import TextInter from "../../components/textInter";
-import { ReturnButton } from "../../components/button/returnButton";
-import { NextButton } from "../../components/button/nextButton";
+import {
+  resetTopographyState,
+  updateCurrentStep,
+  updateTopography as updateTopographySlice,
+  updateCavityId,
+} from "../../redux/topographySlice";
+import { loadDrawingState, resetDrawingState } from "../../redux/drawingSlice";
 import { SuccessModal } from "../../components/modal/successModal";
-import { useFocusEffect } from "@react-navigation/native";
-import StepOne from "./stepOne";
-import StepTwo from "./stepTwo";
-import { FakeBottomTab } from "../../components/fakeBottomTab";
-import StepThree from "./stepThree";
-import StepFour from "./stepFour";
-import { createTopography } from "../../db/controller";
-import uuid from "react-native-uuid";
+import {
+  createTopographyDrawing,
+  fetchTopographyDrawingById,
+  updateTopography,
+} from "../../db/controller";
 import { showError } from "../../redux/loadingSlice";
 import { DefaultTopographyModal } from "../../components/modal/defaultTopographyModal";
+import StepOne from "./stepOne";
+import StepTwo from "./stepTwo";
+import StepThree from "./stepThree";
+import { colors } from "../../assets/colors";
+import { RouterProps, TopographyPoint, StepProps } from "../../types";
+import TextInter from "../../components/textInter";
 
-export interface StepComponentProps extends RouterProps {
-  validationAttempted: boolean;
-}
+// Definindo os tipos para os parâmetros de navegação
+type TopographyCreateRouteProp = RouteProp<
+  { params?: { draftId?: string | null } },
+  "params"
+>;
 
-const validateStep = (
-  stepIndex: number,
-  data: TopographyPoint[]
-): boolean => {
-  if (!data) return false;
+const TopographyCreateScreen: FC<RouterProps> = ({ navigation }) => {
+  const route = useRoute<TopographyCreateRouteProp>();
+  const draftId = route.params?.draftId;
 
-  return true;
-}
-
-const TopographyCreateScreen: FC<RouterProps> = ({ navigation, route }) => {
-  const [validationAttempted, setValidationAttempted] = useState(false);
-  const [successSuccessModal, setSuccessModal] = useState(false);
-  const [isOpenConfirmModal, setIsOpenConfirmModal] = useState(false);
-  const {
-    currentStep,
-    formData,
-    cavity_id
-  } = useSelector((state: RootState) => ({
-    currentStep: state.topography.currentStep,
-    formData: state.topography.topography,
-    cavity_id: state.topography.cavity_id,
-  }));
+  const [isLoading, setIsLoading] = useState(!!draftId);
+  const [successModal, setSuccessModal] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
   const dispatch = useDispatch();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const { currentStep, cavity_id, dataLines, drawingState } = useSelector(
+    (state: RootState) => ({
+      currentStep: state.topography.currentStep,
+      cavity_id: state.topography.cavity_id,
+      dataLines: state.drawing.dataLines,
+      drawingState: state.drawing,
+    })
+  );
 
-  const handleBack = () => {
-    setValidationAttempted(false);
+  // Efeito para carregar um rascunho, se um draftId for passado
+  useEffect(() => {
+    const loadDraft = async () => {
+      if (draftId) {
+        const draftRecord = await fetchTopographyDrawingById(draftId);
+        if (draftRecord) {
+          try {
+            const savedState = JSON.parse(draftRecord.drawing_data);
+            dispatch(updateCavityId(draftRecord.cavity_id));
+            dispatch(loadDrawingState(savedState));
+            dispatch(updateCurrentStep(2)); // Pula direto para a tela de desenho
+          } catch (e) {
+            Alert.alert(
+              "Erro",
+              "Não foi possível carregar os dados do rascunho."
+            );
+            navigation.goBack();
+          }
+        } else {
+          Alert.alert("Erro", "Rascunho não encontrado.");
+          navigation.goBack();
+        }
+        setIsLoading(false);
+      }
+    };
+
+    loadDraft();
+  }, [draftId, dispatch, navigation]);
+
+  // Efeito para sincronizar os pontos (para outras partes do app que possam usar)
+  useEffect(() => {
+    if (!drawingState) return;
+    const topographyPointsToSave: TopographyPoint[] =
+      drawingState.dataLines.map((line) => ({
+        cavity_id: cavity_id || "",
+        from: line.sourceData.refDe,
+        to: line.sourceData.refPara,
+        distance: line.sourceData.distancia,
+        azimuth: line.sourceData.azimute,
+        incline: line.sourceData.inclinacao,
+        turnUp: line.sourceData.paraCima,
+        turnDown: line.sourceData.paraBaixo,
+        turnRight: line.sourceData.paraDireita,
+        turnLeft: line.sourceData.paraEsquerda,
+      }));
+    dispatch(updateTopographySlice(topographyPointsToSave));
+  }, [drawingState.dataLines, cavity_id, dispatch]);
+
+  const handleBack = useCallback(() => {
     if (currentStep === 0) {
-      navigation.navigate("TopographyScreen");
+      navigation.goBack();
       dispatch(resetTopographyState());
+      dispatch(resetDrawingState());
+    } else if (currentStep === 2) {
+      dispatch(resetTopographyState());
+      dispatch(resetDrawingState());
+      navigation.navigate("TopographyListScreen", {
+        mode: draftId ? "edit" : "create",
+      });
     } else {
       dispatch(updateCurrentStep(currentStep - 1));
-      if (scrollViewRef.current) {
-        scrollViewRef.current.scrollTo({ y: 0, animated: false });
+    }
+  }, [currentStep, navigation, dispatch]);
+
+  const handleNext = useCallback(async () => {
+    if (currentStep === 1 && !cavity_id) {
+      Alert.alert(
+        "Seleção Necessária",
+        "Por favor, selecione uma cavidade para continuar."
+      );
+      return;
+    }
+    if (currentStep === 2) {
+      if (drawingState.dataLines.length === 0) {
+        Alert.alert(
+          "Nenhum Ponto",
+          "Adicione pelo menos um ponto topográfico para finalizar."
+        );
+        return;
       }
+      setIsConfirmModalOpen(true);
+    } else {
+      dispatch(updateCurrentStep(currentStep + 1));
+    }
+  }, [currentStep, cavity_id, drawingState.dataLines.length, dispatch]);
+
+  const handleSave = async (isDraft: boolean) => {
+    if (!cavity_id) {
+      Alert.alert(
+        "Erro",
+        "ID da cavidade não encontrado para salvar o desenho."
+      );
+      return;
+    }
+    setIsConfirmModalOpen(false);
+    try {
+      if (draftId) {
+        await updateTopography(draftId, {
+          drawing_data: JSON.stringify(drawingState),
+          is_draft: isDraft,
+        });
+      } else {
+        await createTopographyDrawing(drawingState, cavity_id, isDraft);
+      }
+      setSuccessModal(true);
+    } catch (error) {
+      console.error("Falha ao salvar:", error);
+      dispatch(
+        showError({
+          title: "Erro ao Salvar",
+          message: "Tente novamente mais tarde.",
+        })
+      );
     }
   };
 
-  const handleNext = async () => {
-    setValidationAttempted(false); // Resetar se for válido
-
-    const isValidOnClick = validateStep(currentStep, formData);
-
-    if (!isValidOnClick) {
-      Alert.alert(
-        "Campos Obrigatórios",
-        "Por favor, preencha todos os campos obrigatórios corretamente antes de continuar."
-      );
-      if (scrollViewRef.current) {
-        scrollViewRef.current.scrollTo({ y: 0, animated: true });
-      }
-      return;
-    }
-
-    if (currentStep === 0) {
-      if (formData.length == 0) {
-        Alert.alert(
-          "Crie uma topografia",
-          "Por favor, Preencha ao menos 1 topografia."
-        );
-        if (scrollViewRef.current) {
-          scrollViewRef.current.scrollTo({ y: 0, animated: true });
-        }
-        return;
-      }
-    }
-
-    if (currentStep === steps.length - 1) {
-      setIsOpenConfirmModal(!isOpenConfirmModal)
-    } else {
-      dispatch(updateCurrentStep(currentStep + 1));
-      if (scrollViewRef.current) {
-        scrollViewRef.current.scrollTo({ y: 0, animated: true });
-      }
-    }
-  }
-
-  const steps: FC<StepComponentProps>[] = [
-    StepOne as FC<StepComponentProps>,
-    StepTwo as FC<StepComponentProps>,
-    StepThree as FC<StepComponentProps>,
-    StepFour as FC<StepComponentProps>,
-  ]
-
-  const StepComponent: FC<StepComponentProps> = steps[currentStep];
-
-  const isCurrentStepValid = useMemo(
-    () => validateStep(currentStep, formData),
-    [currentStep, formData]
-  );
+  const handleSuccessModalClose = () => {
+    navigation.goBack();
+    setSuccessModal(false);
+    dispatch(resetTopographyState());
+    dispatch(resetDrawingState());
+  };
 
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
-        navigation.navigate("TopographyScreen");
+        handleBack();
         return true;
       };
       const subscription = BackHandler.addEventListener(
         "hardwareBackPress",
         onBackPress
       );
-
-      return () => {
-        subscription.remove();
-      };
-    }, [navigation])
+      return () => subscription.remove();
+    }, [handleBack])
   );
 
-  const handleSuccessModalClose = () => {
-    navigation.navigate("TopographyScreen");
-    setSuccessModal(false);
-    setIsOpenConfirmModal(false)
-    dispatch(updateCurrentStep(0));
-    dispatch(resetTopographyState());
+  const stepProps: Omit<
+    StepProps,
+    "navigation" | "route" | "validationAttempted"
+  > = {
+    onNext: handleNext,
+    onBack: handleBack,
   };
 
-  const handleCreateTopography = async () => {
-    try {
-      const data = formData.map((topo: TopographyPoint) => ({
-        registro_id: uuid.v4().toString(),
-        cavity_id: cavity_id,
-        data: new Date().toISOString(),
-        azimuth: topo.azimuth,
-        distance: topo.distance,
-        from: topo.from,
-        incline: topo.incline,
-        to: topo.to,
-        turnDown: topo.turnDown,
-        turnLeft: topo.turnLeft,
-        turnRight: topo.turnRight,
-        turnUp: topo.turnUp,
-      }))
-      await createTopography(data);
-      setSuccessModal(!successSuccessModal);
-    } catch (error) {
-      console.error("Error creating topography register:", error);
-      dispatch(
-        showError({
-          title: "Erro ao criar topography",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Confirme as informações e tente novamente.",
-        })
-      );
-    }
+  if (isLoading) {
+    return (
+      <SafeAreaView
+        style={[
+          styles.main,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <ActivityIndicator size="large" color={colors.accent[100]} />
+        <TextInter color={colors.white[80]} style={{ marginTop: 10 }}>
+          Carregando rascunho...
+        </TextInter>
+      </SafeAreaView>
+    );
   }
 
   return (
     <SafeAreaView style={styles.main}>
-      <KeyboardAvoidingView
-        style={styles.main}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <ScrollView
-          ref={scrollViewRef}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Header title="Topografia" onCustomReturn={handleBack} />
-          <View style={styles.stepContainer}>
-            {StepComponent ? (
-              <StepComponent
-                navigation={navigation}
-                route={undefined}
-                validationAttempted={validationAttempted}
-              />
-            ) : (
-              <TextInter>Carregando etapa...</TextInter>
-            )}
-          </View>
+      <View style={styles.stepContainer}>
+        {currentStep === 0 && (
+          <StepOne
+            navigation={navigation}
+            route={route}
+            validationAttempted={false}
+            {...stepProps}
+          />
+        )}
+        {currentStep === 1 && (
+          <StepTwo
+            navigation={navigation}
+            route={route}
+            validationAttempted={false}
+            {...stepProps}
+          />
+        )}
+        {currentStep === 2 && (
+          <StepThree
+            navigation={navigation}
+            route={route}
+            validationAttempted={false}
+            {...stepProps}
+          />
+        )}
+      </View>
 
-          {currentStep !== 1 && (
-            <View style={styles.buttonContainer}>
-              <ReturnButton buttonTitle={currentStep == 0 ? 'Limpar' : 'Voltar'} onPress={handleBack} />
-              <NextButton
-                onPress={handleNext}
-                disabled={validationAttempted && !isCurrentStepValid}
-                buttonTitle={
-                  currentStep === steps.length - 1
-                    ? "Finalizar"
-                    : currentStep == 0 ? 'Aplicar' : "Continuar"
-                }
-              />
-            </View>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-      <FakeBottomTab onPress={() => navigation.navigate("RegisterCavity")} />
       <SuccessModal
-        visible={successSuccessModal}
-        title="Topografia cadastrada com sucesso!"
-        message="Suas informações topográficas foram salvas com sucesso no sistema."
+        visible={successModal}
+        title="Desenho Salvo!"
+        message="Seu desenho topográfico foi salvo com sucesso."
         onPress={handleSuccessModalClose}
       />
+
       <DefaultTopographyModal
-        isOpen={isOpenConfirmModal}
-        title="Inserção de informações topográficas"
-        message="Deseja finalizar o cadastro das informações topográficas e registrar as informações cadastradas? Uma vez finalizado o cadastro, não será mais possível realizar edições nas informações. "
-        enableLongButton={true}
+        isOpen={isConfirmModalOpen}
+        title="Salvar Desenho Topográfico"
+        message="Escolha como deseja salvá-lo."
+        onClose={() => setIsConfirmModalOpen(false)}
         enableBackButton={true}
-        titleButtonConfirm="Sim, registrar informações"
-        titleButtonCancel="Salvar para edições futuras"
-        visibleIcon={false}
-        onConfirm={() => handleCreateTopography()}
-        onClose={() => handleCreateTopography()}
-        onBack={() => setIsOpenConfirmModal(!isOpenConfirmModal)}
+        onBack={() => setIsConfirmModalOpen(false)}
+        titleButtonCancel="Salvar como Rascunho"
+        onCancel={() => handleSave(true)}
+        enableLongButton={true}
+        titleButtonConfirm="Salvar e Finalizar"
+        onConfirm={() => handleSave(false)}
       />
     </SafeAreaView>
-  )
+  );
 };
 
 export default TopographyCreateScreen;
@@ -245,23 +278,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dark[90],
     flex: 1,
   },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 25,
-  },
   stepContainer: {
     flex: 1,
+  },
+  modalInputContainer: {
     width: "100%",
+    paddingHorizontal: 10,
     marginBottom: 20,
   },
-  buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    width: "100%",
-    marginTop: "auto",
+  modalInputLabel: {
+    color: colors.white[80],
+    marginBottom: 8,
+    fontSize: 14,
+  },
+  modalInput: {
+    backgroundColor: colors.dark[80],
+    color: colors.white[100],
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    height: 50,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: colors.dark[70],
   },
 });

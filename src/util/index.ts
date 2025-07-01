@@ -268,3 +268,35 @@ export function convertDdMmYyyyToYyyyMmDd(dateString: string): string {
 
   return `${year}-${month}-${day}`;
 }
+
+export const convertYyyyMmDdToDdMmYyyy = (dateString: string | null | undefined): string => {
+  if (!dateString) {
+    return '';
+  }
+
+  // Regex to check for YYYY-MM-DD format (basic validation)
+  const regex = /^(\d{4})-(\d{2})-(\d{2})$/;
+  const match = dateString.match(regex);
+
+  if (match) {
+    const year = match[1];
+    const month = match[2];
+    const day = match[3];
+    return `${day}/${month}/${year}`;
+  } else {
+    console.warn(`Invalid date format for conversion. Expected YYYY-MM-DD, got: ${dateString}`);
+    return ''; // Return an empty string or the original string, depending on desired error handling
+  }
+};
+
+export const formatToTwoDecimals = (value: number | string | null | undefined): string => {
+  if (value === null || typeof value === 'undefined' || value === '') {
+    return '';
+  }
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+
+  if (isNaN(num)) {
+    return '';
+  }
+  return num.toFixed(2);
+};

@@ -7,18 +7,20 @@ interface Props {
   onPress: () => void;
   disabled?: boolean;
   buttonTitle?: string;
+  customWidth?: number;
 }
 
 export const ReturnButton: React.FC<Props> = ({
   onPress,
   disabled,
   buttonTitle,
+  customWidth = 47,
 }) => {
   return (
     <TouchableOpacity
       style={{
         height: 58,
-        width: "47%",
+        width: `${customWidth}%`,
         backgroundColor: colors.dark[40],
         borderRadius: 10,
         justifyContent: "center",

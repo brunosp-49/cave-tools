@@ -65,9 +65,12 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
     if (!isFilled(name)) {
       errors.name = msgRequired;
     }
+    if (!isFilled(description)) {
+      errors.description = msgRequired;
+    }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
-  }, [name]);
+  }, [name, description]);
 
   const saveProject = async () => {
     setValidationAttempted(true);
@@ -271,6 +274,7 @@ const EditProject: FC<RouterProps> = ({ navigation, route }) => {
             />
             <Input
               placeholder="Descreva o projeto"
+              required
               label="Descrição"
               value={description}
               onChangeText={setDescription}

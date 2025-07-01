@@ -37,6 +37,7 @@ const isFilled = (value: any): boolean => {
 interface ProjectFormErrors {
   name?: string;
   responsible?: string;
+  description?: string;
 }
 
 const RegisterProject: FC<RouterProps> = ({ navigation }) => {
@@ -58,7 +59,7 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
       errors.name = msgRequired;
     }
     // Adicione validações para 'description' e 'date' se se tornarem obrigatórias
-    // if (!isFilled(description)) errors.description = msgRequired;
+    if (!isFilled(description)) errors.description = msgRequired;
     // if (!isFilled(date)) errors.date = msgRequired;
 
     setFormErrors(errors);
@@ -85,6 +86,7 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
 
     try {
       const user = await fetchAllUsers();
+      let id = uuid.v4().toString()
       if (user.length === 0) {
         dispatch(
           showError({
@@ -96,10 +98,12 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
         return;
       }
       await createProject({
-        id: uuid.v4().toString(),
+        id,
+        projeto_id: id,
+        register_id: id,
         descricao_projeto: description,
         nome_projeto: name,
-        status: "ativo",
+        status: "Ativo",
         inicio: date
         ? (() => {
             try {
@@ -199,6 +203,7 @@ const RegisterProject: FC<RouterProps> = ({ navigation }) => {
               />
               <Input
                 placeholder="Descreva o projeto"
+                required
                 label="Descrição"
                 value={description}
                 onChangeText={setDescription}
