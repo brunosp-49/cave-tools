@@ -27,7 +27,7 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>com.anonymous.cavetools</string>
+          <string>com.cavetools</string>
         </array>
       </dict>
     </array>

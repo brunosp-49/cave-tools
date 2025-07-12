@@ -1,5 +1,4 @@
 import { Platform } from "react-native";
-import { getDefaultStore } from 'jotai';
 import { PERMISSIONS, check, RESULTS, request } from "react-native-permissions";
 import { api } from "../api";
 
@@ -32,7 +31,9 @@ export const checkIfIsBlank = (value: string) => {
   return value.trim() === "";
 };
 
-export const formatDate = (dateInput: string | Date | null | undefined): string => {
+export const formatDate = (
+  dateInput: string | Date | null | undefined
+): string => {
   // Step 1: Handle null, undefined, or if the input is already a valid Date object
   if (!dateInput) {
     return "Data não fornecida";
@@ -55,7 +56,7 @@ export const formatDate = (dateInput: string | Date | null | undefined): string 
     let day: number, month: number, year: number;
 
     // Step 2: Detect the format and parse the components
-    if (dateString.includes('-')) {
+    if (dateString.includes("-")) {
       // Assumes "YYYY-MM-DD" or a full ISO string like "YYYY-MM-DDTHH:mm:ss..."
       const datePart = dateString.split("T")[0]; // Isolate the date part from a full ISO string
       const parts = datePart.split("-");
@@ -67,8 +68,7 @@ export const formatDate = (dateInput: string | Date | null | undefined): string 
       year = parseInt(parts[0], 10);
       month = parseInt(parts[1], 10); // Month is 1-indexed
       day = parseInt(parts[2], 10);
-
-    } else if (dateString.includes('/')) {
+    } else if (dateString.includes("/")) {
       // Assumes "DD/MM/YYYY" format
       const parts = dateString.split("/");
       if (parts.length !== 3) {
@@ -78,7 +78,6 @@ export const formatDate = (dateInput: string | Date | null | undefined): string 
       day = parseInt(parts[0], 10);
       month = parseInt(parts[1], 10); // Month is 1-indexed
       year = parseInt(parts[2], 10);
-
     } else {
       // Fallback for other formats that new Date() might understand (e.g., timestamps)
       const parsedDate = new Date(dateString);
@@ -118,9 +117,10 @@ export const formatDate = (dateInput: string | Date | null | undefined): string 
       month: "long",
       year: "numeric",
     });
-
   } catch (e: any) {
-    console.error(`Error formatting date input: "${dateInput}". Error: ${e.message}`);
+    console.error(
+      `Error formatting date input: "${dateInput}". Error: ${e.message}`
+    );
     return "Data inválida"; // Return a generic error for any failure
   }
 };
@@ -134,11 +134,11 @@ export const requestPermissions = async () => {
       check(PERMISSIONS.IOS.CAMERA)
         .then((result) => {
           if (result !== RESULTS.GRANTED) {
-              request(PERMISSIONS.IOS.CAMERA)
-                .then((result) => {
-                  cameraGranted = true;
-                })
-                .catch((err) => {});
+            request(PERMISSIONS.IOS.CAMERA)
+              .then((result) => {
+                cameraGranted = true;
+              })
+              .catch((err) => {});
           }
         })
         .catch((err) => {});
@@ -146,11 +146,11 @@ export const requestPermissions = async () => {
       check(PERMISSIONS.IOS.LOCATION_WHEN_IN_USE)
         .then((result) => {
           if (result !== RESULTS.GRANTED) {
-              request(PERMISSIONS.IOS.LOCATION_WHEN_IN_USE)
-                .then((result) => {
-                  locationGranted = true;
-                })
-                .catch((err) => {});
+            request(PERMISSIONS.IOS.LOCATION_WHEN_IN_USE)
+              .then((result) => {
+                locationGranted = true;
+              })
+              .catch((err) => {});
           }
         })
         .catch((err) => {});
@@ -158,17 +158,17 @@ export const requestPermissions = async () => {
       check(PERMISSIONS.ANDROID.CAMERA)
         .then((result) => {
           if (result !== RESULTS.GRANTED) {
-              request(PERMISSIONS.ANDROID.CAMERA)
-                .then((result) => {
-                  cameraGranted = true;
-                })
-                .catch((err) => {
-                  console.log({ err });
-                });
+            request(PERMISSIONS.ANDROID.CAMERA)
+              .then((result) => {
+                cameraGranted = true;
+              })
+              .catch((err) => {
+                console.log({ err });
+              });
           }
         })
         .catch((err) => {
-            console.log({ err });
+          console.log({ err });
         });
 
       check(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION)
@@ -176,6 +176,12 @@ export const requestPermissions = async () => {
           if (result !== RESULTS.GRANTED) {
             if (!locationGranted) {
               request(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION)
+                .then((result) => {})
+                .catch((err) => {});
+              request(PERMISSIONS.ANDROID.ACCESS_BACKGROUND_LOCATION)
+                .then((result) => {})
+                .catch((err) => {});
+              request(PERMISSIONS.ANDROID.ACCESS_COARSE_LOCATION)
                 .then((result) => {
                   locationGranted = true;
                 })
@@ -208,7 +214,10 @@ export const refreshUserToken = async (refresh_token: string) => {
   }
 };
 
-export const isTokenAlmostExpired = (lastLogin: string, daysLimit = 30): boolean => {
+export const isTokenAlmostExpired = (
+  lastLogin: string,
+  daysLimit = 30
+): boolean => {
   const lastLoginDate = new Date(lastLogin);
   const now = new Date();
   const diffInMs = now.getTime() - lastLoginDate.getTime();
@@ -217,8 +226,10 @@ export const isTokenAlmostExpired = (lastLogin: string, daysLimit = 30): boolean
   return diffInDays >= daysLimit / 2 && diffInDays < daysLimit;
 };
 
-
-export const getDaysUntilExpiration = (lastLogin: string, daysLimit = 30): number => {
+export const getDaysUntilExpiration = (
+  lastLogin: string,
+  daysLimit = 30
+): number => {
   const lastLoginDate = new Date(lastLogin);
   const expirationDate = new Date(lastLoginDate);
   expirationDate.setDate(expirationDate.getDate() + daysLimit);
@@ -237,19 +248,19 @@ export function formatDateToInput(dateString: string) {
     return "Invalid Date";
   }
 
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0"); // Months are 0-indexed
   const year = date.getFullYear();
 
   return `${day}/${month}/${year}`;
 }
 
 export const requestLocationPermissions = async () => {
-  if (Platform.OS === 'ios') {
+  if (Platform.OS === "ios") {
     const result = await request(PERMISSIONS.IOS.LOCATION_WHEN_IN_USE);
   }
 
-  if (Platform.OS === 'android') {
+  if (Platform.OS === "android") {
     const result = await request(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
   }
 };
@@ -269,9 +280,11 @@ export function convertDdMmYyyyToYyyyMmDd(dateString: string): string {
   return `${year}-${month}-${day}`;
 }
 
-export const convertYyyyMmDdToDdMmYyyy = (dateString: string | null | undefined): string => {
+export const convertYyyyMmDdToDdMmYyyy = (
+  dateString: string | null | undefined
+): string => {
   if (!dateString) {
-    return '';
+    return "";
   }
 
   // Regex to check for YYYY-MM-DD format (basic validation)
@@ -284,19 +297,43 @@ export const convertYyyyMmDdToDdMmYyyy = (dateString: string | null | undefined)
     const day = match[3];
     return `${day}/${month}/${year}`;
   } else {
-    console.warn(`Invalid date format for conversion. Expected YYYY-MM-DD, got: ${dateString}`);
-    return ''; // Return an empty string or the original string, depending on desired error handling
+    console.warn(
+      `Invalid date format for conversion. Expected YYYY-MM-DD, got: ${dateString}`
+    );
+    return ""; // Return an empty string or the original string, depending on desired error handling
   }
 };
 
-export const formatToTwoDecimals = (value: number | string | null | undefined): string => {
-  if (value === null || typeof value === 'undefined' || value === '') {
-    return '';
+export const formatToTwoDecimals = (
+  value: number | string | null | undefined
+): string => {
+  if (value === null || typeof value === "undefined" || value === "") {
+    return "";
   }
-  const num = typeof value === 'string' ? parseFloat(value) : value;
+  const num = typeof value === "string" ? parseFloat(value) : value;
 
   if (isNaN(num)) {
-    return '';
+    return "";
   }
   return num.toFixed(2);
+};
+
+export const parseJsonField = (
+  jsonString: string | null | undefined,
+  fieldName: string,
+  defaultVal: any = {}
+) => {
+  if (typeof jsonString === "string") {
+    try {
+      if (jsonString === "{}" || jsonString === "[]" || jsonString === "") {
+        // Retorna o valor padrão se a string for um objeto/array vazio ou string vazia
+        return defaultVal;
+      }
+      return JSON.parse(jsonString);
+    } catch (e) {
+      console.warn(`Error parsing ${fieldName}:`, e);
+      return defaultVal;
+    }
+  }
+  return defaultVal;
 };

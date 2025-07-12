@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../../../redux/store";
-import { removePointAndLines, addTopoLine } from "../../../redux/drawingSlice";
+import { removePointAndLines, addTopoLine, updateTopoLine } from "../../../redux/drawingSlice";
 import { LongButton } from "../../../components/longButton";
 import TextInter from "../../../components/textInter";
 import { colors } from "../../../assets/colors";
@@ -27,6 +27,7 @@ import { NextButton } from "../../../components/button/nextButton";
 import { ReturnButton } from "../../../components/button/returnButton";
 import { Header } from "../../../components/header";
 import { Divider } from "../../../components/divider";
+import TopoInfoModal from "../../../components/topography/components/topoInfoModal";
 
 const calculateNewPoint = (
   startPoint: PointData,
@@ -52,11 +53,7 @@ const calculateNewPoint = (
 
 const StepThree: FC<StepProps> = ({ onNext, onBack }) => {
   const dispatch = useDispatch();
-  const { points, dataLines } = useSelector(
-    (state: RootState) => state.drawing
-  );
-
-  const [isModalVisible, setModalVisible] = useState(false);
+  const { points } = useSelector((state: RootState) => state.drawing);
   const [nextPointId, setNextPointId] = useState(points.length);
   const [formData, setFormData] = useState<TopoLineFormData>({
     refDe: points.length > 0 ? points[points.length - 1].id : "0",
@@ -69,6 +66,9 @@ const StepThree: FC<StepProps> = ({ onNext, onBack }) => {
     paraDireita: "",
     paraEsquerda: "",
   });
+  const [isAddPointModalVisible, setAddPointModalVisible] = useState(false);
+  const [isListModalOpen, setIsListModalOpen] = useState(false);
+  const [editingPoint, setEditingPoint] = useState<TopoDataLine | null>(null);
 
   const handleFormChange = (field: keyof TopoLineFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -121,7 +121,48 @@ const StepThree: FC<StepProps> = ({ onNext, onBack }) => {
       paraDireita: "",
       paraEsquerda: "",
     });
+    setAddPointModalVisible(false);
   }, [formData, points, nextPointId, dispatch]);
+
+  const handleOpenEditModal = (line: TopoDataLine) => {
+    setIsListModalOpen(false); // Fecha o modal da lista
+    setEditingPoint(line); // Guarda o ponto que está a ser editado
+    setFormData(line.sourceData); // Preenche o formulário com os dados existentes
+    setAddPointModalVisible(true); // Abre o modal do formulário
+  };
+
+  const handleOpenAddModal = () => {
+    setEditingPoint(null); // Garante que não estamos em modo de edição
+    // Reseta o formulário para um novo ponto
+    setFormData({
+      refDe: points.length > 0 ? points[points.length - 1].id : "0",
+      refPara: "", distancia: "", azimute: "", inclinacao: "",
+      paraCima: "", paraBaixo: "", paraDireita: "", paraEsquerda: "",
+    });
+    setAddPointModalVisible(true);
+  };
+
+  const handleSavePoint = () => {
+    // Se estivermos a editar, chama a lógica de update
+    if (editingPoint) {
+      const startPoint = points.find((p) => p.id === formData.refDe);
+      if (!startPoint) { /* ... alerta de erro ... */ return; }
+      
+      const { x: endX, y: endY } = calculateNewPoint(startPoint, formData);
+      const updatedLine: TopoDataLine = {
+        points: [`M${startPoint.x},${startPoint.y}`, `L${endX},${endY}`],
+        color: "#1589e5", type: "data_line",
+        sourceData: formData,
+      };
+      
+      dispatch(updateTopoLine({ originalToId: editingPoint.sourceData.refPara, newLine: updatedLine }));
+    } 
+    // Senão, chama a lógica de adicionar
+    else {
+      handleAddPoint(); // A sua função de adicionar ponto existente
+    }
+    setAddPointModalVisible(false); // Fecha o modal após salvar
+  };
 
   const handleRemoveLine = useCallback(
     (line: TopoDataLine) => {
@@ -146,12 +187,31 @@ const StepThree: FC<StepProps> = ({ onNext, onBack }) => {
   return (
     <View style={styles.main}>
       <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
-        <Header title="Desenho da Topografia" onCustomReturn={onBack} />
+        <Header
+          title="Desenho da Topografia"
+          onCustomReturn={() => {
+            Alert.alert(
+              "Deseja voltar?",
+              "Todas as alterações não salvas serão perdidas.",
+              [
+                {
+                  text: "Cancelar",
+                  style: "cancel",
+                },
+                {
+                  text: "Voltar",
+                  style: "destructive",
+                  onPress: onBack,
+                },
+              ]
+            );
+          }}
+        />
       </View>
       <TopographyCanvas />
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => setModalVisible(true)}
+        onPress={handleOpenAddModal}
       >
         <PlusIcon />
       </TouchableOpacity>
@@ -159,8 +219,8 @@ const StepThree: FC<StepProps> = ({ onNext, onBack }) => {
       <Modal
         animationType="slide"
         transparent={true}
-        visible={isModalVisible}
-        onRequestClose={() => setModalVisible(false)}
+        visible={isAddPointModalVisible}
+        onRequestClose={() => setAddPointModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -184,6 +244,7 @@ const StepThree: FC<StepProps> = ({ onNext, onBack }) => {
                 <TextInput
                   style={styles.textInput}
                   value={formData.refDe}
+                  keyboardType="numeric"
                   placeholder="Ex: 0, 1, 2"
                   onChangeText={(text) => handleFormChange("refDe", text)}
                   placeholderTextColor={colors.dark[60]}
@@ -195,6 +256,7 @@ const StepThree: FC<StepProps> = ({ onNext, onBack }) => {
                   style={styles.textInput}
                   placeholder="Ex: 1, 2, 3 (opcional)"
                   value={formData.refPara}
+                  keyboardType="numeric"
                   onChangeText={(text) => handleFormChange("refPara", text)}
                   placeholderTextColor={colors.dark[60]}
                 />
@@ -279,67 +341,32 @@ const StepThree: FC<StepProps> = ({ onNext, onBack }) => {
                 />
                 <Divider height={15} />
                 <LongButton
-                  title="Adicionar Ponto"
+                  title={editingPoint ? "Atualizar Ponto" : "Adicionar Ponto"}
                   leftIcon={<PlusIcon />}
-                  onPress={handleAddPoint}
+                  onPress={handleSavePoint}
                 />
-              </View>
-
-              <View>
-                <TextInter
-                  fontSize={18}
-                  weight="medium"
-                  color={colors.white[100]}
-                  style={styles.sectionTitle}
-                >
-                  Pontos Criados ({dataLines.length})
-                </TextInter>
-                {dataLines.length > 0 ? (
-                  dataLines.map((item) => (
-                    <View
-                      key={`line-to-${item.sourceData.refPara}`}
-                      style={styles.itemContainer}
-                    >
-                      <View style={styles.itemTextContainer}>
-                        <TextInter
-                          weight="bold"
-                          color={colors.white[100]}
-                        >{`De: ${item.sourceData.refDe} → Para: ${item.sourceData.refPara}`}</TextInter>
-                        <TextInter
-                          fontSize={12}
-                          color={colors.white[80]}
-                        >{`Dist: ${item.sourceData.distancia}m / Az: ${item.sourceData.azimute}° / Incl: ${item.sourceData.inclinacao}°`}</TextInter>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => handleRemoveLine(item)}
-                        style={styles.deleteButton}
-                      >
-                        <Ionicons
-                          name="trash-sharp"
-                          size={20}
-                          color={colors.error[100]}
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  ))
-                ) : (
-                  <TextInter style={styles.emptyListText}>
-                    Nenhum ponto criado ainda.
-                  </TextInter>
-                )}
               </View>
             </ScrollView>
             <TouchableOpacity
               style={styles.closeButton}
-              onPress={() => setModalVisible(false)}
+              onPress={() => setAddPointModalVisible(false)}
             >
               <Ionicons name="close" size={30} color={colors.white[100]} />
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
+      <TopoInfoModal
+        visible={isListModalOpen}
+        onClose={() => setIsListModalOpen(false)}
+        onEditPoint={handleOpenEditModal}
+        onDeletePoint={handleRemoveLine}
+      />
       <View style={styles.buttonContainer}>
-        <ReturnButton onPress={onBack} />
+        <ReturnButton
+          onPress={() => setIsListModalOpen(true)}
+          buttonTitle="Ver Pontos"
+        />
         <NextButton onPress={onNext} buttonTitle="Finalizar" />
       </View>
     </View>

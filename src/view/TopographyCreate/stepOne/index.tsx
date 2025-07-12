@@ -55,7 +55,7 @@ const StepOne: FC<StepProps> = ({ navigation, onNext, onBack }) => {
   const dispatch = useDispatch();
   const projectFilter = useSelector(
     (state: RootState) => state.topography.projectFilter
-  ) as ProjectFilter;
+  );
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [projectOptions, setProjectOptions] = useState<SelectOption[]>([]);
 
@@ -74,7 +74,9 @@ const StepOne: FC<StepProps> = ({ navigation, onNext, onBack }) => {
         const projects: ProjectModel[] = await fetchAllProjects();
         if (isMounted) {
           const options = projects.map((project) => ({
-            id: String(project._id),
+            // --- CORREÇÃO AQUI ---
+            // Usamos o 'projeto_id' que é a referência correta, em vez do '_id' interno.
+            id: project.projeto_id,
             value: project.nome_projeto,
           }));
           setProjectOptions(options);

@@ -5,8 +5,8 @@ import {
   ScrollView,
   StyleSheet,
   View,
-  KeyboardType,
   KeyboardAvoidingView,
+  Platform, // Importar Platform para KeyboardAvoidingView
 } from "react-native";
 import { Header } from "../../components/header";
 import { Input } from "../../components/input";
@@ -59,33 +59,44 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
 
+  const resetState = () => {
+    setName({ value: "", error: false, errorMessage: "" });
+    setEmail({ value: "", error: false, errorMessage: "" });
+    setFormation({ value: "", error: false, errorMessage: "" });
+    setInstitutionalLinkName({ value: "", error: false, errorMessage: "" });
+    setInstitutionalLinkCNPJ({ value: "", error: false, errorMessage: "" });
+    setPassword({ value: "", error: false, errorMessage: "" });
+    setConfirmPassword({ value: "", error: false, errorMessage: "" });
+    setButtonDisabled(true);
+  };
+
   const checkPassword = (value: string) => {
     const passwordFilled = !checkIfIsBlank(value);
     const passwordValid = validatePassword(value);
 
-    setPassword({
-      ...password,
+    setPassword((prevState) => ({
+      ...prevState,
       value: value,
       error: !passwordValid,
       errorMessage: passwordFilled
         ? value.length < 8
-          ? "Senha deve ter no mínimo 8 caracteres"
+          ? "Senha deve ter no mínimo 8 caracteres."
           : ""
-        : "Campo obrigatório",
-    });
+        : "Campo obrigatório.",
+    }));
 
     return passwordValid;
   };
 
   const comparePassword = (password: string, confirmation: string) => {
-    const test = password === confirmation;
-    setConfirmPassword({
-      ...confirmPassword,
+    const passwordsMatch = password === confirmation;
+    setConfirmPassword((prevState) => ({
+      ...prevState,
       value: confirmation,
-      error: !test,
-      errorMessage: !test ? "Senhas não coincidem" : "",
-    });
-    return password === confirmation;
+      error: !passwordsMatch,
+      errorMessage: !passwordsMatch ? "Senhas não coincidem." : "",
+    }));
+    return passwordsMatch;
   };
 
   const updateInstitutionalLinkFields = (
@@ -94,22 +105,42 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
   ): void => {
     const nameFilled = !checkIfIsBlank(nameValue);
     const cnpjFilled = !checkIfIsBlank(cnpjValue);
+    const cleanedCnpjValue = cnpjValue.replace(/[^0-9]/g, "");
+    const cnpjValidLength = cleanedCnpjValue.length === 14;
 
-    setInstitutionalLinkName({
-      ...institutionalLinkName,
+    let newNameError = false;
+    let newNameErrorMessage = "";
+    let newCnpjError = false;
+    let newCnpjErrorMessage = "";
+
+    if (nameFilled && !cnpjFilled) {
+      newCnpjError = true;
+      newCnpjErrorMessage =
+        "CNPJ obrigatório quando o nome institucional é preenchido.";
+    } else if (!nameFilled && cnpjFilled) {
+      newNameError = true;
+      newNameErrorMessage =
+        "Nome institucional obrigatório quando o CNPJ é preenchido.";
+    } else if (nameFilled && cnpjFilled) {
+      if (!cnpjValidLength) {
+        newCnpjError = true;
+        newCnpjErrorMessage = "CNPJ inválido (deve ter 14 dígitos).";
+      }
+    }
+
+    setInstitutionalLinkName((prevState) => ({
+      ...prevState,
       value: nameValue,
-      error: !nameFilled && cnpjFilled ? true : false,
-      errorMessage: nameFilled ? "" : "Campo obrigatório",
-    });
-    setInstitutionalLinkCNPJ({
-      ...institutionalLinkCNPJ,
+      error: newNameError,
+      errorMessage: newNameErrorMessage,
+    }));
+
+    setInstitutionalLinkCNPJ((prevState) => ({
+      ...prevState,
       value: cnpjValue,
-      error: (!cnpjFilled && nameFilled) || cnpjValue.length < 14,
-      errorMessage:
-        cnpjFilled || !nameFilled
-          ? ""
-          : "Quando o Nome institucional é preenchido, campo é obrigatório",
-    });
+      error: newCnpjError,
+      errorMessage: newCnpjErrorMessage,
+    }));
   };
 
   const createAccount = async () => {
@@ -119,7 +150,7 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
         nome: name.value,
         email: email.value,
         formacao: formation.value,
-        vinculo_cnpj: institutionalLinkCNPJ.value,
+        vinculo_cnpj: institutionalLinkCNPJ.value.replace(/[^0-9]/g, ""),
         vinculo_nome: institutionalLinkName.value,
         senha: password.value,
         senha2: confirmPassword.value,
@@ -133,7 +164,9 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
         dispatch(
           showError({
             title: "Erro ao criar conta",
-            message: "Verifique os dados e tente novamente.",
+            message:
+              error.response?.data?.message ||
+              "Verifique os dados e tente novamente.",
           })
         );
         setLoading(false);
@@ -146,7 +179,12 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
         setName((prevState) => ({ ...prevState, value }));
         break;
       case "email":
-        setEmail((prevState) => ({ ...prevState, value }));
+        setEmail((prevState) => ({
+          ...prevState,
+          value: value,
+          error: !validateEmail(value),
+          errorMessage: validateEmail(value) ? "" : "Email inválido.",
+        }));
         break;
       case "formation":
         setFormation((prevState) => ({ ...prevState, value }));
@@ -160,11 +198,9 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
         updateInstitutionalLinkFields(institutionalLinkName.value, value);
         break;
       case "password":
-        setPassword((prevState) => ({ ...prevState, value }));
         checkPassword(value);
         break;
       case "confirmPassword":
-        setConfirmPassword((prevState) => ({ ...prevState, value }));
         comparePassword(password.value, value);
         break;
       default:
@@ -173,33 +209,23 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
   };
 
   const checkIfFormIsValid = () => {
-    if (
-      name.error ||
-      email.error ||
-      formation.error ||
-      institutionalLinkName.error ||
-      institutionalLinkCNPJ.error ||
-      password.error ||
-      confirmPassword.error
-    ) {
-      setButtonDisabled(true);
-    }
-    if (
+    const noErrors =
       !name.error &&
       !email.error &&
       !formation.error &&
       !institutionalLinkName.error &&
       !institutionalLinkCNPJ.error &&
       !password.error &&
-      !confirmPassword.error &&
-      name.value &&
-      email.value &&
-      formation.value &&
-      password.value &&
-      confirmPassword.value
-    ) {
-      setButtonDisabled(false);
-    }
+      !confirmPassword.error;
+
+    const allRequiredFieldsFilled =
+      !checkIfIsBlank(name.value) &&
+      !checkIfIsBlank(email.value) &&
+      !checkIfIsBlank(formation.value) &&
+      !checkIfIsBlank(password.value) &&
+      !checkIfIsBlank(confirmPassword.value);
+
+    setButtonDisabled(!(noErrors && allRequiredFieldsFilled));
   };
 
   useEffect(() => {
@@ -216,152 +242,185 @@ export const Register: FC<RouterProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.main}>
-      <KeyboardAvoidingView behavior="padding">
-      <ScrollView>
-        <View style={styles.container}>
-          <Header
-            title="Criar conta"
-            disableRightMenu
-            onCustomReturn={() => navigation.navigate('Login')}
-            navigation={navigation}
-          />
-          <View style={styles.body}>
-            <Input
-              disabled={loading}
-              placeholder="Digite seu nome"
-              label="Nome"
-              required
-              value={name.value}
-              hasError={name.error}
-              errorMessage={name.errorMessage}
-              onChangeText={(text) => handleInputChange("name", text)}
-              onBlur={() => {
-                if (checkIfIsBlank(name.value)) {
-                  setName({
-                    ...name,
-                    error: true,
-                    errorMessage: "Campo obrigatório",
-                  });
-                } else {
-                  setName({
-                    ...name,
-                    error: false,
-                    errorMessage: "",
-                  });
-                }
+      <KeyboardAvoidingView
+        style={styles.main}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.container}>
+            <Header
+              title="Criar conta"
+              disableRightMenu
+              onCustomReturn={() => {
+                resetState();
+                navigation.navigate("Login");
               }}
+              navigation={navigation}
             />
-            <Input
-              disabled={loading}
-              placeholder="Digite seu email"
-              label="Email"
-              required
-              value={email.value}
-              hasError={email.error}
-              errorMessage={email.errorMessage}
-              onChangeText={(text) => {
-                handleInputChange("email", text);
-                if (!validateEmail(text)) {
-                  setEmail({
-                    ...email,
-                    value: text,
-                    error: true,
-                    errorMessage: "Email inválido",
-                  });
-                } else {
-                  setEmail({
-                    ...email,
-                    value: text,
-                    error: false,
-                    errorMessage: "",
-                  });
+            <View style={styles.body}>
+              <Input
+                disabled={loading}
+                placeholder="Digite seu nome"
+                label="Nome"
+                required
+                value={name.value}
+                hasError={name.error}
+                errorMessage={name.errorMessage}
+                onChangeText={(text) => handleInputChange("name", text)}
+                onBlur={() => {
+                  if (checkIfIsBlank(name.value)) {
+                    setName((prevState) => ({
+                      ...prevState,
+                      error: true,
+                      errorMessage: "Campo obrigatório.",
+                    }));
+                  } else {
+                    setName((prevState) => ({
+                      ...prevState,
+                      error: false,
+                      errorMessage: "",
+                    }));
+                  }
+                }}
+              />
+              <Input
+                disabled={loading}
+                placeholder="Digite seu email"
+                label="Email"
+                autoCapitalize={true}
+                required
+                value={email.value}
+                hasError={email.error}
+                errorMessage={email.errorMessage}
+                onChangeText={(text) => handleInputChange("email", text)}
+                onBlur={() => {
+                  if (checkIfIsBlank(email.value)) {
+                    setEmail((prevState) => ({
+                      ...prevState,
+                      error: true,
+                      errorMessage: "Campo obrigatório.",
+                    }));
+                  }
+                }}
+              />
+              <Input
+                disabled={loading}
+                placeholder="Digite sua formação"
+                label="Formação"
+                required
+                value={formation.value}
+                hasError={formation.error}
+                errorMessage={formation.errorMessage}
+                onChangeText={(text) => handleInputChange("formation", text)}
+                onBlur={() => {
+                  if (checkIfIsBlank(formation.value)) {
+                    setFormation((prevState) => ({
+                      ...prevState,
+                      error: true,
+                      errorMessage: "Campo obrigatório.",
+                    }));
+                  } else {
+                    setFormation((prevState) => ({
+                      ...prevState,
+                      error: false,
+                      errorMessage: "",
+                    }));
+                  }
+                }}
+              />
+              <Input
+                disabled={loading}
+                placeholder="Digite o nome do vínculo institucional"
+                label="Vínculo Institucional (Nome)"
+                value={institutionalLinkName.value}
+                hasError={institutionalLinkName.error}
+                errorMessage={institutionalLinkName.errorMessage}
+                onChangeText={(
+                  text // Usar onChangeText diretamente para input sem máscara
+                ) => handleInputChange("institutionalLinkName", text)}
+                onBlur={() => {
+                  updateInstitutionalLinkFields(
+                    institutionalLinkName.value,
+                    institutionalLinkCNPJ.value
+                  );
+                }}
+              />
+              <Input
+                disabled={loading}
+                placeholder="Digite o CNPJ do vínculo institucional"
+                label="Vínculo Institucional (CNPJ)"
+                value={institutionalLinkCNPJ.value}
+                hasError={institutionalLinkCNPJ.error}
+                errorMessage={institutionalLinkCNPJ.errorMessage}
+                onChangeTextMask={(empty, text) =>
+                  handleInputChange("institutionalLinkCNPJ", text || "")
                 }
-              }}
-            />
-            <Input
-              disabled={loading}
-              placeholder="Digite sua formação"
-              label="Formação"
-              required
-              value={formation.value}
-              hasError={formation.error}
-              errorMessage={formation.errorMessage}
-              onChangeText={(text) => handleInputChange("formation", text)}
-              onBlur={() => {
-                if (checkIfIsBlank(formation.value)) {
-                  setFormation({
-                    ...formation,
-                    error: true,
-                    errorMessage: "Campo obrigatório",
-                  });
-                } else {
-                  setFormation({
-                    ...formation,
-                    error: false,
-                    errorMessage: "",
-                  });
+                keyboardType="numeric"
+                mask="99.999.999/9999-99"
+                onBlur={() => {
+                  updateInstitutionalLinkFields(
+                    institutionalLinkName.value,
+                    institutionalLinkCNPJ.value
+                  );
+                }}
+              />
+              <Input
+                disabled={loading}
+                placeholder="Digite sua senha"
+                label="Senha"
+                required
+                autoCapitalize={true} // Mudado de false para 'none' para clareza
+                value={password.value}
+                hasError={password.error}
+                errorMessage={password.errorMessage}
+                onChangeText={(text) => handleInputChange("password", text)}
+                secureTextEntry
+                onBlur={() => {
+                  if (checkIfIsBlank(password.value)) {
+                    setPassword((prevState) => ({
+                      ...prevState,
+                      error: true,
+                      errorMessage: "Campo obrigatório.",
+                    }));
+                  }
+                  checkPassword(password.value); // Revalida no blur
+                }}
+              />
+              <Input
+                disabled={loading}
+                placeholder="Confirme sua senha"
+                label="Confirme a senha"
+                required
+                autoCapitalize={true} // Mudado de false para 'none' para clareza
+                value={confirmPassword.value}
+                hasError={confirmPassword.error}
+                errorMessage={confirmPassword.errorMessage}
+                onChangeText={(text) =>
+                  handleInputChange("confirmPassword", text)
                 }
-              }}
-            />
-            <Input
-              disabled={loading}
-              placeholder="Digite o nome do vínculo institucional"
-              label="Vínculo Institucional (Nome)"
-              value={institutionalLinkName.value}
-              hasError={institutionalLinkName.error}
-              errorMessage={institutionalLinkName.errorMessage}
-              onChangeTextMask={(empty, text) =>
-                handleInputChange("institutionalLinkName", text || "")
-              }
-            />
-            <Input
-              disabled={loading}
-              placeholder="Digite o CNPJ do vínculo institucional"
-              label="Vínculo Institucional (CNPJ)"
-              value={institutionalLinkCNPJ.value}
-              hasError={institutionalLinkCNPJ.error}
-              errorMessage={institutionalLinkCNPJ.errorMessage}
-              onChangeTextMask={(empty, text) =>
-                handleInputChange("institutionalLinkCNPJ", text || "")
-              }
-              keyboardType="numeric"
-              mask="99.999.999/9999-99"
-            />
-            <Input
-              disabled={loading}
-              placeholder="Digite sua senha"
-              label="Senha"
-              required
-              value={password.value}
-              hasError={password.error}
-              errorMessage={password.errorMessage}
-              onChangeText={(text) => handleInputChange("password", text)}
-              secureTextEntry
-            />
-            <Input
-              disabled={loading}
-              placeholder="Confirme sua senha"
-              label="Confirme a senha"
-              required
-              value={confirmPassword.value}
-              hasError={confirmPassword.error}
-              errorMessage={confirmPassword.errorMessage}
-              onChangeText={(text) =>
-                handleInputChange("confirmPassword", text)
-              }
-              secureTextEntry
-            />
-            <Divider />
-            <LongButton
-              title="Criar Conta"
-              onPress={() => createAccount()}
-              isLoading={loading}
-              disabled={buttonDisabled}
-            />
+                secureTextEntry
+                onBlur={() => {
+                  if (checkIfIsBlank(confirmPassword.value)) {
+                    setConfirmPassword((prevState) => ({
+                      ...prevState,
+                      error: true,
+                      errorMessage: "Campo obrigatório.",
+                    }));
+                  }
+                  comparePassword(password.value, confirmPassword.value); // Revalida no blur
+                }}
+              />
+              <Divider />
+              <LongButton
+                title="Criar Conta"
+                onPress={() => createAccount()}
+                isLoading={loading}
+                disabled={buttonDisabled}
+              />
+            </View>
+            <StatusBar style="light" />
           </View>
-          <StatusBar style="light" />
-        </View>
-      </ScrollView>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -372,29 +431,25 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dark[90],
     flex: 1,
   },
+  scrollContent: {
+    // Novo estilo para o conteúdo do ScrollView
+    flexGrow: 1,
+    justifyContent: "center", // Centraliza verticalmente se o conteúdo for pequeno
+    alignItems: "center", // Centraliza horizontalmente
+    paddingBottom: 30, // Espaçamento inferior para evitar que o teclado cubra o último campo
+  },
   container: {
     flex: 1,
+    width: "100%", // Ocupa toda a largura do scrollContent
     paddingHorizontal: 20,
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingBottom: 30,
+    justifyContent: "space-between", // Ajustado para distribuir o espaço
   },
   body: {
-    flex: 1,
+    flex: 1, // Permite que o body se expanda
     width: "100%",
-    justifyContent: "flex-start",
+    justifyContent: "flex-start", // Alinha o conteúdo ao topo do body
     alignItems: "center",
     paddingTop: 30,
-  },
-  footer: {
-    width: "100%",
-    height: 58,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  footerText: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
   },
 });

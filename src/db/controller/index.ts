@@ -23,6 +23,7 @@ import { convertDdMmYyyyToYyyyMmDd } from "../../util";
 import uuid from "react-native-uuid";
 import Topography from "../model/topography";
 import TopographyDrawing from "../model/topography";
+import { AxiosError } from "axios";
 
 export interface FailedCavity {
   registro_id: string; // The original UUID or current DB ID
@@ -440,6 +441,69 @@ export const createCavitiesFromServer = async (
   }
 };
 
+export const createTopographiesFromServer = async (
+  topographiesFromServer: any[]
+): Promise<void> => {
+  if (!topographiesFromServer || topographiesFromServer.length === 0) {
+    return;
+  }
+
+  try {
+    const drawingsCollection = database.get<TopographyDrawing>(
+      "topography_drawings"
+    );
+    await database.write(async () => {
+      for (const serverTopo of topographiesFromServer) {
+        const existingDrawings = await drawingsCollection
+          .query(
+            Q.or(
+              Q.where("topography_id", String(serverTopo.id)),
+              Q.where("topography_id", serverTopo.registro_id)
+            )
+          )
+          .fetch();
+
+        // --- MAPEAMENTO DE DOWNLOAD AQUI ---
+        const drawingData = {
+          points: serverTopo.points.map((serverPoint: any) => ({
+            id: serverPoint.identificador, // Renomeia identificador de volta para id
+            x: serverPoint.x,
+            y: serverPoint.y,
+            label: serverPoint.label,
+          })),
+          dataLines: serverTopo.data_lines,
+          paths: serverTopo.paths,
+          // Recrie aqui qualquer outra parte do estado do drawingSlice que venha do backend
+        };
+
+        if (existingDrawings.length > 0) {
+          const localDrawing = existingDrawings[0];
+          await localDrawing.update((d) => {
+            d.topographyId = String(serverTopo.id);
+            d.cavity_id = String(serverTopo.cavidade);
+            d.is_draft = false;
+            d.uploaded = true;
+            d.date = serverTopo.date || serverTopo.created_at;
+            d.drawing_data = JSON.stringify(drawingData);
+          });
+        } else {
+          await drawingsCollection.create((d) => {
+            d._raw.id = uuid.v4().toString();
+            d.topographyId = String(serverTopo.id);
+            d.cavity_id = String(serverTopo.cavidade);
+            d.is_draft = false;
+            d.uploaded = true;
+            d.date = serverTopo.date || serverTopo.created_at;
+            d.drawing_data = JSON.stringify(drawingData);
+          });
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Erro ao criar/atualizar topografias do servidor:", error);
+  }
+};
+
 // GET
 export const fetchAllCavities = async (): Promise<Cavidade[]> => {
   try {
@@ -525,7 +589,7 @@ export const fetchPendingTopographyDrawings = async (): Promise<
       "topography_drawings"
     );
     const pendingDrawings = await drawingsCollection
-      .query(Q.where("uploaded", false))
+      .query(Q.where("uploaded", false), Q.where("is_draft", false))
       .fetch();
     return pendingDrawings;
   } catch (error) {
@@ -789,6 +853,19 @@ export const fetchProjectsWithPendingCavities = async (
   }
 };
 
+export const fetchPendingTopographyCount = async (): Promise<number> => {
+  try {
+    const count = await database
+      .get<TopographyDrawing>("topography_drawings")
+      .query(Q.where("uploaded", false), Q.where("is_draft", false))
+      .fetchCount();
+    return count;
+  } catch (error) {
+    console.error("Erro ao contar topografias pendentes:", error);
+    return 0;
+  }
+};
+
 export const fetchTopographyDrawingById = async (
   drawingId: string
 ): Promise<TopographyDrawing | null> => {
@@ -822,7 +899,7 @@ export const fetchAllTopographyDrawingsWithCavity = async (): Promise<
             .get<CavityRegister>("cavity_register")
             .query(Q.where("cavidade_id", drawing.cavity_id));
           const cavities = await cavityQuery.fetch();
-
+          console.log({ cavities, drawing });
           if (cavities.length > 0) {
             const cavity = cavities[0]; // Pegamos o primeiro resultado
             cavityName =
@@ -1101,7 +1178,7 @@ export const syncConsolidatedUpload = async (
 
           if (localCavities.length > 0) {
             const localCavity = localCavities[0];
-            const oldCavityIdForLookup = localCavity.cavidade_id; // Guarda o ID antigo ANTES de atualizar
+            const oldCavityInternalId = localCavity.id; // Guarda o ID antigo ANTES de atualizar
 
             const backendSuccessCavity = responseData.cavities.find(
               (bc) => bc.registro_id === originalCavityInPayload.registro_id
@@ -1138,13 +1215,13 @@ export const syncConsolidatedUpload = async (
             }
 
             // 1. Atualiza a própria cavidade
-            await updateCavity(oldCavityIdForLookup, cavityUpdateData);
+            await updateCavity(localCavity.cavidade_id, cavityUpdateData);
 
             // --- LÓGICA DE ATUALIZAÇÃO DA TOPOGRAFIA ADICIONADA AQUI ---
             // 2. Se a cavidade foi atualizada com sucesso, atualiza o desenho de topografia correspondente
             if (backendSuccessCavity) {
               await updateTopographyCavityId(
-                oldCavityIdForLookup,
+                oldCavityInternalId,
                 String(backendSuccessCavity.id)
               );
             }
@@ -1208,16 +1285,12 @@ export const syncConsolidatedUpload = async (
 export const syncTopographyDrawings = async (
   onProgress?: (progress: number) => void
 ): Promise<{ success: boolean; error?: string }> => {
-  // 1. Busca os desenhos pendentes
   const pendingDrawings = await fetchPendingTopographyDrawings();
-
   if (pendingDrawings.length === 0) {
-    console.log("[Sync Topography] Nenhum desenho para enviar.");
     onProgress?.(100);
     return { success: true };
   }
 
-  // 2. Busca o token do usuário
   const users = await fetchAllUsers();
   if (!users.length) {
     return { success: false, error: "Usuário não autenticado." };
@@ -1228,39 +1301,48 @@ export const syncTopographyDrawings = async (
   const totalItems = pendingDrawings.length;
   let errors: string[] = [];
 
-  // 3. Itera sobre cada desenho e tenta fazer o upload
   for (let i = 0; i < totalItems; i++) {
     const drawing = pendingDrawings[i];
     try {
-      // Prepara o payload para enviar para a API
+      const drawingDataParsed = JSON.parse(drawing.drawing_data);
+
+      // --- MAPEAMENTO DE UPLOAD AQUI ---
       const payload = {
-        local_id: drawing.id, // ID interno do WatermelonDB
-        topography_id: drawing.topographyId, // ID que pode mudar após o sync
-        cavity_id: drawing.cavity_id,
-        is_draft: drawing.is_draft,
-        date: drawing.date,
-        drawing_data: JSON.parse(drawing.drawing_data), // Envia o JSON como objeto
+        cavidade: parseInt(drawing.cavity_id, 10),
+        registro_id: drawing.topographyId,
+        points: drawingDataParsed.points.map((point: any) => ({
+          identificador: point.id, // Renomeia id para identificador
+          x: point.x,
+          y: point.y,
+          label: point.label,
+        })),
+        data_lines: drawingDataParsed.dataLines.map((line: any) => ({
+          points: line.points,
+          color: line.color,
+          type: line.type,
+          source_data: line.sourceData,
+        })),
+        paths: drawingDataParsed.paths,
       };
+      console.log(payload);
+      const response = await api.post("/medicoes-topograficas/", payload, {
+        headers,
+      });
 
-      // --- SUBSTITUA O ENDPOINT AQUI ---
-      const YOUR_ENDPOINT = "/topography/app_upload/"; // <-- COLOQUE SEU ENDPOINT AQUI
-
-      const response = await api.post(YOUR_ENDPOINT, payload, { headers });
-
-      // 4. Se o upload for bem-sucedido, atualiza o registro local
       if (response.status >= 200 && response.status < 300) {
-        const backendResponse = response.data; // ex: { id: 'novo-id-do-servidor', ... }
-
+        const backendResponse = response.data;
         await updateTopography(drawing.id, {
           uploaded: true,
-          topography_id: backendResponse.id, // Atualiza com o ID retornado pelo servidor
+          topography_id: backendResponse.id,
         });
       } else {
-        throw new Error(`Status ${response.status}: ${response.data}`);
+        throw new Error(
+          `Status ${response.status}: ${JSON.stringify(response.data)}`
+        );
       }
     } catch (error: any) {
-      console.error(`Erro ao enviar o desenho ${drawing.id}:`, error);
-      errors.push(`Desenho para cavidade ${drawing.cavity_id} falhou.`);
+      console.log(error.response);
+      errors.push(`Desenho da cavidade ${drawing.cavity_id} falhou.`);
     }
     onProgress?.(Math.round(((i + 1) / totalItems) * 100));
   }
@@ -1446,28 +1528,125 @@ export const deleteTopography = async (registro_id: string): Promise<void> => {
 
 export const deleteAllTopographies = async (): Promise<void> => {
   try {
-    const allTopographies = await database.collections
-      .get<TopographyDrawing>("topography_drawings")
-      .query()
-      .fetch();
+    console.log("[CONTROLLER] Entrando em deleteAllTopographies...");
+    const collection = database.get<TopographyDrawing>("topography_drawings");
+    const allTopographies = await collection.query().fetch();
 
     if (allTopographies.length === 0) {
-      console.log("No topographies to delete.");
+      console.log("[CONTROLLER] Nenhuma topografia encontrada para apagar.");
       return;
     }
 
-    const deletions = allTopographies.map((topography) =>
-      topography.prepareDestroyPermanently()
+    console.log(
+      `[CONTROLLER] Encontradas ${allTopographies.length} topografias para apagar.`
     );
 
     await database.write(async () => {
+      const deletions = allTopographies.map((topography) =>
+        topography.prepareDestroyPermanently()
+      );
       await database.batch(...deletions);
     });
 
     console.log(
-      `All ${allTopographies.length} topography deleted successfully!`
+      `[CONTROLLER] SUCESSO: ${allTopographies.length} topografias foram apagadas.`
     );
   } catch (error) {
-    console.error("Error deleting all topography:", error);
+    console.error("[CONTROLLER] ERRO em deleteAllTopographies:", error);
+    // Lançamos o erro para que a função que chamou saiba que algo deu errado
+    throw error;
+  }
+};
+
+export const deletePendingProject = async (projectId: string): Promise<void> => {
+  try {
+    await database.write(async () => {
+      const project = await database.get<Project>('project').find(projectId);
+      
+      if (project.uploaded) {
+        throw new Error("Não é possível apagar um projeto que já foi sincronizado.");
+      }
+
+      // 1. Encontra todas as cavidades associadas ao projeto
+      const associatedCavities = await database.get<CavityRegister>('cavity_register')
+        .query(Q.where('projeto_id', project.projeto_id)).fetch();
+      
+      const cavityIds = associatedCavities.map(c => c.id);
+      
+      const allDeletions: any[] = [];
+
+      // 2. Encontra todas as topografias associadas a essas cavidades
+      if (cavityIds.length > 0) {
+        const associatedDrawings = await database.get<TopographyDrawing>('topography_drawings')
+          .query(Q.where('cavity_id', Q.oneOf(cavityIds))).fetch();
+        
+        associatedDrawings.forEach(drawing => {
+          allDeletions.push(drawing.prepareDestroyPermanently());
+        });
+      }
+
+      // 3. Prepara a exclusão das cavidades e do projeto
+      associatedCavities.forEach(cavity => {
+        allDeletions.push(cavity.prepareDestroyPermanently());
+      });
+      allDeletions.push(project.prepareDestroyPermanently());
+
+      // 4. Executa tudo em um lote
+      if (allDeletions.length > 0) {
+        await database.batch(...allDeletions);
+      }
+    });
+    console.log(`Projeto pendente ${projectId} e todos os seus dados foram apagados com sucesso!`);
+  } catch (error) {
+    console.error("Erro ao apagar projeto pendente:", error);
+    throw error; // Lança o erro para a UI poder tratá-lo
+  }
+};
+
+export const deletePendingCavity = async (cavityId: string): Promise<void> => {
+  try {
+    await database.write(async () => {
+      const cavity = await database.get<CavityRegister>('cavity_register').find(cavityId);
+      
+      if (cavity.uploaded) {
+        throw new Error("Não é possível apagar uma cavidade que já foi sincronizada.");
+      }
+
+      const allDeletions: any[] = [];
+      
+      // Encontra o desenho de topografia associado pelo ID interno da cavidade
+      const associatedDrawing = await database.get<TopographyDrawing>('topography_drawings')
+        .query(Q.where('cavity_id', cavity.id)).fetch();
+      
+      if (associatedDrawing.length > 0) {
+        allDeletions.push(associatedDrawing[0].prepareDestroyPermanently());
+      }
+      
+      allDeletions.push(cavity.prepareDestroyPermanently());
+      
+      await database.batch(...allDeletions);
+    });
+    console.log(`Cavidade pendente ${cavityId} e sua topografia foram apagadas com sucesso!`);
+  } catch (error) {
+    console.error("Erro ao apagar cavidade pendente:", error);
+    throw error;
+  }
+};
+
+export const deletePendingTopography = async (drawingId: string): Promise<void> => {
+  try {
+    await database.write(async () => {
+      const drawing = await database.get<TopographyDrawing>('topography_drawings').find(drawingId);
+      
+      if (drawing.uploaded) {
+        throw new Error("Não é possível apagar uma topografia que já foi sincronizada.");
+      }
+
+      await drawing.destroyPermanently();
+    });
+    console.log(`Topografia pendente ${drawingId} apagada com sucesso!`);
+  } catch (error) {
+    console.error("Erro ao apagar topografia pendente:", error);
+    throw error;
   }
 };

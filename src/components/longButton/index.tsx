@@ -12,7 +12,7 @@ interface LongButtonProps {
   onPress: () => void;
   disabled?: boolean;
   isLoading?: boolean;
-  mode?: "cancel" | "confirm";
+  mode?: "cancel" | "confirm" | "delete";
   numberOfButtons?: 1 | 2;
   leftIcon?: React.ReactNode;
 }
@@ -32,7 +32,11 @@ export const LongButton: React.FC<LongButtonProps> = ({
         numberOfButtons === 1 ? styles.button : styles.multipleButtons,
         mode === "confirm"
           ? { backgroundColor: colors.accent[100] }
-          : { backgroundColor: colors.dark[50] },
+          : mode === "cancel"
+          ? { backgroundColor: colors.dark[50] }
+          : {
+              backgroundColor: colors.error[100],
+            },
         disabled && { backgroundColor: colors.accent[10] },
       ]}
       disabled={disabled || isLoading}

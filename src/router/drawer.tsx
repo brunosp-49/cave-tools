@@ -269,7 +269,7 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
               color={colors.white[100]}
             />
           )}
-          label="Topography"
+          label="Topografia"
           onPress={() => navigation.navigate("TopographyScreen")}
           style={{
             borderRadius: 10,

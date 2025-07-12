@@ -41,40 +41,43 @@ interface InputProps {
   mask?: string;
   disabled?: boolean;
   numberOfLines?: number;
-  autoCapitalize?: boolean; 
-  numericType?: 'integer' | 'decimal';
+  autoCapitalize?: boolean;
+  numericType?: "integer" | "decimal";
   decimalPlaces?: number;
-};
+}
 
 const cleanAndFormatNumericString = (
   textInput: string | undefined | null,
-  numericType?: 'integer' | 'decimal',
+  numericType?: "integer" | "decimal",
   decimalPlacesForTyping: number = 2
 ): string => {
-  const text = String(textInput || '');
+  const text = String(textInput || "");
 
-  if (numericType === 'integer') {
-    return text.replace(/[^0-9]/g, '');
-  } else if (numericType === 'decimal') {
-    let tempText = text.replace(',', '.');
+  if (numericType === "integer") {
+    return text.replace(/[^0-9]/g, "");
+  } else if (numericType === "decimal") {
+    let tempText = text.replace(",", ".");
     let cleanText = "";
     let hasDecimalPoint = false;
     for (const char of tempText) {
-      if (char >= '0' && char <= '9') {
+      if (char >= "0" && char <= "9") {
         cleanText += char;
-      } else if (char === '.' && !hasDecimalPoint) {
+      } else if (char === "." && !hasDecimalPoint) {
         cleanText += char;
         hasDecimalPoint = true;
       }
     }
     tempText = cleanText;
 
-    if (hasDecimalPoint && tempText.includes('.')) {
-      const parts = tempText.split('.');
+    if (hasDecimalPoint && tempText.includes(".")) {
+      const parts = tempText.split(".");
       const integerPartVal = parts[0];
       let fractionalPartVal = parts[1] || "";
       if (fractionalPartVal.length > decimalPlacesForTyping) {
-        fractionalPartVal = fractionalPartVal.substring(0, decimalPlacesForTyping);
+        fractionalPartVal = fractionalPartVal.substring(
+          0,
+          decimalPlacesForTyping
+        );
       }
       tempText = `${integerPartVal}.${fractionalPartVal}`;
     }
@@ -93,22 +96,21 @@ const finalizeDecimalFormat = (
   numStr: string | undefined | null,
   decimalPlacesToFix: number = 2
 ): string => {
-  const text = String(numStr || '');
+  const text = String(numStr || "");
   if (text.trim() === "") return ""; // Retorna vazio se a entrada for vazia
 
   // Tenta converter para número. A limpeza anterior deve ajudar.
   // parseFloat lida bem com "123", "123.", "0", ".5" (que cleanAndFormatNumericString não produz)
-  let initialCleaned = text.replace(',', '.'); // Garante ponto
+  let initialCleaned = text.replace(",", "."); // Garante ponto
   // Garante que não haja múltiplos pontos antes do parseFloat
-  const firstDot = initialCleaned.indexOf('.');
+  const firstDot = initialCleaned.indexOf(".");
   if (firstDot !== -1) {
-      const beforeDot = initialCleaned.substring(0, firstDot).replace(/\./g, '');
-      const afterDot = initialCleaned.substring(firstDot + 1).replace(/\./g, '');
-      initialCleaned = `${beforeDot}.${afterDot}`;
+    const beforeDot = initialCleaned.substring(0, firstDot).replace(/\./g, "");
+    const afterDot = initialCleaned.substring(firstDot + 1).replace(/\./g, "");
+    initialCleaned = `${beforeDot}.${afterDot}`;
   } else {
-      initialCleaned = initialCleaned.replace(/\./g, '');
+    initialCleaned = initialCleaned.replace(/\./g, "");
   }
-
 
   const num = parseFloat(initialCleaned);
 
@@ -118,9 +120,8 @@ const finalizeDecimalFormat = (
   // Se não for um número válido após a tentativa de limpeza, retorna a string limpa por cleanAndFormatNumericString
   // ou a string original se a limpeza não for suficiente.
   // Para o caso de "600" ou "0", parseFloat vai funcionar.
-  return cleanAndFormatNumericString(text, 'decimal', decimalPlacesToFix); // fallback para limpeza básica se toFixed falhar
+  return cleanAndFormatNumericString(text, "decimal", decimalPlacesToFix); // fallback para limpeza básica se toFixed falhar
 };
-
 
 export const Input: FC<InputProps> = ({
   label,
@@ -141,7 +142,7 @@ export const Input: FC<InputProps> = ({
   mask,
   disabled = false,
   numberOfLines = 1,
-  autoCapitalize, 
+  autoCapitalize,
   numericType,
   decimalPlaces = 2,
 }) => {
@@ -157,19 +158,32 @@ export const Input: FC<InputProps> = ({
   const [isPasswordVisible, setIsPasswordVisible] = useState(secureTextEntry);
 
   useEffect(() => {
-    if (numericType === 'decimal' && onChangeText && typeof value === 'string') {
-      const initialCleaned = cleanAndFormatNumericString(value, 'decimal', decimalPlaces);
-      const finalFormattedValue = finalizeDecimalFormat(initialCleaned, decimalPlaces);
-  
+    if (
+      numericType === "decimal" &&
+      onChangeText &&
+      typeof value === "string"
+    ) {
+      const initialCleaned = cleanAndFormatNumericString(
+        value,
+        "decimal",
+        decimalPlaces
+      );
+      const finalFormattedValue = finalizeDecimalFormat(
+        initialCleaned,
+        decimalPlaces
+      );
+
       // By removing the following 'if' block or just the onChangeText call,
       // this effect will no longer try to force a format change during typing.
-      /*
       if (finalFormattedValue !== value) {
         // onChangeText(finalFormattedValue); // <-- THIS LINE IS COMMENTED OUT/REMOVED
       }
-      */
-    } else if (numericType === 'integer' && onChangeText && typeof value === 'string') {
-      const finalFormattedValue = cleanAndFormatNumericString(value, 'integer');
+    } else if (
+      numericType === "integer" &&
+      onChangeText &&
+      typeof value === "string"
+    ) {
+      const finalFormattedValue = cleanAndFormatNumericString(value, "integer");
     }
   }, [value, numericType, decimalPlaces, onChangeText]);
 
@@ -178,19 +192,33 @@ export const Input: FC<InputProps> = ({
   const handleTextChange = (text: string) => {
     if (!onChangeText) return;
     // Durante a digitação, usa a limpeza mais flexível
-    const processedText = cleanAndFormatNumericString(text, numericType, decimalPlaces);
+    const processedText = cleanAndFormatNumericString(
+      text,
+      numericType,
+      decimalPlaces
+    );
     onChangeText(processedText);
   };
 
   // Handler para o onBlur interno
   const internalOnBlur = (e: NativeSyntheticEvent<TextInputFocusEventData>) => {
-    if (numericType === 'decimal' && onChangeText && typeof value === 'string' && value.trim() !== "") {
+    if (
+      numericType === "decimal" &&
+      onChangeText &&
+      typeof value === "string" &&
+      value.trim() !== ""
+    ) {
       // Ao perder o foco, aplica a formatação final com toFixed
       const finalFormattedValue = finalizeDecimalFormat(value, decimalPlaces);
-      if (finalFormattedValue !== value) { // Só atualiza se houver mudança
-          onChangeText(finalFormattedValue);
+      if (finalFormattedValue !== value) {
+        // Só atualiza se houver mudança
+        onChangeText(finalFormattedValue);
       }
-    } else if (numericType === 'decimal' && onChangeText && (value === undefined || value === null || value.trim() === "")){
+    } else if (
+      numericType === "decimal" &&
+      onChangeText &&
+      (value === undefined || value === null || value.trim() === "")
+    ) {
       // Se o campo decimal estiver vazio ao perder o foco, pode-se definir para "0.00"
       // onChangeText("0.00"); // DESCOMENTE SE QUISER ESTE COMPORTAMENTO
     }
@@ -201,16 +229,17 @@ export const Input: FC<InputProps> = ({
   };
 
   const finalKeyboardType: KeyboardType = numericType
-    ? (numericType === 'decimal' ? 'decimal-pad' : 'numeric')
-    : parentKeyboardType || 'default';
+    ? numericType === "decimal"
+      ? "decimal-pad"
+      : "numeric"
+    : parentKeyboardType || "default";
 
   let finalAutoCapitalize: "none" | "sentences" | "words" | "characters";
   if (numericType) {
-    finalAutoCapitalize = 'none';
+    finalAutoCapitalize = "none";
   } else {
-    finalAutoCapitalize = autoCapitalize ? 'none' : 'sentences';
+    finalAutoCapitalize = autoCapitalize ? "none" : "sentences";
   }
-
 
   if (!fontsLoaded) {
     return <ActivityIndicator />;
@@ -224,19 +253,27 @@ export const Input: FC<InputProps> = ({
           {required && " *"}
         </TextInter>
         {RightLinkIsActive && (
-          <TouchableOpacity
-            onPress={onRightLinkPress || (() => {})}
-          >
+          <TouchableOpacity onPress={onRightLinkPress || (() => {})}>
             <TextInter color={colors.accent[100]} weight="medium">
               {RightLinkText}
             </TextInter>
           </TouchableOpacity>
         )}
       </View>
-      <View style={[styles.inputContainer, hasError && styles.inputError, disabled && styles.disabledInputContainer]}>
+      <View
+        style={[
+          styles.inputContainer,
+          hasError && styles.inputError,
+          disabled && styles.disabledInputContainer,
+        ]}
+      >
         {onChangeTextMask && mask ? (
           <MaskedTextInput
-            style={[styles.input, { fontFamily: "Inter_500Medium" }, disabled && styles.disabledInputText]}
+            style={[
+              styles.input,
+              { fontFamily: "Inter_500Medium" },
+              disabled && styles.disabledInputText,
+            ]}
             placeholder={placeholder}
             placeholderTextColor={colors.dark[60]}
             onChangeText={onChangeTextMask}
@@ -244,7 +281,7 @@ export const Input: FC<InputProps> = ({
             keyboardType={finalKeyboardType}
             onSubmitEditing={onSubmitEditing}
             secureTextEntry={secureTextEntry && isPasswordVisible}
-            onBlur={internalOnBlur} 
+            onBlur={internalOnBlur}
             mask={mask}
             editable={!disabled}
             numberOfLines={numberOfLines}
@@ -267,7 +304,9 @@ export const Input: FC<InputProps> = ({
             onBlur={internalOnBlur}
             editable={!disabled}
             numberOfLines={numberOfLines}
-            textAlignVertical={numberOfLines && numberOfLines > 1 ? 'top' : 'center'}
+            textAlignVertical={
+              numberOfLines && numberOfLines > 1 ? "top" : "center"
+            }
             multiline={Boolean(numberOfLines && numberOfLines > 1)}
             autoCapitalize={finalAutoCapitalize}
           />
@@ -324,7 +363,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     fontSize: 15,
     color: colors.white[100],
-    paddingVertical: Platform.OS === 'ios' ? 18 : 10,
+    paddingVertical: Platform.OS === "ios" ? 18 : 10,
   },
   disabledInputText: {
     color: colors.dark[60],
