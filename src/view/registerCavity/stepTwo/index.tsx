@@ -181,7 +181,7 @@ export const StepTwo: FC<StepTwoProps> = ({ validationAttempted }) => {
         // errorMessage={stepTwoErrors.desenvolvimento_linear}
       />
       <TextInter color={colors.white[100]} weight="medium">
-        Dificuldades externas
+        Dificuldades internas
       </TextInter>
       {!!stepTwoErrors.dificuldades_externas_geral && (
         <TextInter color={colors.error[100]} fontSize={12} style={styles.errorText}>

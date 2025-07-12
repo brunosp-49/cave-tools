@@ -1,48 +1,84 @@
-import React, { useState } from "react";
+import React, { FC, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { Divider } from "../../../components/divider";
 import { Select } from "../../../components/select";
 import { Input } from "../../../components/input";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState, AppDispatch } from "../../../redux/store";
+import { setDashboardFilters } from "../../../redux/dashboardSlice";
+import { fetchAllProjects } from "../../../db/controller";
+import { ProjectModel } from "../../../types";
 
-export const StepOne = () => {
-  const [select, setSelect] = useState({ id: "", value: "" });
+interface SelectOption {
+    id: string;
+    value: string;
+}
 
-  return (
-    <View style={styles.container}>
-      <Divider />
-      <Select
-        placeholder="Selecione um projeto"
-        label="Selecione o projeto"
-        required
-        value={select.value}
-        onChangeText={(obj) => setSelect(obj)}
-        optionsList={[
-          { id: "1", value: "Projeto 1" },
-          { id: "2", value: "Projeto 2" },
-          { id: "3", value: "Projeto 3" },
-          { id: "4", value: "Projeto 4" },
-          { id: "5", value: "Projeto 5" },
-          { id: "6", value: "Projeto 6" },
-          { id: "7", value: "Projeto 7" },
-          { id: "8", value: "Projeto 8" },
-          { id: "9", value: "Projeto 9" },
-          { id: "10", value: "Projeto 10" },
-        ]}
-      />
-      <Input placeholder="Digite o nome da cavidade" label="Nome da cavidade" />
-      <Input
-        label="Código da cavidade"
-        placeholder="Digite o código da cavidade"
-      />
-      <Input label="Município" placeholder="Digite o nome do município" />
-    </View>
-  );
+export const StepOne: FC = () => {
+    const dispatch = useDispatch<AppDispatch>();
+    const filters = useSelector((state: RootState) => state.dashboard.filters);
+    const [projectOptions, setProjectOptions] = useState<SelectOption[]>([]);
+    const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+
+    useEffect(() => {
+        const loadProjects = async () => {
+            setIsLoadingProjects(true);
+            try {
+                const projects: ProjectModel[] = await fetchAllProjects();
+                const options = projects.map(p => ({ id: p.projeto_id, value: p.nome_projeto }));
+                setProjectOptions(options);
+            } catch (error) {
+                console.error("Erro ao carregar projetos para o dashboard:", error);
+            } finally {
+                setIsLoadingProjects(false);
+            }
+        };
+        loadProjects();
+    }, []);
+
+    const handleFilterChange = (field: keyof typeof filters, value: any) => {
+        dispatch(setDashboardFilters({ [field]: value }));
+    };
+    
+    // Encontra o valor do projeto selecionado para exibir no Select
+    const selectedProjectValue = projectOptions.find(p => p.id === filters.projetoId)?.value || '';
+
+    return (
+        <View style={styles.container}>
+            <Divider />
+            <Select
+                placeholder={isLoadingProjects ? "Carregando..." : "Todos os projetos"}
+                label="Selecione o projeto (opcional)"
+                value={selectedProjectValue}
+                onChangeText={(obj) => handleFilterChange('projetoId', obj ? obj.id : null)}
+                optionsList={projectOptions}
+                disabled={isLoadingProjects}
+            />
+            <Input 
+                placeholder="Digite o nome da cavidade" 
+                label="Nome da cavidade"
+                value={filters.nomeCavidade}
+                onChangeText={(text) => handleFilterChange('nomeCavidade', text)} 
+            />
+            <Input
+                label="Código da cavidade"
+                placeholder="Digite o código da cavidade"
+                value={filters.codigoCavidade}
+                onChangeText={(text) => handleFilterChange('codigoCavidade', text)} 
+            />
+            <Input 
+                label="Município" 
+                placeholder="Digite o nome do município"
+                value={filters.municipio}
+                onChangeText={(text) => handleFilterChange('municipio', text)} 
+            />
+        </View>
+    );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    height: "100%",
     width: "100%",
     paddingBottom: 30,
   },

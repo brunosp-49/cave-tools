@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Alert,
   BackHandler,
   Dimensions,
   Image,
@@ -48,6 +49,7 @@ import { LongButton } from "../../components/longButton";
 import Project from "../../db/model/project";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { Q } from "@nozbe/watermelondb";
+import { deletePendingCavity } from "../../db/controller";
 
 // Helper function
 const isFieldFilled = (value: any): boolean => {
@@ -751,6 +753,24 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
     return result.length > 0 ? result : ["Nenhuma informação de sedimento."];
   };
 
+  const deleteCavity = async () => {
+    Alert.alert(
+      "Tem certeza que deseja excluir esta cavidade?",
+      "As alterações não poderão ser desfeitas.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            await deletePendingCavity(route.params.cavityId);
+            navigation.goBack();
+          },
+        },
+      ]
+    );
+  };
+
   // --- Rendering Logic ---
   if (isLoading) {
     return (
@@ -1290,14 +1310,18 @@ export const DetailScreenCavity: FC<RouterProps> = ({ navigation, route }) => {
           </View>
           <Divider height={18} />
           {cavity && !cavity.uploaded && (
-            <LongButton
-              title="Editar"
-              onPress={() =>
-                navigation.navigate("EditCavity", {
-                  cavityId: route.params.cavityId,
-                })
-              }
-            />
+            <>
+              <LongButton
+                title="Editar"
+                onPress={() =>
+                  navigation.navigate("EditCavity", {
+                    cavityId: route.params.cavityId,
+                  })
+                }
+              />
+              <Divider height={16}/>
+              <LongButton title="Excluir" onPress={deleteCavity} mode="delete"/>
+            </>
           )}
           <Divider height={20} />
         </View>

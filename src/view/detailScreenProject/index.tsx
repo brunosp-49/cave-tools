@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Alert,
   BackHandler,
   FlatList,
   Platform,
@@ -25,6 +26,7 @@ import { Q } from "@nozbe/watermelondb";
 import { CavityCard } from "../cavity/components/cavityCard";
 import { useFocusEffect } from "@react-navigation/native";
 import { DetailScreenCavity } from "../detailScreenCavity";
+import { deletePendingProject } from "../../db/controller";
 
 export const DetailScreenProject: FC<RouterProps> = ({ navigation, route }) => {
   const [project, setProject] = useState<Project | null>(null);
@@ -94,6 +96,24 @@ export const DetailScreenProject: FC<RouterProps> = ({ navigation, route }) => {
     },
     [navigation, route.params.projectId]
   );
+
+  const deleteProject = async () => {
+    Alert.alert(
+      "Tem certeza que deseja excluir este projeto?",
+      "As alterações não poderão ser desfeitas.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            await deletePendingProject(route.params.projectId);
+            navigation.navigate("ProjectScreen");
+          },
+        },
+      ]
+    );
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -222,6 +242,8 @@ export const DetailScreenProject: FC<RouterProps> = ({ navigation, route }) => {
                 navigation.navigate("EditProject", { projectId: project.id })
               }
             />
+            <Divider height={16}/>
+            <LongButton title="Excluir" onPress={deleteProject} mode="delete"/>
             <Divider />
           </>
         )}

@@ -33,7 +33,11 @@ import {
   fetchAllCavities,
   fetchAllProjects,
   fetchAllTopographyDrawingsWithCavity,
+  fetchPendingTopographyCount,
+  getProjectsWithPendingCavitiesCount,
 } from "../../db/controller";
+import { useFocusEffect } from "@react-navigation/native";
+import { UploadTopographyModal } from "../../components/modal/uploadTopographyModal";
 
 export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -41,12 +45,18 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const successOpacity = useRef(new Animated.Value(0)).current;
   const { userName } = useAppSelector((state) => state.user);
+  const [pendingCavitiesCount, setPendingCavitiesCount] = useState(0);
+  const [pendingTopographyCount, setPendingTopographyCount] = useState(0);
+  const [isTopoUploadModalVisible, setIsTopoUploadModalVisible] =
+    useState(false);
 
   const checkingState = useSelector(
     (state: RootState) => state.loading.checkingLoading
   );
   const isConnected = useInternetConnection();
-
+  const canUploadTopography =
+    isConnected && pendingCavitiesCount === 0 && pendingTopographyCount > 0;
+  console.log({canUploadTopography, isConnected, pendingCavitiesCount, pendingTopographyCount});
   const handleUploadSuccess = useCallback(() => {
     console.log("Upload successful on HomeScreen!");
     // Show success message
@@ -71,11 +81,41 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
     return () => clearTimeout(timer); // Cleanup timer if component unmounts
   }, [successOpacity]);
 
+  useFocusEffect(
+    useCallback(() => {
+      const checkPendingData = async () => {
+        const cavCount = await getProjectsWithPendingCavitiesCount();
+        const topoCount = await fetchPendingTopographyCount();
+        setPendingCavitiesCount(cavCount);
+        setPendingTopographyCount(topoCount);
+      };
+      checkPendingData();
+    }, [])
+  );
+
   const getUsers = async () => {
     const cavities = await fetchAllCavities();
     const projects = await fetchAllProjects();
     const topograpries = await fetchAllTopographyDrawingsWithCavity();
     console.log({ cavities, projects, topograpries });
+  };
+
+  const handleTopographyUploadPress = () => {
+    if (!isConnected) {
+      Alert.alert(
+        "Sem Conexão",
+        "Você precisa de uma conexão com a internet para enviar os dados."
+      );
+      return;
+    }
+    if (pendingCavitiesCount > 0) {
+      Alert.alert(
+        "Aguardando Envio",
+        "É necessário enviar primeiro os dados das cavidades pendentes."
+      );
+      return;
+    }
+    setIsTopoUploadModalVisible(true);
   };
 
   return (
@@ -129,7 +169,7 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
               disabled: false,
             },
             {
-              title: "Enviar Dados Pendentes",
+              title: "Enviar Cavidades Pendentes",
               icon: (
                 <Ionicons
                   name="cloud-upload"
@@ -141,6 +181,24 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
               id: 6,
               onPress: () => setIsUploadModalVisible(true),
               disabled: !isConnected,
+            },
+            {
+              title: "Enviar Topografias Pendentes",
+              icon: (
+                <Ionicons
+                  name="map-sharp"
+                  size={42}
+                  color={
+                    !isConnected || !canUploadTopography
+                      ? colors.accent[30]
+                      : colors.accent[100]
+                  }
+                  style={{ marginRight: 4 }}
+                />
+              ),
+              id: 7,
+              onPress: handleTopographyUploadPress,
+              disabled: !isConnected || !canUploadTopography,
             },
           ]}
           keyExtractor={(item) => String(item.id)}
@@ -162,6 +220,11 @@ export const HomeScreen: FC<RouterProps> = ({ navigation }) => {
         <UploadDataModal
           visible={isUploadModalVisible}
           onClose={() => setIsUploadModalVisible(false)}
+          onUploadSuccess={handleUploadSuccess}
+        />
+        <UploadTopographyModal
+          visible={isTopoUploadModalVisible}
+          onClose={() => setIsTopoUploadModalVisible(false)}
           onUploadSuccess={handleUploadSuccess}
         />
       </View>

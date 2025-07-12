@@ -20,7 +20,7 @@ interface DrawingState {
 }
 
 const initialState: DrawingState = {
-  points: [{ id: "0", x: 0, y: 0, label: "Ponto 0" }],
+  points: [{ id: "0", x: 0, y: 0, label: "0" }],
   dataLines: [],
   paths: [],
   currentPath: [],
@@ -155,6 +155,25 @@ const drawingSlice = createSlice({
       return action.payload;
     },
     resetDrawingState: () => initialState,
+    updateTopoLine(state, action: PayloadAction<{ originalToId: string; newLine: TopoDataLine }>) {
+      const { originalToId, newLine } = action.payload;
+      
+      const lineIndex = state.dataLines.findIndex(l => l.sourceData.refPara === originalToId);
+      const pointIndex = state.points.findIndex(p => p.id === originalToId);
+
+      if (lineIndex > -1) {
+        state.dataLines[lineIndex] = newLine;
+      }
+      if (pointIndex > -1) {
+        const newPointData = newLine.points[1].substring(1).split(',').map(Number);
+        state.points[pointIndex] = {
+          id: newLine.sourceData.refPara,
+          x: newPointData[0],
+          y: newPointData[1],
+          label: newLine.sourceData.refPara,
+        };
+      }
+    },
   },
 });
 
@@ -172,6 +191,7 @@ export const {
   redo,
   erasePathsNearPoint,
   loadDrawingState,
+  updateTopoLine,
 } = drawingSlice.actions;
 
 export default drawingSlice.reducer;

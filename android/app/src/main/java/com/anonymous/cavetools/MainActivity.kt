@@ -1,4 +1,4 @@
-package com.anonymous.cavetools
+package com.cavetools
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

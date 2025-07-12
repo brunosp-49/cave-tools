@@ -5,7 +5,6 @@ import {
   Dimensions,
   TouchableOpacity,
   PanResponder,
-  GestureResponderEvent,
 } from "react-native";
 import Svg, { Path, G, Circle, Text as SvgText } from "react-native-svg";
 import {
@@ -27,19 +26,20 @@ import {
   redo,
   erasePathsNearPoint,
 } from "../../redux/drawingSlice";
-import { ActiveTool, PointData, ViewBox } from "../../types";
+import { ActiveTool } from "../../types";
 import { Ionicons, FontAwesome6 } from "@expo/vector-icons";
 import { colors } from "../../assets/colors";
+import TopoInfoModal from "./components/topoInfoModal";
 
 const { width: screenWidth } = Dimensions.get("window");
 const DRAWING_COLORS = ["black", "#E53935", "#1E88E5", "#43A047", "#FDD835"];
 
 const TOOLS: Record<
   ActiveTool,
-  { library: "Ionicons" | "FontAwesome6" | "MaterialCommunityIcons"; name: any }
+  { library: "Ionicons" | "FontAwesome6"; name: any }
 > = {
-  pan: { library: "FontAwesome6", name: "hand" },
-  draw: { library: "MaterialCommunityIcons", name: "pencil" },
+  pan: { library: "Ionicons", name: "hand-right-outline" },
+  draw: { library: "Ionicons", name: "pencil-outline" },
   erase: { library: "FontAwesome6", name: "eraser" },
 };
 
@@ -98,6 +98,7 @@ export const TopographyCanvas: FC<TopographyCanvasProps> = ({
 
   const [isColorPickerVisible, setColorPickerVisible] = useState(false);
   const [isToolPickerVisible, setToolPickerVisible] = useState(false);
+  const [isListModalOpen, setIsListModalOpen] = useState(false);
 
   const activeToolRef = useRef(activeTool);
   const viewBoxRef = useRef(viewBox);
@@ -187,7 +188,6 @@ export const TopographyCanvas: FC<TopographyCanvasProps> = ({
     const { scale } = event.nativeEvent;
     const newWidth = baseViewBox.current.width / scale;
     const newHeight = baseViewBox.current.height / scale;
-
     const focalSvgX =
       baseViewBox.current.x +
       (pinchFocalPoint.current.x / svgContainerLayout.current.width) *
@@ -196,10 +196,8 @@ export const TopographyCanvas: FC<TopographyCanvasProps> = ({
       baseViewBox.current.y +
       (pinchFocalPoint.current.y / svgContainerLayout.current.height) *
         baseViewBox.current.height;
-
     const newX = focalSvgX - (focalSvgX - baseViewBox.current.x) / scale;
     const newY = focalSvgY - (focalSvgY - baseViewBox.current.y) / scale;
-
     dispatch(
       setViewBox({ x: newX, y: newY, width: newWidth, height: newHeight })
     );
@@ -246,10 +244,10 @@ export const TopographyCanvas: FC<TopographyCanvasProps> = ({
       <PinchGestureHandler
         onGestureEvent={onPinchEvent}
         onHandlerStateChange={onPinchStateChange}
-        enabled={!isReadOnly && activeTool === "pan"}
+        enabled={!isListModalOpen && (isReadOnly || activeTool === "pan")}
       >
         <PanGestureHandler
-          enabled={!isReadOnly && activeTool === "pan"}
+          enabled={!isListModalOpen && (isReadOnly || activeTool === "pan")}
           onGestureEvent={onPanEvent}
           onHandlerStateChange={onPanStateChange}
           minPointers={1}
@@ -409,6 +407,11 @@ export const TopographyCanvas: FC<TopographyCanvasProps> = ({
           </View>
         </>
       )}
+      <TopoInfoModal
+        visible={isListModalOpen}
+        isReadOnly={isReadOnly}
+        onClose={() => setIsListModalOpen(false)}
+      />
     </View>
   );
 };
@@ -501,5 +504,29 @@ const styles = StyleSheet.create({
     width: 1,
     height: "60%",
     backgroundColor: "#E0E0E0",
+  },
+  listButtonView: {
+    position: "absolute",
+    bottom: 30,
+    left: 30,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.accent[100],
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 8,
+  },
+  listButton: {
+    position: "absolute",
+    bottom: 90,
+    left: 25,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.accent[100],
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 8,
   },
 });

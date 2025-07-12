@@ -4,7 +4,7 @@
     "slug": "cave-tools",
     "version": "1.0.0",
     "android": {
-      "package": "com.anonymous.cavetools",
+      "package": "com.cavetools",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.ACCESS_FINE_LOCATION",
@@ -15,7 +15,7 @@
       ]
     },
     "ios": {
-      "bundleIdentifier": "com.anonymous.cavetools",
+      "bundleIdentifier": "com.cavetools",
       "infoPlist": {
         "NSCameraUsageDescription": "We need your camera to provide the requested photos by you.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "We need your location to provide better services.",

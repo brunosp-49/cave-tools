@@ -16,7 +16,6 @@ import { ReturnButton } from "../../../components/button/returnButton";
 import CavityRegister from "../../../db/model/cavityRegister";
 import TopographyDrawing from "../../../db/model/topography";
 import { StepProps } from "../../../types";
-// Note que NextButton não é usado aqui, então pode ser removido se não for usado em outro lugar no arquivo.
 
 const StepTwo: FC<StepProps> = ({ navigation, onNext, onBack }) => {
   const dispatch = useDispatch();
@@ -36,12 +35,12 @@ const StepTwo: FC<StepProps> = ({ navigation, onNext, onBack }) => {
       );
       const allDrawings = await drawingsCollection.query().fetch();
       const usedCavityIds = allDrawings.map((d) => d.cavity_id);
-
       const cavityCollection = database.get<CavityRegister>("cavity_register");
+      console.log({ allDrawings, usedCavityIds, cavityCollection });
       const filters = [];
 
       if (usedCavityIds.length > 0) {
-        filters.push(Q.where("id", Q.notIn(usedCavityIds)));
+        filters.push(Q.where("cavidade_id", Q.notIn(usedCavityIds)));
       }
 
       if (filter.project?.id) {
@@ -62,6 +61,7 @@ const StepTwo: FC<StepProps> = ({ navigation, onNext, onBack }) => {
       const availableCavities = await cavityCollection
         .query(...filters)
         .fetch();
+      console.log({ availableCavities });
       setLatestCavities(availableCavities);
     } catch (error) {
       console.error("Error fetching available cavities:", error);
@@ -139,11 +139,11 @@ const StepTwo: FC<StepProps> = ({ navigation, onNext, onBack }) => {
         visibleIcon={false}
         onConfirm={handleModalConfirm}
         onClose={() => setIsOpenModal(false)}
-        onCancel={() => setIsOpenModal(false)} // Adicionando onCancel para o botão secundário
+        onCancel={() => setIsOpenModal(false)}
         titleButtonConfirm="Sim, iniciar"
         titleButtonCancel="Cancelar"
-        enableLongButton={true} // <-- PROP ADICIONADA PARA MOSTRAR O BOTÃO DE CONFIRMAR
-        enableBackButton={true} // <-- PROP ADICIONADA PARA MOSTRAR O BOTÃO DE CANCELAR
+        enableLongButton={true}
+        enableBackButton={true}
       />
     </View>
   );

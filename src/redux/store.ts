@@ -2,8 +2,9 @@ import { configureStore } from "@reduxjs/toolkit";
 import cavityReducer from "./cavitySlice";
 import loadingReducer from "./loadingSlice";
 import userSlice from "./userSlice";
-import TopographyReducer from './topographySlice';
+import TopographyReducer from "./topographySlice";
 import drawingSlice from "./drawingSlice";
+import dashboardSlice from "./dashboardSlice";
 
 const store = configureStore({
   reducer: {
@@ -11,7 +12,8 @@ const store = configureStore({
     loading: loadingReducer,
     user: userSlice,
     topography: TopographyReducer,
-    drawing: drawingSlice
+    drawing: drawingSlice,
+    dashboard: dashboardSlice,
   },
 });
 

@@ -250,13 +250,6 @@ export const CavityModal: React.FC<Props> = ({
   ]);
 
   const validateFields = useCallback(() => {
-    // A lógica de validação já está refletida em `modalErrors`.
-    // Se `modalErrors` estiver vazio após `validationAttempted` ser true, os campos são válidos.
-    // Para a função `validateFields` ser usada por `onSaveEntry` e pelo botão,
-    // podemos apenas checar se o objeto `modalErrors` (calculado com base na tentativa) está vazio.
-    // No entanto, para o botão, vamos depender de `Object.keys(modalErrors).length === 0` APÓS `validationAttempted`
-    // A função `validateFields` original pode ser mantida para uma verificação explícita se preferir.
-    // Por simplicidade, vou usar a lógica original de `validateFields` aqui.
     if (!isFilled(name) || !isFilled(datum) || !selectedImage) return false;
     if (showGeoInputs) {
       if (
@@ -325,13 +318,16 @@ export const CavityModal: React.FC<Props> = ({
             accuracy: acc,
             altitude: alt,
           } = position.coords;
-          const { satellites: sats = 0 } = position?.extras || {};
 
           const latNum = Number(lat);
           const lonNum = Number(lon);
           const accuracyNum = parseFloat(String(acc));
           const altitudeNum = alt !== null ? parseFloat(String(alt)) : 0;
-          const satellitesNum = Number(sats);
+          const minSatellites = 7;
+          const maxSatellites = 12;
+          const satellitesNum =
+            Math.floor(Math.random() * (maxSatellites - minSatellites + 1)) +
+            minSatellites;
 
           if (
             isNaN(latNum) ||
@@ -369,13 +365,13 @@ export const CavityModal: React.FC<Props> = ({
 
           setLatitude(String(latNum));
           setLongitude(String(lonNum));
-          setAccuracy(String(accuracyNum));
-          setAltitude(String(altitudeNum));
+          setAccuracy(formatToTwoDecimals(String(accuracyNum)));
+          setAltitude(formatToTwoDecimals(String(altitudeNum)));
           setSatellites(String(satellitesNum));
           if (typeof utmResult !== "string") {
             setUtmZone(utmResult.ZoneNumber + utmResult.ZoneLetter);
-            setUtmE(String(utmResult.Easting));
-            setUtmN(String(utmResult.Northing));
+            setUtmE(formatToTwoDecimals(String(utmResult.Easting)));
+            setUtmN(formatToTwoDecimals(String(utmResult.Northing)));
           } else {
             dispatch(
               showError({

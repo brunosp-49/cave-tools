@@ -16,7 +16,10 @@ import {
 import { Dificuldades_externas, RouterProps } from "../../../types"; // Adicionado RouterProps
 
 // Chaves para dificuldades específicas (excluindo 'nenhuma' e os campos de 'outro')
-const specificDifficultyKeys: (keyof Omit<Dificuldades_externas, "nenhuma" | "outroEnabled" | "outro">)[] = [
+const specificDifficultyKeys: (keyof Omit<
+  Dificuldades_externas,
+  "nenhuma" | "outroEnabled" | "outro"
+>)[] = [
   "rastejamento",
   "quebra_corpo",
   "teto_baixo",
@@ -30,22 +33,25 @@ const specificDifficultyKeys: (keyof Omit<Dificuldades_externas, "nenhuma" | "ou
 ];
 
 // Interface para as props do StepTwo
-interface StepTwoProps extends RouterProps { // RouterProps pode não ser usado aqui, mas incluído para consistência
+interface StepTwoProps extends RouterProps {
+  // RouterProps pode não ser usado aqui, mas incluído para consistência
   validationAttempted: boolean;
 }
 
 // Função auxiliar para verificar se um campo está preenchido
 const isFieldFilled = (value: any): boolean => {
-    if (value === null || typeof value === "undefined") return false;
-    if (typeof value === "string" && value.trim() === "") return false;
-    // Adicione outras verificações se necessário (ex: array vazio)
-    return true;
+  if (value === null || typeof value === "undefined") return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  // Adicione outras verificações se necessário (ex: array vazio)
+  return true;
 };
 
 export const StepTwo: FC<StepTwoProps> = ({ validationAttempted }) => {
   const dispatch = useDispatch<AppDispatch>();
   const cavidade = useSelector((state: RootState) => state.cavity.cavidade);
-  const dificuldadesExternas = cavidade.dificuldades_externas ?? { nenhuma: true }; // Garante um valor padrão
+  const dificuldadesExternas = cavidade.dificuldades_externas ?? {
+    nenhuma: true,
+  }; // Garante um valor padrão
 
   // Lógica de Erros Específicos para StepTwo
   const stepTwoErrors = useMemo(() => {
@@ -64,33 +70,43 @@ export const StepTwo: FC<StepTwoProps> = ({ validationAttempted }) => {
 
     // Validação para Dificuldades Externas
     const de = dificuldadesExternas;
-    const algumaEspecificaMarcada = specificDifficultyKeys.some(key => de[key]);
-    
+    const algumaEspecificaMarcada = specificDifficultyKeys.some(
+      (key) => de[key]
+    );
+
     if (de.outroEnabled && !isFieldFilled(de.outro)) {
       errors.dificuldades_externas_outro = errorMsgRequired;
     }
-    
+
     // Se nenhuma dificuldade (nem específica, nem "Outro" preenchido, nem "Nenhum") estiver marcada
-    if (!algumaEspecificaMarcada && !(de.outroEnabled && isFieldFilled(de.outro)) && !de.nenhuma) {
-        errors.dificuldades_externas_geral = "Selecione pelo menos uma dificuldade ou 'Nenhum'.";
+    if (
+      !algumaEspecificaMarcada &&
+      !(de.outroEnabled && isFieldFilled(de.outro)) &&
+      !de.nenhuma
+    ) {
+      errors.dificuldades_externas_geral =
+        "Selecione pelo menos uma dificuldade ou 'Nenhum'.";
     }
 
     return errors;
-  }, [validationAttempted, cavidade.desenvolvimento_linear, dificuldadesExternas]);
-
+  }, [
+    validationAttempted,
+    cavidade.desenvolvimento_linear,
+    dificuldadesExternas,
+  ]);
 
   const handleLinearDevChange = (text: string) => {
     // Permite limpar o campo. parseFloat de "" é NaN.
     if (text.trim() === "") {
-        dispatch(
-            updateCavidadeData({
-                path: ["desenvolvimento_linear"],
-                value: undefined,
-            })
-        );
-        return;
+      dispatch(
+        updateCavidadeData({
+          path: ["desenvolvimento_linear"],
+          value: undefined,
+        })
+      );
+      return;
     }
-    const num = parseFloat(text.replace(',', '.')); // Substitui vírgula por ponto para parseFloat
+    const num = parseFloat(text.replace(",", ".")); // Substitui vírgula por ponto para parseFloat
     dispatch(
       updateCavidadeData({
         path: ["desenvolvimento_linear"],
@@ -144,7 +160,7 @@ export const StepTwo: FC<StepTwoProps> = ({ validationAttempted }) => {
         }
       });
       if (dificuldadesExternas.outroEnabled) {
-        dispatch(toggleDificuldadesExternasOutroEnabled()); 
+        dispatch(toggleDificuldadesExternasOutroEnabled());
       }
     }
   }, [dispatch, dificuldadesExternas]);
@@ -175,17 +191,25 @@ export const StepTwo: FC<StepTwoProps> = ({ validationAttempted }) => {
         placeholder="Especifique aqui (metros)"
         label="Desenvolvimento linear" // Removido (metros) para consistência se o placeholder já indica
         keyboardType="numeric"
-        value={cavidade.desenvolvimento_linear !== undefined ? String(cavidade.desenvolvimento_linear).replace('.', ',') : ""}
+        value={
+          cavidade.desenvolvimento_linear !== undefined
+            ? String(cavidade.desenvolvimento_linear).replace(".", ",")
+            : ""
+        }
         onChangeText={handleLinearDevChange}
         // hasError={!!stepTwoErrors.desenvolvimento_linear} // Descomente se for obrigatório
         // errorMessage={stepTwoErrors.desenvolvimento_linear}
       />
       <TextInter color={colors.white[100]} weight="medium">
-        Dificuldades externas
+        Dificuldades internas
       </TextInter>
       {!!stepTwoErrors.dificuldades_externas_geral && (
-        <TextInter color={colors.error[100]} fontSize={12} style={styles.errorText}>
-            {stepTwoErrors.dificuldades_externas_geral}
+        <TextInter
+          color={colors.error[100]}
+          fontSize={12}
+          style={styles.errorText}
+        >
+          {stepTwoErrors.dificuldades_externas_geral}
         </TextInter>
       )}
       <Divider height={12} />
@@ -246,9 +270,7 @@ export const StepTwo: FC<StepTwoProps> = ({ validationAttempted }) => {
       <Checkbox
         label="Passagem em curso d'água"
         checked={dificuldadesExternas?.passagem_curso_agua || false}
-        onChange={() =>
-          handleSpecificDifficultyChange("passagem_curso_agua")
-        }
+        onChange={() => handleSpecificDifficultyChange("passagem_curso_agua")}
       />
       <Divider height={12} />
       <Checkbox
@@ -258,15 +280,15 @@ export const StepTwo: FC<StepTwoProps> = ({ validationAttempted }) => {
       />
       <Divider height={12} />
       {dificuldadesExternas?.outroEnabled && (
-          <Input
-            placeholder="Especifique qual"
-            label="Qual outra dificuldade?"
-            value={dificuldadesExternas?.outro || ""}
-            onChangeText={handleOutroTextUpdate}
-            hasError={!!stepTwoErrors.dificuldades_externas_outro}
-            errorMessage={stepTwoErrors.dificuldades_externas_outro}
-            required // Indica visualmente que é obrigatório se "Outro" estiver marcado
-          />
+        <Input
+          placeholder="Especifique qual"
+          label="Qual outra dificuldade?"
+          value={dificuldadesExternas?.outro || ""}
+          onChangeText={handleOutroTextUpdate}
+          hasError={!!stepTwoErrors.dificuldades_externas_outro}
+          errorMessage={stepTwoErrors.dificuldades_externas_outro}
+          required // Indica visualmente que é obrigatório se "Outro" estiver marcado
+        />
       )}
       <Checkbox
         label="Nenhum"
@@ -279,7 +301,6 @@ export const StepTwo: FC<StepTwoProps> = ({ validationAttempted }) => {
   );
 };
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -291,5 +312,5 @@ const styles = StyleSheet.create({
   errorText: {
     marginTop: 4,
     marginBottom: 8,
-  }
+  },
 });

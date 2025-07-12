@@ -5,7 +5,6 @@ import {
   View,
   BackHandler,
   Alert,
-  TextInput,
   ActivityIndicator,
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
@@ -57,7 +56,6 @@ const TopographyCreateScreen: FC<RouterProps> = ({ navigation }) => {
     })
   );
 
-  // Efeito para carregar um rascunho, se um draftId for passado
   useEffect(() => {
     const loadDraft = async () => {
       if (draftId) {
@@ -86,7 +84,6 @@ const TopographyCreateScreen: FC<RouterProps> = ({ navigation }) => {
     loadDraft();
   }, [draftId, dispatch, navigation]);
 
-  // Efeito para sincronizar os pontos (para outras partes do app que possam usar)
   useEffect(() => {
     if (!drawingState) return;
     const topographyPointsToSave: TopographyPoint[] =
